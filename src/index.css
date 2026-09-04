@@ -1,0 +1,1285 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Cormorant Garamond', Georgia, serif;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-display: 'Cinzel', 'Playfair Display', serif;
+  }
+
+  * {
+    border-color: rgba(255, 255, 255, 0.08);
+    outline-color: rgba(255, 255, 255, 0.3);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #09090b;
+    color: #f5f5f3;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    transition: background-color 0.5s ease, color 0.5s ease;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-serif-title {
+    font-family: var(--font-serif);
+  }
+
+  .font-brand {
+    font-family: var(--font-display);
+  }
+}
+
+/* ========================================================== */
+/* ALABASTER HAUTE COUTURE THEME (WARM IVORY / LINEN LUXURY)  */
+/* ========================================================== */
+html.theme-alabaster {
+  background-color: #f6f5f0 !important;
+  color: #141416 !important;
+}
+
+html.theme-alabaster body {
+  background-color: #f6f5f0 !important;
+  color: #141416 !important;
+}
+
+html.theme-alabaster * {
+  border-color: rgba(0, 0, 0, 0.09);
+}
+
+/* Main Section Canvas Backgrounds in Alabaster */
+html.theme-alabaster main,
+html.theme-alabaster section#catalog-section,
+html.theme-alabaster .bg-\[\#09090b\] {
+  background-color: #f6f5f0 !important;
+  color: #141416;
+}
+
+html.theme-alabaster #editorial-section,
+html.theme-alabaster .bg-\[\#0a0a0c\] {
+  background-color: #eeebe3 !important;
+  color: #141416;
+}
+
+html.theme-alabaster .bg-\[\#121215\],
+html.theme-alabaster .bg-\[\#141418\],
+html.theme-alabaster .bg-\[\#16161b\] {
+  background-color: #ffffff !important;
+  color: #141416;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+}
+
+/* Section Headings and General Text in Alabaster */
+html.theme-alabaster #category-section .category-section-title,
+html.theme-alabaster #catalog-section h2,
+html.theme-alabaster #catalog-section h3,
+html.theme-alabaster #catalog-section h4,
+html.theme-alabaster #editorial-section h2,
+html.theme-alabaster #editorial-section h3,
+html.theme-alabaster #editorial-section h4,
+html.theme-alabaster .craft-card-title {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #category-section .category-section-subtitle {
+  color: #716e67 !important;
+}
+
+html.theme-alabaster #category-section .category-view-all {
+  color: #121214 !important;
+}
+
+/* ========================================================== */
+/* CATEGORY PHOTO TILES IN ALABASTER (LUMINOUS HIGH CONTRAST) */
+/* ========================================================== */
+html.theme-alabaster .category-tile-card {
+  border-color: rgba(20, 20, 24, 0.12) !important;
+  box-shadow: 0 12px 30px -10px rgba(35, 30, 25, 0.08), 0 2px 6px rgba(35, 30, 25, 0.03) !important;
+}
+
+html.theme-alabaster .category-tile-card:hover {
+  border-color: rgba(20, 20, 24, 0.28) !important;
+  box-shadow: 0 20px 45px -12px rgba(35, 30, 25, 0.14) !important;
+}
+
+/* All written text on top of category photography MUST ALWAYS BE CRISP, BRILLIANT WHITE */
+html.theme-alabaster .category-tile-card h3,
+html.theme-alabaster .category-tile-card .category-tile-name,
+html.theme-alabaster .category-tile-name {
+  color: #ffffff !important;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+}
+
+html.theme-alabaster .category-tile-card span.category-tile-sub,
+html.theme-alabaster .category-tile-sub {
+  color: rgba(255, 255, 255, 0.92) !important;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.95) !important;
+}
+
+html.theme-alabaster .category-tile-badge {
+  background-color: rgba(10, 10, 14, 0.65) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+html.theme-alabaster .category-tile-arrow {
+  background-color: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+html.theme-alabaster .category-tile-card:hover .category-tile-arrow {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+}
+
+/* Alabaster Haute Couture Craft Cards Styling */
+html.theme-alabaster .craft-card {
+  background-color: #ffffff !important;
+  border-color: rgba(20, 20, 24, 0.09) !important;
+  box-shadow: 0 14px 34px -10px rgba(35, 30, 25, 0.08), 0 2px 8px rgba(35, 30, 25, 0.04) !important;
+}
+
+html.theme-alabaster .craft-card:hover {
+  border-color: rgba(20, 20, 24, 0.22) !important;
+  box-shadow: 0 22px 48px -12px rgba(35, 30, 25, 0.13), 0 6px 16px rgba(35, 30, 25, 0.05) !important;
+}
+
+html.theme-alabaster .craft-card .craft-icon-wrapper {
+  background-color: #f6f5f0 !important;
+  border-color: rgba(20, 20, 24, 0.08) !important;
+  color: #121214 !important;
+}
+
+html.theme-alabaster .craft-card h4,
+html.theme-alabaster .craft-card .craft-card-title {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .craft-card p {
+  color: #4b4843 !important;
+}
+
+html.theme-alabaster .craft-card-divider {
+  border-color: rgba(20, 20, 24, 0.08) !important;
+}
+
+html.theme-alabaster .craft-card span {
+  color: #716e67 !important;
+}
+
+html.theme-alabaster .craft-card span.text-stone-300 {
+  color: #27272a !important;
+}
+
+html.theme-alabaster #catalog-section .text-stone-100,
+html.theme-alabaster #editorial-section .text-stone-100 {
+  color: #18181b !important;
+}
+
+html.theme-alabaster #catalog-section .text-stone-200,
+html.theme-alabaster #editorial-section .text-stone-200 {
+  color: #27272a !important;
+}
+
+html.theme-alabaster #catalog-section .text-stone-300,
+html.theme-alabaster #editorial-section .text-stone-300 {
+  color: #4b4843 !important;
+}
+
+html.theme-alabaster #catalog-section .text-stone-400,
+html.theme-alabaster #editorial-section .text-stone-400 {
+  color: #716e67 !important;
+}
+
+/* CRITICAL: Keep Hero Photography Text ALWAYS Bright & Legible ONLY on #hero-section */
+html.theme-alabaster #hero-section h1,
+html.theme-alabaster #hero-section p,
+html.theme-alabaster #hero-section span:not(.hero-btn *):not(.hero-btn),
+html.theme-alabaster #hero-section .text-stone-200:not(.hero-btn *):not(.hero-btn),
+html.theme-alabaster #hero-section .text-stone-300:not(.hero-btn *):not(.hero-btn),
+html.theme-alabaster #hero-section .text-stone-400:not(.hero-btn *):not(.hero-btn) {
+  color: #ffffff !important;
+}
+
+/* ========================================================== */
+/* HERO CTA BUTTONS (NOIR & ALABASTER THEMES)                 */
+/* ========================================================== */
+.hero-btn-active,
+html.theme-alabaster .hero-btn-active,
+html.theme-alabaster #hero-section .hero-btn-active {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3) !important;
+}
+
+.hero-btn-active span,
+.hero-btn-active .hero-btn-text,
+html.theme-alabaster .hero-btn-active span,
+html.theme-alabaster .hero-btn-active .hero-btn-text,
+html.theme-alabaster #hero-section .hero-btn-active span,
+html.theme-alabaster #hero-section .hero-btn-active .hero-btn-text {
+  color: #121214 !important;
+  font-weight: 600 !important;
+}
+
+.hero-btn-active svg,
+.hero-btn-active .hero-btn-icon,
+html.theme-alabaster .hero-btn-active svg,
+html.theme-alabaster .hero-btn-active .hero-btn-icon,
+html.theme-alabaster #hero-section .hero-btn-active svg,
+html.theme-alabaster #hero-section .hero-btn-active .hero-btn-icon {
+  color: #121214 !important;
+  stroke: #121214 !important;
+}
+
+.hero-btn-active:hover,
+html.theme-alabaster .hero-btn-active:hover,
+html.theme-alabaster #hero-section .hero-btn-active:hover {
+  background-color: #f4f4f5 !important;
+}
+
+.hero-btn-inactive,
+html.theme-alabaster .hero-btn-inactive,
+html.theme-alabaster #hero-section .hero-btn-inactive {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.hero-btn-inactive span,
+.hero-btn-inactive .hero-btn-text,
+html.theme-alabaster .hero-btn-inactive span,
+html.theme-alabaster .hero-btn-inactive .hero-btn-text,
+html.theme-alabaster #hero-section .hero-btn-inactive span,
+html.theme-alabaster #hero-section .hero-btn-inactive .hero-btn-text {
+  color: #ffffff !important;
+}
+
+.hero-btn-inactive svg,
+.hero-btn-inactive .hero-btn-icon,
+html.theme-alabaster .hero-btn-inactive svg,
+html.theme-alabaster .hero-btn-inactive .hero-btn-icon,
+html.theme-alabaster #hero-section .hero-btn-inactive svg,
+html.theme-alabaster #hero-section .hero-btn-inactive .hero-btn-icon {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.hero-btn-inactive:hover,
+html.theme-alabaster .hero-btn-inactive:hover,
+html.theme-alabaster #hero-section .hero-btn-inactive:hover {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #121214 !important;
+}
+
+.hero-btn-inactive:hover span,
+.hero-btn-inactive:hover .hero-btn-text,
+html.theme-alabaster .hero-btn-inactive:hover span,
+html.theme-alabaster .hero-btn-inactive:hover .hero-btn-text,
+html.theme-alabaster #hero-section .hero-btn-inactive:hover span,
+html.theme-alabaster #hero-section .hero-btn-inactive:hover .hero-btn-text {
+  color: #121214 !important;
+}
+
+.hero-btn-inactive:hover svg,
+.hero-btn-inactive:hover .hero-btn-icon,
+html.theme-alabaster .hero-btn-inactive:hover svg,
+html.theme-alabaster .hero-btn-inactive:hover .hero-btn-icon,
+html.theme-alabaster #hero-section .hero-btn-inactive svg,
+html.theme-alabaster #hero-section .hero-btn-inactive .hero-btn-icon {
+  color: #121214 !important;
+  stroke: #121214 !important;
+}
+
+/* In Alabaster mode, text-stone-400 adopts luxury warm bronze gray */
+html.theme-alabaster .text-stone-400,
+html.theme-alabaster button.text-stone-400 {
+  color: #57534e !important;
+}
+
+/* ========================================================== */
+/* PRODUCT CARD BADGES & HOVER BUTTONS (ALABASTER)            */
+/* ========================================================== */
+html.theme-alabaster .product-badge-new {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+html.theme-alabaster .product-badge-edition {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  color: #121214 !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+html.theme-alabaster .product-quick-add {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3) !important;
+}
+
+html.theme-alabaster .product-quick-add span {
+  color: #ffffff !important;
+}
+
+html.theme-alabaster .product-quick-add:hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+html.theme-alabaster .product-quick-eye {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  color: #121214 !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+html.theme-alabaster .product-quick-eye:hover {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* ========================================================== */
+/* PRODUCT GRID CATEGORY & GENDER PILLS (ALABASTER)           */
+/* ========================================================== */
+html.theme-alabaster .cat-pill-active {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+  border-color: #121214 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.theme-alabaster .cat-pill-inactive {
+  background-color: #ffffff !important;
+  color: #4b4843 !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster .cat-pill-inactive:hover {
+  background-color: #f6f5f0 !important;
+  color: #121214 !important;
+  border-color: rgba(0, 0, 0, 0.25) !important;
+}
+
+html.theme-alabaster .gender-pills-container {
+  background-color: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster .gender-btn-active {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+}
+
+html.theme-alabaster .gender-btn-inactive {
+  color: #716e67 !important;
+}
+
+html.theme-alabaster .gender-btn-inactive:hover {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .catalog-sort-btn {
+  background-color: #ffffff !important;
+  color: #27272a !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster .catalog-sort-btn:hover {
+  border-color: rgba(0, 0, 0, 0.25) !important;
+  color: #000000 !important;
+}
+
+/* ========================================================== */
+/* PRODUCT DETAIL MODAL (PDP) IN ALABASTER (HIGH CONTRAST)    */
+/* ========================================================== */
+html.theme-alabaster #pdp-modal-card {
+  background-color: #faf9f5 !important;
+  color: #141416 !important;
+  border-color: rgba(20, 20, 24, 0.12) !important;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.25) !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-title {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-price {
+  color: #121214 !important;
+  font-weight: 600 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-compare-price {
+  color: #716e67 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-taxes {
+  color: #059669 !important;
+  font-weight: 500 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-description {
+  color: #4b4843 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-color-label span {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-color-name {
+  color: #121214 !important;
+  font-weight: 600 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-rating-num {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-reviews-count {
+  color: #716e67 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-size-header span {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-size-guide-btn {
+  color: #57534e !important;
+}
+
+html.theme-alabaster #pdp-modal-card .pdp-size-guide-btn:hover {
+  color: #121214 !important;
+}
+
+/* Size buttons */
+html.theme-alabaster .pdp-size-active {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+  border-color: #121214 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+html.theme-alabaster .pdp-size-inactive {
+  background-color: #ffffff !important;
+  color: #27272a !important;
+  border-color: rgba(20, 20, 24, 0.15) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster .pdp-size-inactive:hover {
+  border-color: rgba(20, 20, 24, 0.4) !important;
+  color: #000000 !important;
+}
+
+/* Quantity Stepper */
+html.theme-alabaster .pdp-quantity-stepper {
+  background-color: #ffffff !important;
+  border-color: rgba(20, 20, 24, 0.15) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster .pdp-quantity-stepper button {
+  color: #52525b !important;
+}
+
+html.theme-alabaster .pdp-quantity-stepper button:hover {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .pdp-quantity-num {
+  color: #121214 !important;
+}
+
+/* ADD TO BAG: Commanding obsidian black button with crisp white typography */
+html.theme-alabaster .pdp-add-to-bag {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+  border: 1px solid #121214 !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25) !important;
+}
+
+html.theme-alabaster .pdp-add-to-bag .pdp-bag-text,
+html.theme-alabaster .pdp-add-to-bag span {
+  color: #ffffff !important;
+}
+
+html.theme-alabaster .pdp-add-to-bag .pdp-bag-icon,
+html.theme-alabaster .pdp-add-to-bag svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+html.theme-alabaster .pdp-add-to-bag:hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* BUY NOW Button */
+html.theme-alabaster .pdp-buy-now {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+  border: 1.5px solid #121214 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster .pdp-buy-now span {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .pdp-buy-now:hover {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+}
+
+html.theme-alabaster .pdp-buy-now:hover span {
+  color: #ffffff !important;
+}
+
+/* Wishlist Button */
+html.theme-alabaster .pdp-wishlist-btn {
+  background-color: #ffffff !important;
+  border-color: rgba(20, 20, 24, 0.15) !important;
+  color: #52525b !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster .pdp-wishlist-btn:hover {
+  border-color: rgba(20, 20, 24, 0.35) !important;
+  color: #121214 !important;
+}
+
+/* Close button */
+html.theme-alabaster .pdp-close-btn {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+  border-color: rgba(20, 20, 24, 0.15) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+html.theme-alabaster .pdp-close-btn:hover {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+}
+
+/* Value props bar */
+html.theme-alabaster .pdp-value-props {
+  border-color: rgba(20, 20, 24, 0.1) !important;
+  color: #57534e !important;
+}
+
+html.theme-alabaster .pdp-value-props div {
+  border-color: rgba(20, 20, 24, 0.1) !important;
+}
+
+html.theme-alabaster .pdp-value-props svg {
+  color: #121214 !important;
+}
+
+/* Accordions */
+html.theme-alabaster .pdp-accordions {
+  border-color: rgba(20, 20, 24, 0.1) !important;
+}
+
+html.theme-alabaster .pdp-accordions>div {
+  border-color: rgba(20, 20, 24, 0.1) !important;
+}
+
+html.theme-alabaster .pdp-accordion-trigger {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .pdp-accordion-trigger:hover {
+  color: #000000 !important;
+}
+
+html.theme-alabaster .pdp-accordion-content {
+  color: #4b4843 !important;
+}
+
+html.theme-alabaster .pdp-accordion-content li {
+  color: #27272a !important;
+}
+
+/* Review cards */
+html.theme-alabaster .pdp-review-card {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(20, 20, 24, 0.08) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+
+html.theme-alabaster .pdp-reviewer-name {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .pdp-review-text {
+  color: #4b4843 !important;
+}
+
+/* Complete the silhouette related pieces */
+html.theme-alabaster .pdp-related-section {
+  border-color: rgba(20, 20, 24, 0.1) !important;
+}
+
+html.theme-alabaster .pdp-related-heading {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .pdp-related-title {
+  color: #18181b !important;
+}
+
+html.theme-alabaster .pdp-related-price {
+  color: #121214 !important;
+}
+
+/* ========================================================== */
+/* COMPREHENSIVE MODALS & DRAWERS (CART, WISHLIST, CHECKOUT)  */
+/* ========================================================== */
+html.theme-alabaster .bg-\[\#0e0e11\],
+html.theme-alabaster .bg-\[\#0a0a0c\],
+html.theme-alabaster .bg-\[\#0a0a0d\] {
+  background-color: #faf9f5 !important;
+  color: #141416 !important;
+}
+
+/* General text inside all dialogs in Alabaster */
+html.theme-alabaster [role="dialog"] h1,
+html.theme-alabaster [role="dialog"] h2,
+html.theme-alabaster [role="dialog"] h3,
+html.theme-alabaster [role="dialog"] h4 {
+  color: #121214 !important;
+}
+
+html.theme-alabaster [role="dialog"] .text-white {
+  color: #121214 !important;
+}
+
+html.theme-alabaster [role="dialog"] .text-stone-100,
+html.theme-alabaster [role="dialog"] .text-stone-200 {
+  color: #1f1f23 !important;
+}
+
+html.theme-alabaster [role="dialog"] .text-stone-300 {
+  color: #4b4843 !important;
+}
+
+html.theme-alabaster [role="dialog"] .text-stone-400 {
+  color: #716e67 !important;
+}
+
+/* Modals & Drawers Input & Select Fields */
+html.theme-alabaster [role="dialog"] input,
+html.theme-alabaster [role="dialog"] select {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+  border-color: rgba(20, 20, 24, 0.18) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster [role="dialog"] input:focus,
+html.theme-alabaster [role="dialog"] select:focus {
+  border-color: #121214 !important;
+}
+
+html.theme-alabaster [role="dialog"] input::placeholder {
+  color: #a1a1aa !important;
+}
+
+/* Modals & Drawers Primary Action Buttons (PROCEED TO CHECKOUT, MOVE TO BAG, CONFIRM ORDER) */
+html.theme-alabaster [role="dialog"] button.bg-white,
+html.theme-alabaster [role="dialog"] form button[type="submit"] {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+  border: 1px solid #121214 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
+}
+
+html.theme-alabaster [role="dialog"] button.bg-white span,
+html.theme-alabaster [role="dialog"] button.bg-white svg,
+html.theme-alabaster [role="dialog"] form button[type="submit"] span,
+html.theme-alabaster [role="dialog"] form button[type="submit"] svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+html.theme-alabaster [role="dialog"] button.bg-white:hover,
+html.theme-alabaster [role="dialog"] form button[type="submit"]:hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* Modal Inner Borders & Dividers */
+html.theme-alabaster [role="dialog"] .border-white\/10,
+html.theme-alabaster [role="dialog"] .border-white\/5,
+html.theme-alabaster [role="dialog"] .border-white\/20,
+html.theme-alabaster [role="dialog"] .divide-white\/5> :not([hidden])~ :not([hidden]),
+html.theme-alabaster [role="dialog"] .divide-white\/10> :not([hidden])~ :not([hidden]) {
+  border-color: rgba(20, 20, 24, 0.08) !important;
+}
+
+/* Modal Internal Highlight / Frosted Boxes */
+html.theme-alabaster [role="dialog"] .bg-white\/\[0\.02\],
+html.theme-alabaster [role="dialog"] .bg-white\/\[0\.03\],
+html.theme-alabaster [role="dialog"] .bg-white\/\[0\.04\],
+html.theme-alabaster [role="dialog"] .bg-white\/\[0\.05\] {
+  background-color: #ffffff !important;
+  border-color: rgba(20, 20, 24, 0.08) !important;
+}
+
+/* Search Overlay Specifics in Alabaster */
+html.theme-alabaster .bg-black\/95 {
+  background-color: rgba(246, 245, 240, 0.98) !important;
+  color: #141416 !important;
+}
+
+html.theme-alabaster .bg-black\/95 input {
+  color: #121214 !important;
+}
+
+html.theme-alabaster .bg-black\/95 input::placeholder {
+  color: #716e67 !important;
+}
+
+/* Luxury dark grounding anchor for footer in Alabaster */
+html.theme-alabaster footer:not(#entry-screen-footer),
+html.theme-alabaster #global-footer {
+  background-color: #111114 !important;
+  color: #a1a1aa !important;
+}
+
+html.theme-alabaster footer:not(#entry-screen-footer) .text-white,
+html.theme-alabaster #global-footer .text-white {
+  color: #ffffff !important;
+}
+
+/* ========================================================== */
+/* ENTRY SCREEN (DEFINE YOUR STYLE) - ALABASTER HAUTE COUTURE */
+/* ========================================================== */
+html.theme-alabaster #entry-screen-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 242, 0.92) 100%) !important;
+  backdrop-filter: blur(36px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) !important;
+  border: 1px solid rgba(214, 211, 209, 0.85) !important;
+  box-shadow: 0 35px 80px -15px rgba(28, 25, 23, 0.16), 0 10px 30px -5px rgba(0, 0, 0, 0.05), inset 0 1.5px 2px rgba(255, 255, 255, 1) !important;
+}
+
+html.theme-alabaster #entry-screen-card h1,
+html.theme-alabaster #entry-screen-card .entry-title {
+  color: #1c1917 !important;
+  -webkit-text-fill-color: #1c1917 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+html.theme-alabaster #entry-screen-card p,
+html.theme-alabaster #entry-screen-card .entry-subtitle {
+  color: #57534e !important;
+  -webkit-text-fill-color: #57534e !important;
+}
+
+html.theme-alabaster #entry-screen-card .entry-watermark {
+  color: #78716c !important;
+}
+
+html.theme-alabaster #entry-screen-card .entry-footnote {
+  color: #78716c !important;
+  -webkit-text-fill-color: #78716c !important;
+}
+
+/* Entry Buttons in Alabaster: Obsidian Black with guaranteed Crisp White Typography */
+html.theme-alabaster #entry-screen-card button.entry-btn {
+  background-color: #1c1917 !important;
+  border: 1px solid #292524 !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16) !important;
+}
+
+html.theme-alabaster #entry-screen-card button.entry-btn span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 500 !important;
+}
+
+html.theme-alabaster #entry-screen-card button.entry-btn svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+html.theme-alabaster #entry-screen-card button.entry-btn:hover {
+  background-color: #000000 !important;
+  border-color: #000000 !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28) !important;
+  transform: translateY(-1px) scale(1.02);
+}
+
+html.theme-alabaster #entry-screen-card button.entry-btn.entry-btn-selected {
+  background-color: #000000 !important;
+  border-color: #000000 !important;
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.4) !important;
+}
+
+html.theme-alabaster #entry-screen-footer,
+html.theme-alabaster #entry-screen-footer * {
+  background-color: transparent !important;
+}
+
+/* ========================================================== */
+/* NEWSLETTER (INNER SANCTUM) IN ALABASTER HAUTE COUTURE      */
+/* ========================================================== */
+html.theme-alabaster #newsletter-section {
+  background-color: #f6f5f0 !important;
+  color: #141416 !important;
+  border-top-color: rgba(20, 20, 24, 0.1) !important;
+}
+
+html.theme-alabaster #newsletter-section h2 {
+  color: #141416 !important;
+  -webkit-text-fill-color: #141416 !important;
+}
+
+html.theme-alabaster #newsletter-section p {
+  color: #57534e !important;
+  -webkit-text-fill-color: #57534e !important;
+}
+
+html.theme-alabaster #newsletter-section input {
+  background-color: #ffffff !important;
+  color: #141416 !important;
+  -webkit-text-fill-color: #141416 !important;
+  border-color: rgba(20, 20, 24, 0.2) !important;
+}
+
+html.theme-alabaster #newsletter-section input::placeholder {
+  color: #8c877e !important;
+}
+
+html.theme-alabaster #newsletter-section button[type="submit"] {
+  background-color: #141416 !important;
+  color: #ffffff !important;
+  border: 1px solid #141416 !important;
+}
+
+html.theme-alabaster #newsletter-section button[type="submit"]:hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+html.theme-alabaster #newsletter-section button[type="submit"] span,
+html.theme-alabaster #newsletter-section button[type="submit"] svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* ========================================================== */
+/* DEDICATED CATEGORY PAGE IN ALABASTER MODE                  */
+/* ========================================================== */
+html.theme-alabaster #category-page-container {
+  background-color: #faf9f5 !important;
+  color: #141416 !important;
+}
+
+/* Category Breadcrumbs */
+html.theme-alabaster #category-page-container .category-breadcrumbs,
+html.theme-alabaster #category-page-container .category-breadcrumb-link {
+  color: #78716c !important;
+}
+
+html.theme-alabaster #category-page-container .category-breadcrumb-link:hover {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #category-page-container .category-breadcrumb-sep {
+  color: #a8a29e !important;
+}
+
+html.theme-alabaster #category-page-container .category-breadcrumb-active {
+  color: #121214 !important;
+  font-weight: 600 !important;
+}
+
+/* Divider under title */
+html.theme-alabaster #category-page-container .category-header-divider {
+  border-color: rgba(20, 20, 24, 0.1) !important;
+}
+
+/* Eyebrow, Title & Description */
+html.theme-alabaster #category-page-container .category-page-eyebrow {
+  color: #57534e !important;
+  font-weight: 500 !important;
+}
+
+html.theme-alabaster #category-page-container .category-page-title,
+html.theme-alabaster #category-page-container h1 {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #category-page-container .category-page-desc,
+html.theme-alabaster #category-page-container p {
+  color: #44403c !important;
+}
+
+/* Dynamic Pieces Count Badge */
+html.theme-alabaster #category-page-container .category-page-count {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+  border: 1px solid rgba(20, 20, 24, 0.14) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster #category-page-container .category-page-count .category-count-text,
+html.theme-alabaster #category-page-container .category-page-count span {
+  color: #121214 !important;
+  font-weight: 500 !important;
+}
+
+html.theme-alabaster #category-page-container .category-page-count .category-count-icon,
+html.theme-alabaster #category-page-container .category-page-count svg {
+  color: #121214 !important;
+  stroke: #121214 !important;
+}
+
+/* Horizontal Category Navigation Bar */
+html.theme-alabaster #category-page-container .category-nav-active {
+  background-color: #121214 !important;
+  color: #ffffff !important;
+  border-color: #121214 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18) !important;
+}
+
+html.theme-alabaster #category-page-container .category-nav-inactive {
+  background-color: #ffffff !important;
+  color: #292524 !important;
+  border: 1px solid rgba(20, 20, 24, 0.12) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster #category-page-container .category-nav-inactive:hover {
+  background-color: #f5f5f4 !important;
+  color: #000000 !important;
+  border-color: rgba(20, 20, 24, 0.28) !important;
+}
+
+/* Filter Controls Bar */
+html.theme-alabaster #category-page-container .category-controls-bar {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(20, 20, 24, 0.09) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster #category-page-container .category-filter-select {
+  background-color: #f5f5f4 !important;
+  color: #121214 !important;
+  border: 1px solid rgba(20, 20, 24, 0.16) !important;
+  font-weight: 500 !important;
+}
+
+html.theme-alabaster #category-page-container .category-filter-select option {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+}
+
+html.theme-alabaster #category-page-container .category-sort-trigger {
+  background-color: #f5f5f4 !important;
+  color: #121214 !important;
+  border: 1px solid rgba(20, 20, 24, 0.16) !important;
+  font-weight: 500 !important;
+}
+
+html.theme-alabaster #category-page-container .category-sort-trigger svg {
+  color: #121214 !important;
+  stroke: #121214 !important;
+}
+
+html.theme-alabaster #category-page-container .category-sort-trigger:hover {
+  background-color: #e7e5e4 !important;
+}
+
+html.theme-alabaster #category-page-container .category-stock-label,
+html.theme-alabaster #category-page-container .category-stock-text {
+  color: #292524 !important;
+  font-weight: 500 !important;
+}
+
+/* Category Grid Product Titles & Prices */
+html.theme-alabaster #category-page-container h3 {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #category-page-container .text-stone-100 {
+  color: #121214 !important;
+}
+
+html.theme-alabaster #category-page-container .text-stone-400 {
+  color: #78716c !important;
+}
+
+
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+
+html.theme-alabaster ::-webkit-scrollbar-track {
+  background: #f6f5f0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+html.theme-alabaster ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Luxury Glassmorphism & Liquid Glass */
+.glass-panel {
+  background: rgba(15, 15, 15, 0.65);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+/* Authentic Liquid Glass Prism Bar */
+.liquid-glass-bar {
+  backdrop-filter: blur(36px) saturate(210%) contrast(108%);
+  -webkit-backdrop-filter: blur(36px) saturate(210%) contrast(108%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.04) 40%, rgba(18, 18, 22, 0.45) 75%, rgba(255, 255, 255, 0.09) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-top: 1px solid rgba(255, 255, 255, 0.65);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 30px 60px -15px rgba(0, 0, 0, 0.75),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.45),
+    inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.25),
+    inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.25);
+}
+
+
+/* Liquid Droplet interactive elements */
+.liquid-droplet {
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-droplet:hover {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.4), 0 4px 15px rgba(0, 0, 0, 0.2);
+  transform: translateY(-0.5px);
+}
+
+.liquid-droplet:active {
+  transform: scale(0.96);
+}
+
+html.theme-alabaster .liquid-droplet:hover {
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.glass-nav {
+  background: rgba(9, 9, 11, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-card {
+  background: rgba(20, 20, 24, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-dropdown {
+  background: rgba(14, 14, 17, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* Vignette effect */
+.vignette-radial {
+  background: radial-gradient(circle at center, transparent 30%, rgba(9, 9, 11, 0.85) 100%);
+}
+
+/* Editorial Film Grain Overlay */
+.film-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 25px -5px rgba(255, 255, 255, 0.1);
+  }
+
+  50% {
+    box-shadow: 0 0 35px 0px rgba(255, 255, 255, 0.2);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-glow {
+  animation: pulseGlow 4s infinite ease-in-out;
+}
+
+/* Luxury button interactions */
+.btn-luxury {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-luxury:hover {
+  transform: translateY(-1px);
+}
+
+.btn-luxury:active {
+  transform: translateY(0.5px);
+}
+
+/* ========================================================== */
+/* JAW-DROPPING CINEMATIC SLIDESHOW & SHUTTER TRANSITIONS     */
+/* ========================================================== */
+@keyframes shutterFlash {
+  0% {
+    opacity: 0;
+    transform: translateX(-120%) skewX(-20deg);
+  }
+
+  25% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(240%) skewX(-20deg);
+  }
+}
+
+.animate-shutter-flash {
+  animation: shutterFlash 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes kenBurnsSlow {
+  0% {
+    transform: scale(1.01) translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: scale(1.05) translate3d(-0.6%, -0.4%, 0);
+  }
+
+  100% {
+    transform: scale(1.08) translate3d(-1%, -0.7%, 0);
+  }
+}
+
+.animate-ken-burns {
+  animation: kenBurnsSlow 6s cubic-bezier(0.25, 1, 0.5, 1) infinite alternate;
+}
+
+@keyframes slideProgressBar {
+  from {
+    width: 0%;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+.animate-slide-progress {
+  animation: slideProgressBar 5.5s linear forwards;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
