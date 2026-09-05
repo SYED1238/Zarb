@@ -17,7 +17,8 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   activeFilter,
   onQuickView,
 }) => {
-  const { gender, setGender, products, getCategories } = useStore();
+  const { gender, setGender, products, getCategories, theme } = useStore();
+  const isAlabaster = theme === 'alabaster';
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'rating' | 'newest'>('featured');
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
@@ -66,12 +67,18 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   return (
     <section id="catalog-section" className="py-16 sm:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Header with Title & Controls */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 pb-6 border-b border-white/10">
+      <div className={`flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 pb-6 border-b transition-colors duration-300 ${
+        isAlabaster ? 'border-stone-300/80' : 'border-white/10'
+      }`}>
         <div>
-          <span className="text-[11px] font-sans tracking-[0.3em] uppercase text-stone-400 block mb-2">
+          <span className={`text-[11px] font-sans tracking-[0.3em] uppercase block mb-2 font-medium ${
+            isAlabaster ? 'text-stone-600' : 'text-stone-400'
+          }`}>
             Collection N° 08 &middot; {gender === 'men' ? "Men's Wardrobe" : "Women's Wardrobe"}
           </span>
-          <h2 className="text-3xl sm:text-4xl font-serif text-white tracking-[0.02em]">
+          <h2 className={`text-3xl sm:text-4xl font-serif tracking-[0.02em] ${
+            isAlabaster ? 'text-stone-950 font-normal' : 'text-white'
+          }`}>
             THE CURATED COLLECTION
           </h2>
         </div>
@@ -79,33 +86,37 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
         {/* Action controls: Sort & Gender Switch */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Gender Filter Pills */}
-          <div className="gender-pills-container flex items-center p-1 bg-white/[0.05] rounded-xl border border-white/10">
+          <div className={`gender-pills-container flex items-center p-1 rounded-xl border transition-colors duration-300 ${
+            isAlabaster
+              ? 'bg-stone-200/80 border-stone-300/80 shadow-xs'
+              : 'bg-white/[0.05] border-white/10'
+          }`}>
             <button
               onClick={() => setGender('all')}
-              className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-colors cursor-pointer ${
+              className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-all cursor-pointer ${
                 gender === 'all'
-                  ? 'gender-btn-active bg-white text-black font-medium'
-                  : 'gender-btn-inactive text-stone-400 hover:text-white'
+                  ? (isAlabaster ? 'gender-btn-active bg-stone-950 text-white font-semibold shadow-xs' : 'gender-btn-active bg-white text-black font-medium')
+                  : (isAlabaster ? 'gender-btn-inactive text-stone-600 hover:text-black' : 'gender-btn-inactive text-stone-400 hover:text-white')
               }`}
             >
               All
             </button>
             <button
               onClick={() => setGender('men')}
-              className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-colors cursor-pointer ${
+              className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-all cursor-pointer ${
                 gender === 'men'
-                  ? 'gender-btn-active bg-white text-black font-medium'
-                  : 'gender-btn-inactive text-stone-400 hover:text-white'
+                  ? (isAlabaster ? 'gender-btn-active bg-stone-950 text-white font-semibold shadow-xs' : 'gender-btn-active bg-white text-black font-medium')
+                  : (isAlabaster ? 'gender-btn-inactive text-stone-600 hover:text-black' : 'gender-btn-inactive text-stone-400 hover:text-white')
               }`}
             >
               Men
             </button>
             <button
               onClick={() => setGender('women')}
-              className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-colors cursor-pointer ${
+              className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-all cursor-pointer ${
                 gender === 'women'
-                  ? 'gender-btn-active bg-white text-black font-medium'
-                  : 'gender-btn-inactive text-stone-400 hover:text-white'
+                  ? (isAlabaster ? 'gender-btn-active bg-stone-950 text-white font-semibold shadow-xs' : 'gender-btn-active bg-white text-black font-medium')
+                  : (isAlabaster ? 'gender-btn-inactive text-stone-600 hover:text-black' : 'gender-btn-inactive text-stone-400 hover:text-white')
               }`}
             >
               Women
@@ -116,14 +127,22 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
           <div className="relative">
             <button
               onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
-              className="catalog-sort-btn flex items-center space-x-2 py-2 px-3.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-xs tracking-[0.15em] uppercase text-stone-300 hover:text-white transition-colors cursor-pointer"
+              className={`catalog-sort-btn flex items-center space-x-2 py-2 px-3.5 rounded-xl text-xs tracking-[0.15em] uppercase transition-all cursor-pointer ${
+                isAlabaster
+                  ? 'bg-white border border-stone-300 text-stone-900 hover:border-stone-400 shadow-xs'
+                  : 'bg-white/[0.05] hover:bg-white/10 border border-white/10 text-stone-300 hover:text-white'
+              }`}
             >
               <ArrowUpDown className="w-3.5 h-3.5" />
               <span>{sortLabels[sortBy]}</span>
             </button>
 
             {isSortDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-52 py-2 glass-dropdown rounded-xl z-20 animate-fade-in border border-white/10">
+              <div className={`absolute right-0 mt-2 w-52 py-2 rounded-xl z-20 animate-fade-in border shadow-2xl ${
+                isAlabaster
+                  ? 'bg-white border-stone-200 text-stone-900'
+                  : 'glass-dropdown border-white/10 text-stone-300'
+              }`}>
                 {(Object.keys(sortLabels) as (keyof typeof sortLabels)[]).map((key) => (
                   <button
                     key={key}
@@ -131,10 +150,14 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                       setSortBy(key);
                       setIsSortDropdownOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2.5 text-xs tracking-[0.1em] uppercase text-stone-300 hover:text-white hover:bg-white/5 flex items-center justify-between transition-colors cursor-pointer"
+                    className={`w-full text-left px-4 py-2.5 text-xs tracking-[0.1em] uppercase flex items-center justify-between transition-colors cursor-pointer ${
+                      isAlabaster
+                        ? 'text-stone-700 hover:text-black hover:bg-stone-100'
+                        : 'text-stone-300 hover:text-white hover:bg-white/5'
+                    }`}
                   >
                     <span>{sortLabels[key]}</span>
-                    {sortBy === key && <Check className="w-3.5 h-3.5 text-white" />}
+                    {sortBy === key && <Check className={`w-3.5 h-3.5 ${isAlabaster ? 'text-stone-950' : 'text-white'}`} />}
                   </button>
                 ))}
               </div>
@@ -151,8 +174,8 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             onClick={() => onSelectCategory(cat.id)}
             className={`category-filter-pill whitespace-nowrap px-4 py-2 rounded-full text-xs tracking-[0.15em] uppercase transition-all duration-300 cursor-pointer ${
               selectedCategory === cat.id
-                ? 'cat-pill-active bg-white text-black font-medium shadow-md'
-                : 'cat-pill-inactive bg-white/[0.04] text-stone-300 hover:text-white hover:bg-white/10 border border-white/10'
+                ? (isAlabaster ? 'cat-pill-active bg-stone-950 text-white font-medium shadow-sm' : 'cat-pill-active bg-white text-black font-medium shadow-md')
+                : (isAlabaster ? 'cat-pill-inactive bg-white text-stone-700 hover:text-black hover:bg-stone-100 border border-stone-300/80 shadow-xs' : 'cat-pill-inactive bg-white/[0.04] text-stone-300 hover:text-white hover:bg-white/10 border border-white/10')
             }`}
           >
             {cat.name}

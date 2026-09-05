@@ -172,7 +172,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Theme: 'noir' (Midnight Obsidian) vs 'alabaster' (Warm Ivory Haute Couture)
   const [theme, setThemeState] = useState<'noir' | 'alabaster'>(() => {
     const saved = localStorage.getItem('atelier_theme');
-    return saved === 'alabaster' ? 'alabaster' : 'noir';
+    return saved === 'noir' ? 'noir' : 'alabaster';
   });
 
   const setTheme = (newTheme: 'noir' | 'alabaster') => {

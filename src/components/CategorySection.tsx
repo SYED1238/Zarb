@@ -4,7 +4,8 @@ import { useStore } from '../context/StoreContext';
 import { ArrowUpRight } from 'lucide-react';
 
 export const CategorySection: React.FC = () => {
-  const { gender, products, getCategories } = useStore();
+  const { gender, products, getCategories, theme } = useStore();
+  const isAlabaster = theme === 'alabaster';
   const navigate = useNavigate();
 
   const categories = getCategories(gender === 'all' ? 'women' : gender);
@@ -28,19 +29,27 @@ export const CategorySection: React.FC = () => {
   return (
     <section id="category-section" className="py-20 sm:py-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 sm:mb-16 border-b border-white/10 pb-6">
+      <div className={`flex flex-col sm:flex-row sm:items-end justify-between mb-12 sm:mb-16 border-b pb-6 transition-colors duration-300 ${
+        isAlabaster ? 'border-stone-300/80' : 'border-white/10'
+      }`}>
         <div>
-          <span className="category-section-subtitle text-[11px] font-sans tracking-[0.3em] uppercase text-stone-400 block mb-2">
+          <span className={`category-section-subtitle text-[11px] font-sans tracking-[0.3em] uppercase block mb-2 font-medium ${
+            isAlabaster ? 'text-stone-600' : 'text-stone-400'
+          }`}>
             Curated Categories &middot; {gender === 'men' ? "Men's Wardrobe" : "Women's Wardrobe"}
           </span>
-          <h2 className="category-section-title text-3xl sm:text-4xl md:text-5xl font-serif text-white font-light tracking-[0.03em]">
+          <h2 className={`category-section-title text-3xl sm:text-4xl md:text-5xl font-serif tracking-[0.03em] ${
+            isAlabaster ? 'text-stone-950 font-normal' : 'text-white font-light'
+          }`}>
             THE FOUNDATION OF MODERN WARDROBE
           </h2>
         </div>
 
         <button
           onClick={handleViewAllClick}
-          className="category-view-all mt-4 sm:mt-0 text-xs tracking-[0.2em] uppercase font-medium text-stone-400 hover:text-white transition-colors cursor-pointer flex items-center space-x-2 group"
+          className={`category-view-all mt-4 sm:mt-0 text-xs tracking-[0.2em] uppercase font-medium transition-colors cursor-pointer flex items-center space-x-2 group ${
+            isAlabaster ? 'text-stone-800 hover:text-black font-semibold' : 'text-stone-400 hover:text-white'
+          }`}
         >
           <span>VIEW ALL PIECES</span>
           <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />

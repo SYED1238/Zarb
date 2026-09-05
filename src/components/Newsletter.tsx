@@ -42,10 +42,13 @@ export const Newsletter: React.FC = () => {
 
         {/* Main Heading: ENTER THE INNER SANCTUM */}
         <h2
-          className={`text-3xl sm:text-4xl md:text-5xl font-serif tracking-[0.04em] mb-4 font-light transition-colors duration-300 ${
+          className={`text-3xl sm:text-4xl md:text-5xl font-serif tracking-[0.04em] mb-4 font-normal transition-colors duration-300 ${
             isAlabaster ? 'text-stone-950' : 'text-white'
           }`}
-          style={{ color: isAlabaster ? '#141416' : '#ffffff' }}
+          style={{
+            color: isAlabaster ? '#141416' : '#ffffff',
+            WebkitTextFillColor: isAlabaster ? '#141416' : '#ffffff',
+          }}
         >
           ENTER THE INNER SANCTUM
         </h2>

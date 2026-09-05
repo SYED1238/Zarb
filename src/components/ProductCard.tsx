@@ -9,7 +9,8 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
-  const { wishlist, toggleWishlist, addToCart } = useStore();
+  const { wishlist, toggleWishlist, addToCart, theme } = useStore();
+  const isAlabaster = theme === 'alabaster';
   const [isHovered, setIsHovered] = useState(false);
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
 
@@ -54,7 +55,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       aria-label={product.name}
     >
       {/* Image Container with editorial 3:4 ratio */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-[#141418] mb-4">
+      <div className={`relative aspect-[3/4] w-full overflow-hidden rounded-xl mb-4 border transition-colors duration-300 ${
+        isAlabaster ? 'bg-stone-200 border-stone-200/80' : 'bg-[#141418] border-transparent'
+      }`}>
         {/* Primary Image with Crossfade */}
         <img
           src={activeImage}
@@ -97,7 +100,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         <div className="absolute bottom-3 inset-x-3 hidden sm:flex items-center space-x-2 z-10 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
           <button
             onClick={handleQuickAdd}
-            className="product-quick-add flex-1 bg-white hover:bg-stone-200 text-black py-2.5 px-3 rounded-lg text-[11px] font-sans font-medium uppercase tracking-[0.2em] flex items-center justify-center space-x-1.5 shadow-xl transition-colors cursor-pointer"
+            className={`product-quick-add flex-1 py-2.5 px-3 rounded-lg text-[11px] font-sans font-medium uppercase tracking-[0.2em] flex items-center justify-center space-x-1.5 shadow-xl transition-all cursor-pointer ${
+              isAlabaster
+                ? 'bg-stone-950 hover:bg-black text-white'
+                : 'bg-white hover:bg-stone-200 text-black'
+            }`}
           >
             <ShoppingBag className="w-3.5 h-3.5" />
             <span>QUICK ADD</span>
@@ -118,26 +125,36 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       {/* Product Information */}
       <div className="space-y-1.5">
         {/* Category & Rating */}
-        <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-stone-400">
+        <div className={`flex items-center justify-between text-[11px] uppercase tracking-[0.2em] ${
+          isAlabaster ? 'text-stone-500' : 'text-stone-400'
+        }`}>
           <span>{product.category}</span>
-          <div className="flex items-center space-x-1 text-stone-300">
+          <div className={`flex items-center space-x-1 ${isAlabaster ? 'text-stone-700' : 'text-stone-300'}`}>
             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
             <span>{product.rating.toFixed(1)}</span>
           </div>
         </div>
 
         {/* Product Title */}
-        <h3 className="text-sm font-sans font-normal tracking-[0.04em] text-stone-100 group-hover:text-white line-clamp-1 transition-colors">
+        <h3 className={`text-sm font-sans tracking-[0.04em] line-clamp-1 transition-colors ${
+          isAlabaster
+            ? 'text-stone-900 group-hover:text-black font-medium'
+            : 'text-stone-100 group-hover:text-white font-normal'
+        }`}>
           {product.name}
         </h3>
 
         {/* Price & Compare */}
         <div className="flex items-center space-x-2.5 pt-0.5">
-          <span className="text-sm font-medium tracking-[0.06em] text-stone-100">
+          <span className={`text-sm tracking-[0.06em] ${
+            isAlabaster ? 'text-stone-950 font-semibold' : 'text-stone-100 font-medium'
+          }`}>
             {formattedPrice}
           </span>
           {formattedComparePrice && (
-            <span className="text-xs text-stone-500 line-through tracking-[0.04em]">
+            <span className={`text-xs line-through tracking-[0.04em] ${
+              isAlabaster ? 'text-stone-400' : 'text-stone-500'
+            }`}>
               {formattedComparePrice}
             </span>
           )}
@@ -156,8 +173,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
                 }}
                 className={`w-3 h-3 rounded-full border transition-all ${
                   selectedColorIndex === idx
-                    ? 'ring-1 ring-white ring-offset-2 ring-offset-[#09090b] border-white scale-110'
-                    : 'border-white/20 hover:border-white/60'
+                    ? (isAlabaster
+                        ? 'ring-1 ring-stone-900 ring-offset-2 ring-offset-[#f6f5f0] border-stone-900 scale-110'
+                        : 'ring-1 ring-white ring-offset-2 ring-offset-[#09090b] border-white scale-110')
+                    : (isAlabaster ? 'border-stone-300 hover:border-stone-600' : 'border-white/20 hover:border-white/60')
                 }`}
                 style={{ backgroundColor: col.hex }}
                 title={col.name}
@@ -165,7 +184,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
               />
             ))}
             {product.colors.length > 1 && (
-              <span className="text-[10px] text-stone-400 font-sans tracking-[0.1em] pl-1">
+              <span className={`text-[10px] font-sans tracking-[0.1em] pl-1 ${
+                isAlabaster ? 'text-stone-500' : 'text-stone-400'
+              }`}>
                 {product.colors.length} shades
               </span>
             )}

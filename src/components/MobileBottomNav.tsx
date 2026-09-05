@@ -158,12 +158,16 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
       <div
         className="relative flex items-center justify-between p-1 rounded-full transition-all duration-300"
         style={{
-          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(20, 20, 25, 0.65) 45%, rgba(10, 10, 14, 0.8) 100%)',
+          background: isAlabaster
+            ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 245, 240, 0.96) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(20, 20, 25, 0.65) 45%, rgba(10, 10, 14, 0.8) 100%)',
           backdropFilter: 'blur(34px) saturate(200%) contrast(108%)',
           WebkitBackdropFilter: 'blur(34px) saturate(200%) contrast(108%)',
-          border: '1px solid rgba(255, 255, 255, 0.22)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.6)',
-          boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.85), inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.5)',
+          border: isAlabaster ? '1px solid rgba(0, 0, 0, 0.12)' : '1px solid rgba(255, 255, 255, 0.22)',
+          borderTop: isAlabaster ? '1px solid rgba(255, 255, 255, 1)' : '1px solid rgba(255, 255, 255, 0.6)',
+          boxShadow: isAlabaster
+            ? '0 20px 45px -10px rgba(35, 30, 25, 0.18), 0 4px 12px rgba(0, 0, 0, 0.05), inset 0 1px 1.5px 0 rgba(255, 255, 255, 1)'
+            : '0 20px 45px -10px rgba(0, 0, 0, 0.85), inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.5)',
         }}
       >
         {tabs.map((tab) => {
@@ -174,22 +178,36 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
             <button
               key={tab.id}
               onClick={tab.action}
-              className={`relative flex-1 flex items-center justify-center h-11 rounded-full transition-all duration-300 cursor-pointer focus:outline-none ${isActive
-                  ? 'bg-white/[0.22] text-white shadow-[inset_0_1px_1.5px_0_rgba(255,255,255,0.5),0_2px_8px_rgba(0,0,0,0.3)] border border-white/25'
+              className={`relative flex-1 flex items-center justify-center h-11 rounded-full transition-all duration-300 cursor-pointer focus:outline-none ${
+                isActive
+                  ? isAlabaster
+                    ? 'bg-stone-950 text-white shadow-md'
+                    : 'bg-white/[0.22] text-white shadow-[inset_0_1px_1.5px_0_rgba(255,255,255,0.5),0_2px_8px_rgba(0,0,0,0.3)] border border-white/25'
+                  : isAlabaster
+                  ? 'text-stone-600 hover:text-stone-950 active:scale-95'
                   : 'text-stone-300 hover:text-white active:scale-95'
-                }`}
+              }`}
               aria-label={tab.label}
               title={tab.label}
             >
               <div className="relative flex items-center justify-center">
                 <Icon
-                  className={`w-4 h-4 transition-transform duration-300 ${isActive ? 'scale-110 stroke-[2.2] text-white' : 'scale-100 stroke-[1.65]'
-                    } ${tab.id === 'theme' && isAlabaster ? 'text-amber-300' : ''}`}
+                  className={`w-4 h-4 transition-transform duration-300 ${
+                    isActive
+                      ? 'scale-110 stroke-[2.2] text-white'
+                      : isAlabaster
+                      ? 'scale-100 stroke-[1.75] text-stone-700'
+                      : 'scale-100 stroke-[1.65] text-stone-300'
+                  }`}
                 />
 
                 {/* Badge for Bag or Wishlist */}
                 {tab.badge !== null && tab.badge !== undefined && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[15px] h-3.5 px-0.5 rounded-full bg-white text-black text-[8px] font-mono font-bold flex items-center justify-center shadow-md leading-none">
+                  <span
+                    className={`absolute -top-1.5 -right-2.5 min-w-[15px] h-3.5 px-0.5 rounded-full text-[8px] font-mono font-bold flex items-center justify-center shadow-md leading-none ${
+                      isAlabaster ? 'bg-stone-950 text-white' : 'bg-white text-black'
+                    }`}
+                  >
                     {tab.badge}
                   </span>
                 )}

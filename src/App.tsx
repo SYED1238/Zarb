@@ -76,6 +76,7 @@ const StoreFront: React.FC = () => {
   const location = useLocation();
   const {
     gender,
+    theme,
     showEntryScreen,
     setShowEntryScreen,
     setGender,
@@ -130,7 +131,7 @@ const StoreFront: React.FC = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#f5f5f3]">
+    <div className={`relative min-h-screen transition-colors duration-500 ${theme === 'alabaster' ? 'bg-[#f6f5f0] text-[#141416]' : 'bg-[#09090b] text-[#f5f5f3]'}`}>
       <ScrollToTop />
 
       {/* 1. Cinematic Entry Screen (Gender Selection) */}

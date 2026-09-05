@@ -8,7 +8,8 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
-  const { gender } = useStore();
+  const { gender, theme } = useStore();
+  const isAlabaster = theme === 'alabaster';
   const [activeSlide, setActiveSlide] = useState(0);
   const [prevSlide, setPrevSlide] = useState<number | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -256,7 +257,13 @@ export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
       )}
 
       {/* Cinematic Overlays */}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/40 to-[#09090b]/60 pointer-events-none" />
+      <div
+        className={`absolute inset-0 pointer-events-none transition-colors duration-700 ${
+          isAlabaster
+            ? 'bg-gradient-to-t from-[#f6f5f0] via-black/40 to-black/65'
+            : 'bg-gradient-to-t from-[#09090b] via-[#09090b]/40 to-[#09090b]/60'
+        }`}
+      />
       <div className="absolute inset-0 vignette-radial pointer-events-none opacity-80" />
       <div className="absolute inset-0 film-grain pointer-events-none opacity-30" />
 
@@ -378,7 +385,11 @@ export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
         </div>
 
         {/* Bottom Banner Row: Scroll Hint & Atelier Details */}
-        <div className="mt-8 sm:mt-24 pt-6 pb-20 sm:pb-0 border-t border-white/10 flex items-center justify-between text-xs tracking-[0.2em] uppercase text-stone-400">
+        <div
+          className={`mt-8 sm:mt-24 pt-6 pb-20 sm:pb-0 border-t flex items-center justify-between text-xs tracking-[0.2em] uppercase transition-colors duration-300 ${
+            isAlabaster ? 'border-stone-400/40 text-stone-700' : 'border-white/10 text-stone-400'
+          }`}
+        >
           <div className="hidden sm:flex items-center space-x-6">
             <span>Biella Mills, Italy</span>
             <span>&middot;</span>
@@ -389,7 +400,9 @@ export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
 
           <button
             onClick={scrollToCatalog}
-            className="flex items-center space-x-2 text-stone-300 hover:text-white transition-colors cursor-pointer group mx-auto sm:mx-0 sm:ml-auto"
+            className={`flex items-center space-x-2 transition-colors cursor-pointer group mx-auto sm:mx-0 sm:ml-auto ${
+              isAlabaster ? 'text-stone-800 hover:text-black' : 'text-stone-300 hover:text-white'
+            }`}
           >
             <span>DISCOVER THE PIECES</span>
             <ArrowDown className="w-3.5 h-3.5 group-hover:translate-y-1 transition-transform" />
