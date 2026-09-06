@@ -88,11 +88,14 @@ export const AdminPortal: React.FC = () => {
   const navigate = useNavigate();
   const {
     products,
+    isProductsLoading,
     womenCategories,
     menCategories,
     addProduct,
     updateProduct,
     deleteProduct,
+    eraseAllProducts,
+    refreshProductsFromCloud,
     addCategory,
     updateCategory,
     deleteCategory,
@@ -334,11 +337,13 @@ export const AdminPortal: React.FC = () => {
 
   // Delete Confirmation Modal
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
-    type: 'product' | 'category';
+    type: 'product' | 'category' | 'erase_all';
     id: string;
     name: string;
     gender?: 'men' | 'women';
   } | null>(null);
+
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // Import JSON input
   const [importJsonText, setImportJsonText] = useState('');
@@ -506,7 +511,7 @@ export const AdminPortal: React.FC = () => {
   };
 
   // Save Product Form
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.name.trim()) {
       showToast('Product title is required');
@@ -543,13 +548,19 @@ export const AdminPortal: React.FC = () => {
       season: productForm.season.trim(),
     };
 
-    if (editingProduct) {
-      updateProduct(productPayload);
-    } else {
-      addProduct(productPayload);
+    setIsSavingProduct(true);
+    try {
+      if (editingProduct) {
+        await updateProduct(productPayload);
+      } else {
+        await addProduct(productPayload);
+      }
+      setIsProductModalOpen(false);
+    } catch (err: any) {
+      console.error('Failed to save product', err);
+    } finally {
+      setIsSavingProduct(false);
     }
-
-    setIsProductModalOpen(false);
   };
 
   // Open Category Edit/Create
@@ -610,13 +621,19 @@ export const AdminPortal: React.FC = () => {
   };
 
   // Confirm Delete Action
-  const handleExecuteDelete = () => {
+  const handleExecuteDelete = async () => {
     if (!deleteConfirmTarget) return;
 
-    if (deleteConfirmTarget.type === 'product') {
-      deleteProduct(deleteConfirmTarget.id);
-    } else if (deleteConfirmTarget.type === 'category' && deleteConfirmTarget.gender) {
-      deleteCategory(deleteConfirmTarget.gender, deleteConfirmTarget.id);
+    try {
+      if (deleteConfirmTarget.type === 'product') {
+        await deleteProduct(deleteConfirmTarget.id);
+      } else if (deleteConfirmTarget.type === 'erase_all') {
+        await eraseAllProducts();
+      } else if (deleteConfirmTarget.type === 'category' && deleteConfirmTarget.gender) {
+        deleteCategory(deleteConfirmTarget.gender, deleteConfirmTarget.id);
+      }
+    } catch (err: any) {
+      console.error('Delete execution error:', err);
     }
 
     setDeleteConfirmTarget(null);
@@ -1255,6 +1272,39 @@ export const AdminPortal: React.FC = () => {
                   <option value="out">Out of Stock</option>
                 </select>
 
+                {/* Cloud Refresh Button */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await refreshProductsFromCloud();
+                    showToast('Catalog refreshed directly from cloud database.');
+                  }}
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs tracking-wider uppercase border transition-all cursor-pointer ${
+                    theme === 'alabaster'
+                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-800 border-stone-300'
+                      : 'bg-white/5 hover:bg-white/10 text-stone-300 border-white/15'
+                  }`}
+                  title="Synchronize and fetch latest catalog from Supabase cloud database"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isProductsLoading ? 'animate-spin text-amber-400' : ''}`} />
+                  <span className="hidden sm:inline">Sync Cloud</span>
+                </button>
+
+                {/* Erase Full Inventory Button */}
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmTarget({
+                    type: 'erase_all',
+                    id: 'all',
+                    name: 'All Inventory Pieces',
+                  })}
+                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-400 border border-red-500/30 text-xs tracking-wider uppercase transition-all shadow-xs cursor-pointer font-medium"
+                  title="Permanently erase all products from the store and database"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <span>Erase Full Inventory</span>
+                </button>
+
                 {/* Add New Piece Button */}
                 <button
                   onClick={handleOpenCreateProduct}
@@ -1418,8 +1468,29 @@ export const AdminPortal: React.FC = () => {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-12 text-center text-stone-400">
-                          No atelier pieces match the selected criteria.
+                        <td colSpan={6} className="py-16 text-center">
+                          <div className="max-w-md mx-auto space-y-3">
+                            <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+                              <Package className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-sm font-serif">
+                              {products.length === 0 ? 'Catalog is currently empty' : 'No matching pieces found'}
+                            </h4>
+                            <p className="text-xs text-stone-400 leading-relaxed">
+                              {products.length === 0
+                                ? 'All previous products have been erased. You have a clean slate to add your real collection to the store and database.'
+                                : 'Try changing your search query or adjusting your category and stock filters.'}
+                            </p>
+                            {products.length === 0 && (
+                              <button
+                                onClick={handleOpenCreateProduct}
+                                className="mt-2 inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs uppercase tracking-wider transition-colors shadow cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Add First Atelier Piece</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -2789,9 +2860,12 @@ export const AdminPortal: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-lg cursor-pointer"
+                  disabled={isSavingProduct}
+                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-lg cursor-pointer disabled:opacity-50"
                 >
-                  {editingProduct ? 'Save Piece Changes' : 'Publish New Piece'}
+                  {isSavingProduct
+                    ? 'Saving to Database...'
+                    : (editingProduct ? 'Save Piece Changes' : 'Publish New Piece')}
                 </button>
               </div>
             </form>
@@ -3005,26 +3079,38 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <h3 className="text-lg font-serif">
-              Delete {deleteConfirmTarget.type === 'product' ? 'Piece' : 'Category'}?
+              {deleteConfirmTarget.type === 'erase_all'
+                ? 'Erase Entire Inventory & Database?'
+                : `Delete ${deleteConfirmTarget.type === 'product' ? 'Piece' : 'Category'}?`}
             </h3>
 
             <p className="text-xs text-stone-400 leading-relaxed">
-              Are you sure you want to permanently delete <strong className="text-white font-medium">"{deleteConfirmTarget.name}"</strong>?
-              {deleteConfirmTarget.type === 'category' && ' Any pieces currently in this category will remain, but the category page will no longer be navigable.'}
+              {deleteConfirmTarget.type === 'erase_all' ? (
+                <>
+                  This will permanently delete all <strong className="text-white font-medium">{products.length} products</strong> from both your live store and the Supabase database. Your catalog will be completely reset to a clean empty slate.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to permanently delete <strong className="text-white font-medium">"{deleteConfirmTarget.name}"</strong>?
+                  {deleteConfirmTarget.type === 'category' && ' Any pieces currently in this category will remain, but the category page will no longer be navigable.'}
+                </>
+              )}
             </p>
 
             <div className="pt-3 flex items-center justify-end space-x-3">
               <button
+                type="button"
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="px-4 py-2 rounded-xl border border-white/20 text-xs tracking-wider uppercase text-stone-400 hover:text-white"
+                className="px-4 py-2 rounded-xl border border-white/20 text-xs tracking-wider uppercase text-stone-400 hover:text-white cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleExecuteDelete}
                 className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs tracking-wider uppercase shadow-md cursor-pointer"
               >
-                Confirm Delete
+                {deleteConfirmTarget.type === 'erase_all' ? 'Erase All Permanently' : 'Confirm Delete'}
               </button>
             </div>
           </div>

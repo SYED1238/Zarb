@@ -5,6 +5,60 @@ import { WOMEN_CATEGORIES, MEN_CATEGORIES, type CategoryItem } from '../data/cat
 import { INITIAL_PRODUCT_REVIEWS, getDefaultReviewsForProduct } from '../data/reviews';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
+// Mapping helpers for Supabase <-> Frontend Product model
+export function mapSupabaseToProduct(d: any): Product {
+  return {
+    id: String(d.id),
+    name: d.name || 'Untitled Piece',
+    slug: d.slug || `piece-${d.id}`,
+    gender: d.gender === 'men' ? 'men' : 'women',
+    category: d.category || 'all',
+    description: d.description || '',
+    price: Number(d.price) || 0,
+    compareAtPrice: d.compare_at_price ? Number(d.compare_at_price) : undefined,
+    images: Array.isArray(d.images) ? d.images : (typeof d.images === 'string' ? JSON.parse(d.images) : []),
+    colors: Array.isArray(d.colors) ? d.colors : (typeof d.colors === 'string' ? JSON.parse(d.colors) : [{ name: 'Obsidian Noir', hex: '#111113' }]),
+    sizes: Array.isArray(d.sizes) ? d.sizes : (typeof d.sizes === 'string' ? JSON.parse(d.sizes) : ['One Size']),
+    stock: Number(d.stock ?? 0),
+    sku: d.sku || `AT-${String(d.id).slice(-4)}`,
+    rating: Number(d.rating || 5.0),
+    reviews: Number(d.reviews || 1),
+    featured: Boolean(d.featured),
+    newArrival: d.new_arrival !== undefined ? Boolean(d.new_arrival) : true,
+    bestSeller: Boolean(d.best_seller),
+    materials: d.materials || '',
+    fit: d.fit || '',
+    season: d.season || '',
+  };
+}
+
+export function mapProductToSupabase(p: Product) {
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    gender: p.gender,
+    category: p.category,
+    description: p.description,
+    price: p.price,
+    compare_at_price: p.compareAtPrice || null,
+    images: p.images || [],
+    colors: p.colors || [],
+    sizes: p.sizes || [],
+    stock: p.stock ?? 0,
+    sku: p.sku || '',
+    rating: p.rating || 5.0,
+    reviews: p.reviews || 1,
+    featured: Boolean(p.featured),
+    new_arrival: Boolean(p.newArrival),
+    best_seller: Boolean(p.bestSeller),
+    materials: p.materials || '',
+    fit: p.fit || '',
+    season: p.season || '',
+    updated_at: new Date().toISOString(),
+  };
+}
+
 interface StoreContextType {
   gender: GenderType;
   setGender: (g: GenderType) => void;
@@ -16,11 +70,14 @@ interface StoreContextType {
   
   // Dynamic Products & Catalog Control
   products: Product[];
+  isProductsLoading: boolean;
   womenCategories: CategoryItem[];
   menCategories: CategoryItem[];
-  addProduct: (product: Omit<Product, 'id'> | Product) => Product;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (id: string) => void;
+  addProduct: (product: Omit<Product, 'id'> | Product) => Promise<Product>;
+  updateProduct: (product: Product) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  eraseAllProducts: () => Promise<void>;
+  refreshProductsFromCloud: () => Promise<void>;
   addCategory: (category: CategoryItem) => void;
   updateCategory: (category: CategoryItem, oldSlug?: string) => void;
   deleteCategory: (gender: 'men' | 'women', slug: string) => void;
@@ -104,19 +161,70 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return !localStorage.getItem('atelier_gender_preference');
   });
 
+  const [isProductsLoading, setIsProductsLoading] = useState<boolean>(true);
+
   // Dynamic Catalog State
   const [products, setProducts] = useState<Product[]>(() => {
     try {
+      const wasErased = localStorage.getItem('atelier_inventory_erased') === 'true';
+      if (wasErased) return [];
       const saved = localStorage.getItem('atelier_products_v2');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.error('Failed to load products from storage', e);
     }
-    return PRODUCTS;
+    return [];
   });
+
+  // Automatically load real catalog from Supabase cloud on initial mount
+  const refreshProductsFromCloud = async () => {
+    setIsProductsLoading(true);
+    try {
+      if (isSupabaseConfigured()) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          const mapped = data.map(mapSupabaseToProduct);
+          setProducts(mapped);
+          localStorage.setItem('atelier_products_v2', JSON.stringify(mapped));
+          if (mapped.length === 0) {
+            localStorage.setItem('atelier_inventory_erased', 'true');
+          } else {
+            localStorage.removeItem('atelier_inventory_erased');
+          }
+          return;
+        } else if (error) {
+          console.warn('Supabase product fetch warning:', error.message);
+        }
+      }
+
+      // Offline / unconfigured fallback to localStorage
+      const wasErased = localStorage.getItem('atelier_inventory_erased') === 'true';
+      if (wasErased) {
+        setProducts([]);
+      } else {
+        const saved = localStorage.getItem('atelier_products_v2');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setProducts(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load products from cloud:', e);
+    } finally {
+      setIsProductsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshProductsFromCloud();
+  }, []);
 
   const [womenCategories, setWomenCategories] = useState<CategoryItem[]>(() => {
     try {
@@ -381,8 +489,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     showToast('Review removed.');
   };
 
-  // CRUD Methods for Products
-  const addProduct = (productData: Omit<Product, 'id'> | Product): Product => {
+  // CRUD Methods for Products (Real Cloud Sync + Local Fallback)
+  const addProduct = async (productData: Omit<Product, 'id'> | Product): Promise<Product> => {
     const id = ('id' in productData && productData.id)
       ? productData.id
       : `prod-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
@@ -394,42 +502,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       reviews: productData.reviews || 1,
     };
     
-    setProducts(prev => [newProduct, ...prev]);
+    setProducts(prev => [newProduct, ...prev.filter(p => p.id !== id)]);
+    localStorage.removeItem('atelier_inventory_erased');
     showToast(`Created piece "${newProduct.name}"`);
 
     // Auto-sync to Supabase Cloud if connected
     if (isSupabaseConfigured()) {
-      supabase.from('products').upsert({
-        id: newProduct.id,
-        name: newProduct.name,
-        slug: newProduct.slug,
-        gender: newProduct.gender,
-        category: newProduct.category,
-        description: newProduct.description,
-        price: newProduct.price,
-        compare_at_price: newProduct.compareAtPrice || null,
-        images: newProduct.images,
-        colors: newProduct.colors,
-        sizes: newProduct.sizes,
-        stock: newProduct.stock,
-        sku: newProduct.sku,
-        rating: newProduct.rating,
-        reviews: newProduct.reviews,
-        featured: newProduct.featured || false,
-        new_arrival: newProduct.newArrival || false,
-        best_seller: newProduct.bestSeller || false,
-        materials: newProduct.materials || '',
-        fit: newProduct.fit || '',
-        season: newProduct.season || '',
-      }, { onConflict: 'id' }).then(({ error }) => {
-        if (error) console.warn('Supabase product cloud sync warning:', error.message);
-      });
+      try {
+        const { error } = await supabase
+          .from('products')
+          .upsert(mapProductToSupabase(newProduct), { onConflict: 'id' });
+        
+        if (error) {
+          console.warn('Supabase product cloud sync warning:', error.message);
+          showToast(`Cloud sync alert: ${error.message}`);
+        } else {
+          console.log(`Successfully synced "${newProduct.name}" to Supabase database.`);
+        }
+      } catch (err: any) {
+        console.error('Supabase add error:', err);
+      }
     }
 
     return newProduct;
   };
 
-  const updateProduct = (updatedProduct: Product) => {
+  const updateProduct = async (updatedProduct: Product): Promise<void> => {
     setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
     if (activeProduct && activeProduct.id === updatedProduct.id) {
       setActiveProduct(updatedProduct);
@@ -438,49 +536,81 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Auto-sync update to Supabase Cloud
     if (isSupabaseConfigured()) {
-      supabase.from('products').upsert({
-        id: updatedProduct.id,
-        name: updatedProduct.name,
-        slug: updatedProduct.slug,
-        gender: updatedProduct.gender,
-        category: updatedProduct.category,
-        description: updatedProduct.description,
-        price: updatedProduct.price,
-        compare_at_price: updatedProduct.compareAtPrice || null,
-        images: updatedProduct.images,
-        colors: updatedProduct.colors,
-        sizes: updatedProduct.sizes,
-        stock: updatedProduct.stock,
-        sku: updatedProduct.sku,
-        rating: updatedProduct.rating,
-        reviews: updatedProduct.reviews,
-        featured: updatedProduct.featured || false,
-        new_arrival: updatedProduct.newArrival || false,
-        best_seller: updatedProduct.bestSeller || false,
-        materials: updatedProduct.materials || '',
-        fit: updatedProduct.fit || '',
-        season: updatedProduct.season || '',
-      }, { onConflict: 'id' }).then(({ error }) => {
-        if (error) console.warn('Supabase product update sync warning:', error.message);
-      });
+      try {
+        const { error } = await supabase
+          .from('products')
+          .upsert(mapProductToSupabase(updatedProduct), { onConflict: 'id' });
+        
+        if (error) {
+          console.warn('Supabase product update sync warning:', error.message);
+          showToast(`Cloud update alert: ${error.message}`);
+        }
+      } catch (err: any) {
+        console.error('Supabase update error:', err);
+      }
     }
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string): Promise<void> => {
     const target = products.find(p => p.id === id);
-    setProducts(prev => prev.filter(p => p.id !== id));
+    setProducts(prev => {
+      const next = prev.filter(p => p.id !== id);
+      if (next.length === 0) {
+        localStorage.setItem('atelier_inventory_erased', 'true');
+      }
+      return next;
+    });
     setCart(prev => prev.filter(item => item.productId !== id));
     setWishlist(prev => prev.filter(item => item !== id));
     if (activeProduct && activeProduct.id === id) {
       setActiveProduct(null);
     }
-    showToast(`Archived "${target ? target.name : 'Piece'}"`);
+    showToast(`Deleted "${target ? target.name : 'Piece'}"`);
 
     // Auto-sync delete to Supabase Cloud
     if (isSupabaseConfigured()) {
-      supabase.from('products').delete().eq('id', id).then(({ error }) => {
-        if (error) console.warn('Supabase product delete sync warning:', error.message);
-      });
+      try {
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        if (error) {
+          console.warn('Supabase product delete sync warning:', error.message);
+          showToast(`Cloud delete alert: ${error.message}`);
+        }
+      } catch (err: any) {
+        console.error('Supabase delete error:', err);
+      }
+    }
+  };
+
+  // Permanently erase entire inventory from database and local storage
+  const eraseAllProducts = async (): Promise<void> => {
+    setProducts([]);
+    setCart([]);
+    setWishlist([]);
+    if (activeProduct) {
+      setActiveProduct(null);
+    }
+    localStorage.setItem('atelier_products_v2', JSON.stringify([]));
+    localStorage.setItem('atelier_inventory_erased', 'true');
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase
+          .from('products')
+          .delete()
+          .not('id', 'is', null);
+
+        if (error) {
+          console.error('Supabase erase error:', error);
+          showToast(`Cloud erase alert: ${error.message}`);
+        } else {
+          showToast('Full inventory erased permanently from store and database.');
+        }
+      } catch (err: any) {
+        console.error('Failed to erase products from database:', err);
+        showToast('Local catalog cleared. Cloud connection error.');
+      }
+    } else {
+      showToast('Full inventory erased.');
     }
   };
 
@@ -527,7 +657,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(PRODUCTS);
     setWomenCategories(WOMEN_CATEGORIES);
     setMenCategories(MEN_CATEGORIES);
-    localStorage.removeItem('atelier_products_v2');
+    localStorage.removeItem('atelier_inventory_erased');
+    localStorage.setItem('atelier_products_v2', JSON.stringify(PRODUCTS));
     localStorage.removeItem('atelier_women_categories_v2');
     localStorage.removeItem('atelier_men_categories_v2');
     showToast('Catalog restored to runway drop factory defaults');
@@ -653,11 +784,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setShowEntryScreen,
         resetEntryScreen,
         products,
+        isProductsLoading,
         womenCategories,
         menCategories,
         addProduct,
         updateProduct,
         deleteProduct,
+        eraseAllProducts,
+        refreshProductsFromCloud,
         addCategory,
         updateCategory,
         deleteCategory,
