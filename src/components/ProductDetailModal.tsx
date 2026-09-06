@@ -18,6 +18,10 @@ import {
   CheckCircle2,
   MessageSquarePlus,
   Sparkles,
+  Maximize2,
+  ZoomIn,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -52,6 +56,26 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [openAccordion, setOpenAccordion] = useState<'materials' | 'fit' | 'shipping' | 'reviews' | null>('materials');
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  // Keyboard navigation for fullscreen lightbox
+  useEffect(() => {
+    if (!isFullscreenOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreenOpen(false);
+        setIsZoomed(false);
+      } else if (e.key === 'ArrowRight') {
+        setActiveImageIndex(prev => (prev + 1) % (product?.images.length || 1));
+      } else if (e.key === 'ArrowLeft') {
+        setActiveImageIndex(prev => (prev - 1 + (product?.images.length || 1)) % (product?.images.length || 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreenOpen, product]);
 
   // Real Reviews Form State
   const [isWritingReview, setIsWritingReview] = useState(false);
@@ -85,6 +109,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   if (!product) return null;
 
+  const isAlabaster = theme === 'alabaster';
   const isSaved = wishlist.includes(product.id);
 
   const formattedPrice = new Intl.NumberFormat('en-IN', {
@@ -199,15 +224,38 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
 
               {/* Main Image Stage */}
-              <div className="relative aspect-[3/4] flex-1 rounded-xl overflow-hidden bg-[#16161b] border border-white/10">
+              <div className={`relative aspect-[3/4] flex-1 rounded-xl overflow-hidden border transition-colors group/stage ${
+                isAlabaster ? 'bg-stone-100 border-stone-200' : 'bg-[#16161b] border-white/10'
+              }`}>
                 <img
                   src={product.images[activeImageIndex] || product.images[0]}
                   alt={product.name}
-                  className="w-full h-full object-cover transition-all duration-500"
+                  onClick={() => setIsFullscreenOpen(true)}
+                  className="w-full h-full object-cover transition-all duration-500 cursor-zoom-in"
                 />
 
+                {/* Full View Button near the image */}
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreenOpen(true)}
+                  className={`absolute top-3 right-3 flex items-center space-x-1.5 px-3 py-1.5 rounded-full border backdrop-blur-md shadow-lg transition-all active:scale-95 cursor-pointer z-10 ${
+                    isAlabaster
+                      ? 'bg-white/90 hover:bg-white text-stone-900 border-stone-300/80 shadow-black/5'
+                      : 'bg-black/65 hover:bg-black/85 text-white border-white/20'
+                  }`}
+                  aria-label="View image in full size"
+                  title="Expand to Fullscreen View"
+                >
+                  <Maximize2 className={`w-3.5 h-3.5 ${isAlabaster ? 'text-amber-600' : 'text-amber-400'}`} />
+                  <span className="text-[10px] font-mono tracking-wider uppercase font-medium">Full View</span>
+                </button>
+
                 {/* Season Watermark */}
-                <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] tracking-[0.25em] uppercase text-stone-300">
+                <div className={`absolute bottom-4 left-4 backdrop-blur-md px-3 py-1 rounded-full border text-[10px] tracking-[0.25em] uppercase ${
+                  isAlabaster
+                    ? 'bg-white/80 border-stone-300 text-stone-700'
+                    : 'bg-black/50 border-white/10 text-stone-300'
+                }`}>
                   {product.season || 'AW26 ATELIER'}
                 </div>
               </div>
@@ -790,6 +838,149 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Fullscreen High-Res Image Lightbox Modal for Mobile & Desktop */}
+      {isFullscreenOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col justify-between p-3 sm:p-6 animate-fade-in select-none"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${product.name} Fullscreen View`}
+        >
+          {/* Top Bar */}
+          <div className="relative z-20 flex items-center justify-between w-full max-w-6xl mx-auto pt-1 sm:pt-2 pb-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-amber-400">
+                Atelier High-Res View
+              </span>
+              <h3 className="text-sm sm:text-base font-serif text-white tracking-wide truncate max-w-[200px] sm:max-w-md">
+                {product.name}
+              </h3>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <span className="font-mono text-[11px] text-stone-400 px-2.5 py-1 rounded-full bg-white/10 border border-white/15">
+                {activeImageIndex + 1} / {product.images.length}
+              </span>
+
+              {/* Zoom toggle button */}
+              <button
+                type="button"
+                onClick={() => setIsZoomed(prev => !prev)}
+                className="p-2 sm:p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-stone-200 hover:text-white border border-white/15 backdrop-blur-md transition-colors cursor-pointer"
+                title={isZoomed ? "Reset zoom" : "Zoom in"}
+                aria-label={isZoomed ? "Reset zoom" : "Zoom in"}
+              >
+                <ZoomIn className={`w-4 h-4 transition-transform ${isZoomed ? 'scale-125 text-amber-400' : ''}`} />
+              </button>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFullscreenOpen(false);
+                  setIsZoomed(false);
+                }}
+                className="p-2 sm:p-2.5 rounded-full bg-white/15 hover:bg-white/30 text-white border border-white/25 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+                aria-label="Close Fullscreen View"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Fullscreen Image Area with mobile swipe gesture support */}
+          <div
+            className="relative flex-1 flex items-center justify-center overflow-hidden my-auto w-full max-w-6xl mx-auto"
+            onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              if (touchStartX === null) return;
+              const touchEndX = e.changedTouches[0].clientX;
+              const diff = touchStartX - touchEndX;
+              if (Math.abs(diff) > 40) {
+                if (diff > 0) {
+                  // Swipe Left -> Next Image
+                  setActiveImageIndex(prev => (prev + 1) % product.images.length);
+                } else {
+                  // Swipe Right -> Previous Image
+                  setActiveImageIndex(prev => (prev - 1 + product.images.length) % product.images.length);
+                }
+                setIsZoomed(false);
+              }
+              setTouchStartX(null);
+            }}
+          >
+            {/* Previous Button */}
+            {product.images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveImageIndex(prev => (prev - 1 + product.images.length) % product.images.length);
+                  setIsZoomed(false);
+                }}
+                className="absolute left-1 sm:left-4 z-20 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-xl"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+
+            {/* The Fullscreen Image */}
+            <div
+              className={`w-full h-full flex items-center justify-center overflow-auto p-1 transition-all duration-300 ${
+                isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
+              }`}
+              onClick={() => setIsZoomed(prev => !prev)}
+            >
+              <img
+                src={product.images[activeImageIndex] || product.images[0]}
+                alt={product.name}
+                className={`max-h-[76vh] sm:max-h-[82vh] max-w-[94vw] object-contain rounded-lg sm:rounded-xl shadow-2xl transition-transform duration-300 ${
+                  isZoomed ? 'scale-135 sm:scale-160' : 'scale-100'
+                }`}
+              />
+            </div>
+
+            {/* Next Button */}
+            {product.images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveImageIndex(prev => (prev + 1) % product.images.length);
+                  setIsZoomed(false);
+                }}
+                className="absolute right-1 sm:right-4 z-20 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-xl"
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Thumbnails Strip (Mobile & Desktop) */}
+          {product.images.length > 1 && (
+            <div className="relative z-20 flex items-center justify-center space-x-2 py-1 overflow-x-auto max-w-md mx-auto scrollbar-none">
+              {product.images.map((img, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setActiveImageIndex(idx);
+                    setIsZoomed(false);
+                  }}
+                  className={`relative w-10 h-14 sm:w-12 sm:h-16 rounded-lg overflow-hidden border transition-all shrink-0 cursor-pointer ${
+                    activeImageIndex === idx
+                      ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105 opacity-100 shadow-lg'
+                      : 'border-white/20 opacity-50 hover:opacity-90'
+                  }`}
+                >
+                  <img src={img} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

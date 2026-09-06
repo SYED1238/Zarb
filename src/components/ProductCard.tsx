@@ -120,6 +120,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
             <Eye className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Mobile Quick View button on card image */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onQuickView(product);
+          }}
+          className={`sm:hidden absolute bottom-2.5 right-2.5 p-2 rounded-full backdrop-blur-md shadow-md z-10 transition-all active:scale-95 cursor-pointer ${
+            isAlabaster
+              ? 'bg-white/90 text-stone-900 border border-stone-300/80 shadow-black/10'
+              : 'bg-black/65 text-stone-200 border border-white/20'
+          }`}
+          aria-label="View piece in detail"
+          title="View Details"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Product Information */}
