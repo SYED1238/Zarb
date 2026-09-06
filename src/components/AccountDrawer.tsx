@@ -10,8 +10,17 @@ import {
   Package,
   ShieldCheck,
   Sparkles,
-  Database
+  Database,
+  MapPin,
+  Navigation,
+  Loader2,
 } from 'lucide-react';
+import {
+  detectUserLocation,
+  getSavedAddress,
+  saveAddressToStorage,
+  type DetectedAddress,
+} from '../utils/geolocation';
 
 export const AccountDrawer: React.FC = () => {
   const {
@@ -30,6 +39,24 @@ export const AccountDrawer: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+
+  // Saved Delivery Address State
+  const [savedAddress, setSavedAddress] = useState<Partial<DetectedAddress> | null>(() => getSavedAddress());
+  const [isDetectingAddress, setIsDetectingAddress] = useState(false);
+
+  const handleDetectSavedAddress = async () => {
+    setIsDetectingAddress(true);
+    const res = await detectUserLocation();
+    setIsDetectingAddress(false);
+
+    if (res.success && res.address) {
+      saveAddressToStorage(res.address);
+      setSavedAddress(res.address);
+      showToast('Delivery address pinpointed & saved to your profile.');
+    } else {
+      showToast(res.error || 'Failed to detect location.');
+    }
+  };
 
   // Connection modal if user wants to enter credentials directly
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -332,20 +359,81 @@ export const AccountDrawer: React.FC = () => {
 
               {/* Profile Details Tab */}
               {activeTab === 'profile' && (
-                <div className={`p-4 rounded-xl border text-xs space-y-3 ${
-                  theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
-                }`}>
-                  <div className="flex justify-between border-b border-white/5 pb-2">
-                    <span className="text-stone-400">Authenticated via</span>
-                    <span className="font-medium text-emerald-400">Google OAuth 2.0</span>
+                <div className="space-y-4">
+                  <div className={`p-4 rounded-xl border text-xs space-y-3 ${
+                    theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
+                  }`}>
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span className="text-stone-400">Authenticated via</span>
+                      <span className="font-medium text-emerald-400">Google OAuth 2.0</span>
+                    </div>
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span className="text-stone-400">Account ID</span>
+                      <span className="font-mono text-stone-300 text-[11px] truncate max-w-[180px]">{user.id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-400">Member Status</span>
+                      <span className="text-white font-medium">Active Haute Patron</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between border-b border-white/5 pb-2">
-                    <span className="text-stone-400">Account ID</span>
-                    <span className="font-mono text-stone-300 text-[11px] truncate max-w-[180px]">{user.id}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-400">Member Status</span>
-                    <span className="text-white font-medium">Active Haute Patron</span>
+
+                  {/* Saved Delivery Destination Card */}
+                  <div className={`p-4 rounded-xl border space-y-3 ${
+                    theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
+                  }`}>
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="w-4 h-4 text-amber-400" />
+                        <span className="font-medium text-xs text-white">Default Delivery Address</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDetectSavedAddress}
+                        disabled={isDetectingAddress}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 text-[10px] uppercase tracking-wider font-mono flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {isDetectingAddress ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Detecting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Navigation className="w-3 h-3" />
+                            <span>Detect GPS</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {savedAddress?.address ? (
+                      <div className="text-xs space-y-1">
+                        <p className="text-stone-200 font-medium leading-snug">{savedAddress.address}</p>
+                        {savedAddress.apartment && (
+                          <p className="text-stone-400">{savedAddress.apartment}</p>
+                        )}
+                        <p className="text-stone-400">
+                          {savedAddress.city}, {savedAddress.state} — {savedAddress.postalCode}, {savedAddress.country || 'India'}
+                        </p>
+                        <div className="pt-1 flex items-center space-x-2">
+                          {savedAddress.accuracy && (
+                            <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                              GPS ±{savedAddress.accuracy}m
+                            </span>
+                          )}
+                          <span className="text-[9px] font-mono text-stone-400">
+                            Saved for fast 1-tap checkout
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-stone-400 text-xs space-y-1">
+                        <p>No default address saved yet.</p>
+                        <p className="text-[10px] text-stone-500">
+                          Click "Detect GPS" above or enter an address at checkout to save your atelier destination.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

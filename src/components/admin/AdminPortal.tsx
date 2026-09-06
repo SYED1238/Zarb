@@ -3237,10 +3237,10 @@ export const AdminPortal: React.FC = () => {
       {/* =================================================================== */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/75 backdrop-blur-sm animate-fade-in p-0 sm:p-4">
-          <div className={`w-full max-w-lg h-full sm:h-auto sm:rounded-3xl border flex flex-col shadow-2xl overflow-hidden ${
+          <div className={`w-full max-w-lg h-full sm:h-[92vh] sm:max-h-[92vh] sm:rounded-3xl border flex flex-col shadow-2xl overflow-hidden ${
             theme === 'alabaster' ? 'bg-[#faf9f5] border-stone-300 text-black' : 'bg-[#0f0f13] border-white/15 text-white'
           }`}>
-            <div className={`px-6 py-4 border-b flex items-center justify-between ${
+            <div className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${
               theme === 'alabaster' ? 'border-stone-200 bg-white' : 'border-white/10 bg-white/[0.02]'
             }`}>
               <div>
@@ -3253,17 +3253,18 @@ export const AdminPortal: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="p-2 text-stone-400 hover:text-white rounded-lg"
+                className="p-2 text-stone-400 hover:text-white rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCategory} className="p-6 space-y-4">
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5">
-                  Category Full Name *
-                </label>
+            <form onSubmit={handleSaveCategory} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5">
+                    Category Full Name *
+                  </label>
                 <input
                   type="text"
                   required
@@ -3648,17 +3649,22 @@ export const AdminPortal: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-4 border-t border-white/10 flex items-center justify-end space-x-3">
+              </div>
+
+              {/* Sticky Action Footer */}
+              <div className={`p-4 px-6 border-t flex items-center justify-end space-x-3 shrink-0 ${
+                theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#0b0b0f] border-white/10'
+              }`}>
                 <button
                   type="button"
                   onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-white/20 text-xs tracking-wider uppercase text-stone-400"
+                  className="px-4 py-2.5 rounded-xl border border-white/20 text-xs tracking-wider uppercase text-stone-400 hover:text-white transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-md cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-md cursor-pointer transition-colors"
                 >
                   Save Category
                 </button>

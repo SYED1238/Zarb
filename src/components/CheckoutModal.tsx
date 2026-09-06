@@ -13,8 +13,20 @@ import {
   Sparkles,
   QrCode,
   Banknote,
+  Navigation,
+  Compass,
+  MapPin,
+  Loader2,
+  AlertCircle,
+  RotateCw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import {
+  detectUserLocation,
+  detectLocationByIP,
+  getSavedAddress,
+  saveAddressToStorage,
+} from '../utils/geolocation';
 
 export const CheckoutModal: React.FC = () => {
   const { isCheckoutOpen, setIsCheckoutOpen, cartSubtotal, clearCart, cart, showToast } = useStore();
@@ -22,6 +34,26 @@ export const CheckoutModal: React.FC = () => {
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // Geolocation & Auto-detection state
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'detecting' | 'success' | 'error'>('idle');
+  const [locationMessage, setLocationMessage] = useState('');
+  const [detectedMetadata, setDetectedMetadata] = useState<{
+    source: 'gps' | 'ip';
+    accuracy?: number;
+    summary?: string;
+  } | null>(() => {
+    const saved = getSavedAddress();
+    if (saved?.displayName) {
+      return {
+        source: saved.source || 'gps',
+        accuracy: saved.accuracy,
+        summary: saved.displayName,
+      };
+    }
+    return null;
+  });
 
   useModalBackHandler(
     isCheckoutOpen,
@@ -45,28 +77,107 @@ export const CheckoutModal: React.FC = () => {
     }
   }, [user, setIsCheckoutOpen]);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    email: user?.email || '',
-    phone: '',
-    firstName: user?.fullName ? user.fullName.split(' ')[0] : '',
-    lastName: user?.fullName ? user.fullName.split(' ').slice(1).join(' ') : '',
-    address: '42, Altamount Road, Cumballa Hill',
-    apartment: 'Penthouse 12B',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    postalCode: '400026',
-    country: 'India',
-    shippingMethod: 'express',
-    paymentMethod: 'card',
-    cardNumber: '4532 •••• •••• 8842',
-    cardExpiry: '08/29',
-    cardCvc: '•••',
-    cardHolder: user?.fullName ? user.fullName.toUpperCase() : 'CLIENT NAME',
-    upiId: 'client@okaxis',
+  // Form State — loads saved address from previous visit if available
+  const [formData, setFormData] = useState(() => {
+    const saved = getSavedAddress();
+    return {
+      email: user?.email || '',
+      phone: '',
+      firstName: user?.fullName ? user.fullName.split(' ')[0] : '',
+      lastName: user?.fullName ? user.fullName.split(' ').slice(1).join(' ') : '',
+      address: saved?.address || '42, Altamount Road, Cumballa Hill',
+      apartment: saved?.apartment || 'Penthouse 12B',
+      city: saved?.city || 'Mumbai',
+      state: saved?.state || 'Maharashtra',
+      postalCode: saved?.postalCode || '400026',
+      country: saved?.country || 'India',
+      shippingMethod: 'express',
+      paymentMethod: 'card',
+      cardNumber: '4532 •••• •••• 8842',
+      cardExpiry: '08/29',
+      cardCvc: '•••',
+      cardHolder: user?.fullName ? user.fullName.toUpperCase() : 'CLIENT NAME',
+      upiId: 'client@okaxis',
+    };
   });
 
   const [orderNumber, setOrderNumber] = useState('');
+
+  // Location detection triggers
+  const handleDetectLocation = async () => {
+    setIsDetectingLocation(true);
+    setLocationStatus('detecting');
+    setLocationMessage('Contacting GPS satellite & pinpointing address coordinates...');
+
+    const res = await detectUserLocation();
+    setIsDetectingLocation(false);
+
+    if (res.success && res.address) {
+      const { address, apartment, city, state, postalCode, country, source, accuracy, displayName } = res.address;
+      setFormData((prev) => ({
+        ...prev,
+        address: address || prev.address,
+        apartment: apartment !== undefined ? apartment : prev.apartment,
+        city: city || prev.city,
+        state: state || prev.state,
+        postalCode: postalCode || prev.postalCode,
+        country: country || prev.country,
+      }));
+
+      saveAddressToStorage({ address, apartment, city, state, postalCode, country, source, accuracy, displayName });
+      setLocationStatus('success');
+      setLocationMessage(
+        source === 'gps'
+          ? `High-accuracy GPS coordinates secured (${accuracy ? `±${accuracy}m` : 'live'}).`
+          : 'Approximate locality auto-filled via high-speed network.'
+      );
+      setDetectedMetadata({
+        source,
+        accuracy,
+        summary: displayName || `${city}, ${state} · ${postalCode}`,
+      });
+      showToast('Delivery address auto-filled with high precision.');
+    } else {
+      setLocationStatus('error');
+      setLocationMessage(res.error || 'Unable to pinpoint exact location. Please enter manually.');
+      showToast(res.error || 'Location detection failed.');
+    }
+  };
+
+  const handleIpFallback = async () => {
+    setIsDetectingLocation(true);
+    setLocationStatus('detecting');
+    setLocationMessage('Resolving network location via IP...');
+
+    const res = await detectLocationByIP();
+    setIsDetectingLocation(false);
+
+    if (res.success && res.address) {
+      const { address, apartment, city, state, postalCode, country, source, displayName } = res.address;
+      setFormData((prev) => ({
+        ...prev,
+        address: address || prev.address,
+        apartment: apartment || prev.apartment,
+        city: city || prev.city,
+        state: state || prev.state,
+        postalCode: postalCode || prev.postalCode,
+        country: country || prev.country,
+      }));
+
+      saveAddressToStorage({ address, apartment, city, state, postalCode, country, source, displayName });
+      setLocationStatus('success');
+      setLocationMessage('Approximate locality auto-filled via network.');
+      setDetectedMetadata({
+        source: 'ip',
+        summary: displayName || `${city}, ${state} · ${postalCode}`,
+      });
+      showToast('Approximate address auto-filled.');
+    } else {
+      setLocationStatus('error');
+      setLocationMessage('Could not resolve network location.');
+      showToast('Network location lookup failed.');
+    }
+  };
 
   // Prefill authenticated user information whenever user logs in or changes
   useEffect(() => {
@@ -101,7 +212,17 @@ export const CheckoutModal: React.FC = () => {
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1) setStep(2);
-    else if (step === 2) setStep(3);
+    else if (step === 2) {
+      saveAddressToStorage({
+        address: formData.address,
+        apartment: formData.apartment,
+        city: formData.city,
+        state: formData.state,
+        postalCode: formData.postalCode,
+        country: formData.country,
+      });
+      setStep(3);
+    }
     else if (step === 3) {
       // Guard: Ensure user is logged in
       if (!user) {
@@ -490,30 +611,145 @@ export const CheckoutModal: React.FC = () => {
                 </div>
               </div>
 
+              {/* Haute Geolocation / Detect My Location Card */}
+              <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.08] via-black/40 to-white/[0.02] p-4 sm:p-5 backdrop-blur-md shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                  <div className="flex items-start sm:items-center space-x-3.5">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+                      isDetectingLocation
+                        ? 'bg-amber-500 text-black animate-pulse shadow-[0_0_22px_rgba(245,158,11,0.5)]'
+                        : locationStatus === 'success'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                        : locationStatus === 'error'
+                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                    }`}>
+                      {isDetectingLocation ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : locationStatus === 'success' ? (
+                        <CheckCircle2 className="w-5 h-5" />
+                      ) : locationStatus === 'error' ? (
+                        <AlertCircle className="w-5 h-5" />
+                      ) : (
+                        <Compass className="w-5 h-5" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                          Atelier Geolocation
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          {isDetectingLocation ? 'Pinging GPS...' : 'GPS LIVE'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-300 mt-0.5 leading-relaxed">
+                        {locationMessage || 'Pinpoint current coordinates to instantly autofill your luxury delivery destination.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={handleDetectLocation}
+                      disabled={isDetectingLocation}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-semibold text-xs uppercase tracking-wider flex items-center space-x-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                    >
+                      {isDetectingLocation ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Locating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="w-3.5 h-3.5 fill-black" />
+                          <span>Detect My Location</span>
+                        </>
+                      )}
+                    </button>
+
+                    {(locationStatus === 'error' || locationStatus === 'idle') && (
+                      <button
+                        type="button"
+                        onClick={handleIpFallback}
+                        disabled={isDetectingLocation}
+                        className="px-3 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-stone-300 hover:text-white text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                        title="Auto-fill city & PIN code via approximate IP network lookup"
+                      >
+                        IP Autofill
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Detected Live Coordinates / Accuracy Pill */}
+                {detectedMetadata && (
+                  <div className="mt-3.5 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-stone-300">
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate max-w-[280px] sm:max-w-md text-stone-200 font-medium">
+                        {detectedMetadata.summary}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {detectedMetadata.accuracy && (
+                        <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          ±{detectedMetadata.accuracy}m GPS lock
+                        </span>
+                      )}
+                      <span className="text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase">
+                        Via {detectedMetadata.source.toUpperCase()}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDetectLocation}
+                        className="text-stone-400 hover:text-amber-300 flex items-center space-x-1 pl-1 cursor-pointer"
+                        title="Re-run GPS detection"
+                      >
+                        <RotateCw className="w-3 h-3" />
+                        <span>Re-detect</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
-                <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                  Street Address
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs uppercase tracking-[0.15em] text-stone-300">
+                    Street Address
+                  </label>
+                  {detectedMetadata && (
+                    <span className="text-[10px] font-mono text-amber-400/80 flex items-center space-x-1">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>Auto-filled</span>
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   name="address"
                   required
                   value={formData.address}
                   onChange={handleChange}
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
+                  placeholder="e.g. 42, Altamount Road, Cumballa Hill"
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none placeholder:text-stone-600"
                 />
               </div>
 
               <div>
                 <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                  Apartment, Suite, Penthouse (optional)
+                  Apartment, Suite, Floor (optional)
                 </label>
                 <input
                   type="text"
                   name="apartment"
                   value={formData.apartment}
                   onChange={handleChange}
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
+                  placeholder="e.g. Penthouse 12B, Villa 4"
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none placeholder:text-stone-600"
                 />
               </div>
 
