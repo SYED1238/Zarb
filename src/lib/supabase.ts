@@ -2,8 +2,16 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // Retrieve credentials from .env or browser localStorage
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
-  const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const envUrl =
+    import.meta.env.VITE_SUPABASE_URL ||
+    import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
+    import.meta.env.SUPABASE_URL ||
+    '';
+  const envKey =
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    import.meta.env.SUPABASE_ANON_KEY ||
+    '';
 
   const localUrl = typeof window !== 'undefined' ? localStorage.getItem('atelier_supabase_url') || '' : '';
   const localKey = typeof window !== 'undefined' ? localStorage.getItem('atelier_supabase_anon_key') || '' : '';

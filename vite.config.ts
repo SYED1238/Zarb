@@ -6,6 +6,7 @@ import path from 'node:path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_', 'SUPABASE_'],
   plugins: [
     react(),
     tailwindcss(),
