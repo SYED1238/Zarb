@@ -92,6 +92,42 @@ export function convertGoogleDriveUrl(url: string): string {
   return trimmed;
 }
 
+// Helper to read and optimize client-side image files into compressed base64 JPEG
+export function optimizeImageFile(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const rawUrl = ev.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1600;
+        let width = img.width;
+        let height = img.height;
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+        if (height > MAX_HEIGHT) {
+          width = Math.round((width * MAX_HEIGHT) / height);
+          height = MAX_HEIGHT;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        const optimized = canvas.toDataURL('image/jpeg', 0.86);
+        resolve(optimized);
+      };
+      img.onerror = () => resolve(rawUrl);
+      img.src = rawUrl;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
 export const AdminPortal: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -2738,43 +2774,22 @@ export const AdminPortal: React.FC = () => {
                       {/* Local File Upload Button */}
                       <label className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0">
                         <Upload className="w-3.5 h-3.5" />
-                        <span>Upload File</span>
+                        <span>Upload Files</span>
                         <input
                           type="file"
                           accept="image/*"
+                          multiple
                           className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                const rawUrl = ev.target?.result as string;
-                                const img = new Image();
-                                img.onload = () => {
-                                  const canvas = document.createElement('canvas');
-                                  const MAX_WIDTH = 1200;
-                                  const MAX_HEIGHT = 1600;
-                                  let width = img.width;
-                                  let height = img.height;
-                                  if (width > MAX_WIDTH) {
-                                    height = Math.round((height * MAX_WIDTH) / width);
-                                    width = MAX_WIDTH;
-                                  }
-                                  if (height > MAX_HEIGHT) {
-                                    width = Math.round((width * MAX_HEIGHT) / height);
-                                    height = MAX_HEIGHT;
-                                  }
-                                  canvas.width = width;
-                                  canvas.height = height;
-                                  const ctx = canvas.getContext('2d');
-                                  ctx?.drawImage(img, 0, 0, width, height);
-                                  const optimized = canvas.toDataURL('image/jpeg', 0.86);
-                                  setProductForm((prev) => ({ ...prev, images: [...prev.images, optimized] }));
-                                };
-                                img.src = rawUrl;
-                              };
-                              reader.readAsDataURL(file);
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length > 0) {
+                              const optimizedList = await Promise.all(files.map(optimizeImageFile));
+                              const valid = optimizedList.filter(Boolean);
+                              if (valid.length > 0) {
+                                setProductForm((prev) => ({ ...prev, images: [...prev.images, ...valid] }));
+                              }
                             }
+                            e.target.value = '';
                           }}
                         />
                       </label>
@@ -2988,43 +3003,32 @@ export const AdminPortal: React.FC = () => {
                           {/* File Upload for this Color */}
                           <label className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-medium uppercase tracking-wider transition-colors cursor-pointer shrink-0">
                             <Upload className="w-3.5 h-3.5 text-amber-300" />
-                            <span>Upload</span>
+                            <span>Upload Photos</span>
                             <input
                               type="file"
                               accept="image/*"
+                              multiple
                               className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onload = (ev) => {
-                                    const rawUrl = ev.target?.result as string;
-                                    const img = new Image();
-                                    img.onload = () => {
-                                      const canvas = document.createElement('canvas');
-                                      const MAX_WIDTH = 1200;
-                                      const MAX_HEIGHT = 1600;
-                                      let width = img.width;
-                                      let height = img.height;
-                                      if (width > MAX_WIDTH) {
-                                        height = Math.round((height * MAX_WIDTH) / width);
-                                        width = MAX_WIDTH;
-                                      }
-                                      if (height > MAX_HEIGHT) {
-                                        width = Math.round((width * MAX_HEIGHT) / height);
-                                        height = MAX_HEIGHT;
-                                      }
-                                      canvas.width = width;
-                                      canvas.height = height;
-                                      const ctx = canvas.getContext('2d');
-                                      ctx?.drawImage(img, 0, 0, width, height);
-                                      const optimized = canvas.toDataURL('image/jpeg', 0.86);
-                                      handleAddImageToColor(optimized);
-                                    };
-                                    img.src = rawUrl;
-                                  };
-                                  reader.readAsDataURL(file);
+                              onChange={async (e) => {
+                                const files = Array.from(e.target.files || []);
+                                if (files.length > 0) {
+                                  const optimizedList = await Promise.all(files.map(optimizeImageFile));
+                                  const valid = optimizedList.filter(Boolean);
+                                  if (valid.length > 0) {
+                                    const updatedColors = productForm.colors.map((c, i) => {
+                                      if (i !== activeColorImageIndex) return c;
+                                      const currentImgs = c.images && c.images.length > 0 ? [...c.images] : (c.image ? [c.image] : []);
+                                      const updated = [...currentImgs, ...valid];
+                                      return {
+                                        ...c,
+                                        image: updated[0] || valid[0],
+                                        images: updated,
+                                      };
+                                    });
+                                    setProductForm({ ...productForm, colors: updatedColors });
+                                  }
                                 }
+                                e.target.value = '';
                               }}
                             />
                           </label>
@@ -3417,50 +3421,29 @@ export const AdminPortal: React.FC = () => {
                     </button>
                     <label className="flex items-center space-x-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Upload</span>
+                      <span>Upload Slides</span>
                       <input
                         type="file"
                         accept="image/*"
+                        multiple
                         className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
-                              const rawUrl = ev.target?.result as string;
-                              const img = new Image();
-                              img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                const MAX_WIDTH = 1200;
-                                const MAX_HEIGHT = 1600;
-                                let width = img.width;
-                                let height = img.height;
-                                if (width > MAX_WIDTH) {
-                                  height = Math.round((height * MAX_WIDTH) / width);
-                                  width = MAX_WIDTH;
-                                }
-                                if (height > MAX_HEIGHT) {
-                                  width = Math.round((width * MAX_HEIGHT) / height);
-                                  height = MAX_HEIGHT;
-                                }
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                ctx?.drawImage(img, 0, 0, width, height);
-                                const optimized = canvas.toDataURL('image/jpeg', 0.86);
-                                const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
-                                const updated = [...currentImgs, optimized];
-                                setCategoryForm({
-                                  ...categoryForm,
-                                  image: updated[0] || optimized,
-                                  images: updated,
-                                });
-                                setCategoryPreviewIndex(updated.length - 1);
-                              };
-                              img.src = rawUrl;
-                            };
-                            reader.readAsDataURL(file);
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            const optimizedList = await Promise.all(files.map(optimizeImageFile));
+                            const valid = optimizedList.filter(Boolean);
+                            if (valid.length > 0) {
+                              const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
+                              const updated = [...currentImgs, ...valid];
+                              setCategoryForm({
+                                ...categoryForm,
+                                image: updated[0] || valid[0],
+                                images: updated,
+                              });
+                              setCategoryPreviewIndex(updated.length - 1);
+                            }
                           }
+                          e.target.value = '';
                         }}
                       />
                     </label>
