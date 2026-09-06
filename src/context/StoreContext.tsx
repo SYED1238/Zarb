@@ -212,7 +212,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const saved = localStorage.getItem('atelier_products_v2');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setProducts(parsed);
+          if (Array.isArray(parsed)) {
+            const hydrated = parsed.map(p => {
+              const defaultP = PRODUCTS.find(dp => dp.id === p.id);
+              if (!defaultP) return p;
+              return {
+                ...p,
+                colors: (p.colors || []).map((col: any) => {
+                  const defCol = defaultP.colors?.find(dc => dc.name === col.name);
+                  return {
+                    ...col,
+                    images: (col.images && col.images.length > 0) ? col.images : (defCol?.images || (col.image ? [col.image] : [])),
+                  };
+                }),
+              };
+            });
+            setProducts(hydrated);
+          }
         }
       }
     } catch (e) {
@@ -231,7 +247,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const saved = localStorage.getItem('atelier_women_categories_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(c => {
+            const defaultMatch = WOMEN_CATEGORIES.find(d => d.slug === c.slug);
+            return {
+              ...c,
+              images: (c.images && c.images.length > 0) ? c.images : (defaultMatch?.images || [c.image].filter(Boolean)),
+            };
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to load women categories', e);
@@ -244,7 +268,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const saved = localStorage.getItem('atelier_men_categories_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(c => {
+            const defaultMatch = MEN_CATEGORIES.find(d => d.slug === c.slug);
+            return {
+              ...c,
+              images: (c.images && c.images.length > 0) ? c.images : (defaultMatch?.images || [c.image].filter(Boolean)),
+            };
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to load men categories', e);

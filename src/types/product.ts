@@ -4,6 +4,7 @@ export interface ProductColor {
   name: string;
   hex: string;
   image?: string;
+  images?: string[]; // Multiple photos specifically for this color variant
 }
 
 export interface Product {

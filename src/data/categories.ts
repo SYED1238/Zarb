@@ -7,6 +7,7 @@ export interface CategoryItem {
   eyebrow: string;
   description: string;
   image: string;
+  images?: string[]; // Multiple photos for jaw-dropping card transition
   metaDescription: string;
 }
 
@@ -20,6 +21,11 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     eyebrow: "WOMEN'S WARDROBE · KURTIS",
     description: 'Contemporary silhouettes crafted for effortless everyday elegance. Pure Mulberry silks, hand-spun Chanderi, and architectural draping.',
     image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1000&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?q=80&w=1000&auto=format&fit=crop'
+    ],
     metaDescription: "Explore contemporary women's luxury kurtis and tunics from Zarb.",
   },
   {
@@ -31,6 +37,11 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     eyebrow: "WOMEN'S WARDROBE · DRESSES & GOWNS",
     description: 'Liquid bias-cut charmeuse, sculptural floor-skimming pool hems, and architectural evening gowns.',
     image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=1000&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?q=80&w=1000&auto=format&fit=crop'
+    ],
     metaDescription: "Discover luxury women's evening dresses and gowns from Zarb.",
   },
   {
@@ -42,6 +53,10 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     eyebrow: "WOMEN'S WARDROBE · BLAZERS & OUTERWEAR",
     description: 'Structured hour-glass tailoring, Italian wool gabardine, and cocoon cashmere trench silhouettes.',
     image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=1000&auto=format&fit=crop'
+    ],
     metaDescription: "Shop women's luxury tailored blazers and overcoats from Zarb.",
   },
   {
@@ -53,6 +68,10 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     eyebrow: "WOMEN'S WARDROBE · TOPS & KNITWEAR",
     description: 'Fine ribbed Mongolian cashmere, second-skin Mulberry silk knits, and minimal modern layers.',
     image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000&auto=format&fit=crop',
+    images: [
+      'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?q=80&w=1000&auto=format&fit=crop'
+    ],
     metaDescription: "Explore luxury cashmere tops and knitwear for women by Zarb.",
   },
   {

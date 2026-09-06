@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
 import { Heart, Eye, ShoppingBag, Star } from 'lucide-react';
@@ -15,8 +15,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
 
   const isSaved = wishlist.includes(product.id);
-  const secondaryImage = product.images[1] || product.images[0];
-  const activeImage = isHovered ? secondaryImage : product.images[0];
+
+  // Dedicated photos for selected color, falling back to product.images
+  const selectedColor = product.colors?.[selectedColorIndex];
+  const colorImages = useMemo(() => {
+    if (selectedColor?.images && selectedColor.images.length > 0) {
+      return selectedColor.images;
+    }
+    if (selectedColor?.image) {
+      return [selectedColor.image, ...product.images.filter(img => img !== selectedColor.image)];
+    }
+    return product.images && product.images.length > 0 ? product.images : [];
+  }, [product.images, selectedColor]);
+
+  const primaryImage = colorImages[0] || product.images[0];
+  const secondaryImage = colorImages[1] || product.images[1] || primaryImage;
+  const activeImage = isHovered ? secondaryImage : primaryImage;
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -60,10 +74,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       }`}>
         {/* Primary Image with Crossfade */}
         <img
+          key={`${product.id}-${selectedColorIndex}-${isHovered}`}
           src={activeImage}
           alt={product.name}
           loading="lazy"
-          className="w-full h-full object-cover object-center transition-all duration-700 ease-out group-hover:scale-105"
+          className="w-full h-full object-cover object-center transition-all duration-700 ease-out group-hover:scale-105 animate-fade-in"
         />
 
         {/* Subtle dark gradient at bottom for contrast */}
@@ -189,7 +204,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
                   e.stopPropagation();
                   setSelectedColorIndex(idx);
                 }}
-                className={`w-3 h-3 rounded-full border transition-all ${
+                onMouseEnter={() => setSelectedColorIndex(idx)}
+                className={`w-3.5 h-3.5 rounded-full border transition-all cursor-pointer ${
                   selectedColorIndex === idx
                     ? (isAlabaster
                         ? 'ring-1 ring-stone-900 ring-offset-2 ring-offset-[#f6f5f0] border-stone-900 scale-110'

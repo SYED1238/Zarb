@@ -326,9 +326,30 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1000&auto=format&fit=crop'
     ],
     colors: [
-      { name: 'Ivory Chanderi', hex: '#f7f5ed' },
-      { name: 'Basalt Obsidian', hex: '#161619' },
-      { name: 'Burnt Ochre', hex: '#7a4220' }
+      {
+        name: 'Ivory Chanderi',
+        hex: '#f7f5ed',
+        images: [
+          'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1000&auto=format&fit=crop'
+        ]
+      },
+      {
+        name: 'Basalt Obsidian',
+        hex: '#161619',
+        images: [
+          'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=1000&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop'
+        ]
+      },
+      {
+        name: 'Burnt Ochre',
+        hex: '#7a4220',
+        images: [
+          'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?q=80&w=1000&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop'
+        ]
+      }
     ],
     sizes: ['34 (XS)', '36 (S)', '38 (M)', '40 (L)'],
     stock: 9,

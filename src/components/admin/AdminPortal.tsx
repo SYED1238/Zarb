@@ -36,7 +36,11 @@ import {
   MapPin,
   RefreshCw,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles
 } from 'lucide-react';
 import {
   isSupabaseConfigured,
@@ -57,6 +61,10 @@ const LUXURY_COLOR_PRESETS = [
   { name: 'Espresso Brun', hex: '#2a1f1d' },
   { name: 'Midnight Navy', hex: '#161b26' },
   { name: 'Pure White', hex: '#ffffff' },
+  { name: 'Crimson Scarlet', hex: '#8a1c14' },
+  { name: 'Emerald Forest', hex: '#1c3b2b' },
+  { name: 'Royal Sapphire', hex: '#1e325c' },
+  { name: 'Dusty Rose', hex: '#c59b97' },
 ];
 
 const STANDARD_SIZES = [
@@ -316,6 +324,12 @@ export const AdminPortal: React.FC = () => {
   // Product Image input URL temporary
   const [newImageUrl, setNewImageUrl] = useState('');
 
+  // Color Specific Photos Sub-panel
+  const [activeColorImageIndex, setActiveColorImageIndex] = useState<number | null>(null);
+  const [newColorImageUrl, setNewColorImageUrl] = useState('');
+  const [customColorName, setCustomColorName] = useState('');
+  const [customColorHex, setCustomColorHex] = useState('#8a1c14');
+
   // Category Edit/Create Modal State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
@@ -329,8 +343,11 @@ export const AdminPortal: React.FC = () => {
     eyebrow: '',
     description: '',
     image: '',
+    images: [],
     metaDescription: '',
   });
+  const [newCategoryImageUrl, setNewCategoryImageUrl] = useState('');
+  const [categoryPreviewIndex, setCategoryPreviewIndex] = useState(0);
 
   // Bulk pricing temporary edits
   const [bulkEdits, setBulkEdits] = useState<Record<string, { price: number; compareAtPrice?: number; stock: number }>>({});
@@ -452,7 +469,7 @@ export const AdminPortal: React.FC = () => {
       price: 19500,
       compareAtPrice: 0,
       images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop'],
-      colors: [{ name: 'Obsidian Noir', hex: '#111113' }],
+      colors: [{ name: 'Obsidian Noir', hex: '#111113', images: [] }],
       sizes: ['S', 'M', 'L'],
       stock: 8,
       sku: `AT-${Date.now().toString().slice(-4)}`,
@@ -466,6 +483,8 @@ export const AdminPortal: React.FC = () => {
       season: 'Autumn / Winter 2026',
     });
     setNewImageUrl('');
+    setActiveColorImageIndex(null);
+    setNewColorImageUrl('');
     setIsProductModalOpen(true);
   };
 
@@ -482,7 +501,12 @@ export const AdminPortal: React.FC = () => {
       price: p.price,
       compareAtPrice: p.compareAtPrice || 0,
       images: [...p.images],
-      colors: [...p.colors],
+      colors: p.colors.map(c => ({
+        name: c.name,
+        hex: c.hex,
+        image: c.image,
+        images: c.images ? [...c.images] : (c.image ? [c.image] : []),
+      })),
       sizes: [...p.sizes],
       stock: p.stock,
       sku: p.sku,
@@ -496,6 +520,8 @@ export const AdminPortal: React.FC = () => {
       season: p.season || 'Autumn / Winter 2026',
     });
     setNewImageUrl('');
+    setActiveColorImageIndex(null);
+    setNewColorImageUrl('');
     setIsProductModalOpen(true);
   };
 
@@ -534,7 +560,14 @@ export const AdminPortal: React.FC = () => {
       price: Number(productForm.price),
       compareAtPrice: productForm.compareAtPrice ? Number(productForm.compareAtPrice) : undefined,
       images: productForm.images.filter(img => !!img.trim()),
-      colors: productForm.colors.length > 0 ? productForm.colors : [{ name: 'Standard', hex: '#111113' }],
+      colors: productForm.colors.length > 0
+        ? productForm.colors.map(c => ({
+            name: c.name,
+            hex: c.hex,
+            image: (c.images && c.images.length > 0) ? c.images[0] : c.image,
+            images: (c.images && c.images.length > 0) ? c.images : (c.image ? [c.image] : []),
+          }))
+        : [{ name: 'Standard', hex: '#111113', images: [] }],
       sizes: productForm.sizes.length > 0 ? productForm.sizes : ['One Size'],
       stock: Math.max(0, Number(productForm.stock)),
       sku: productForm.sku.trim() || `AT-${Date.now().toString().slice(-4)}`,
@@ -567,6 +600,7 @@ export const AdminPortal: React.FC = () => {
   const handleOpenCreateCategory = (genderChoice: 'women' | 'men') => {
     setEditingCategory(null);
     setCategoryOriginalSlug('');
+    const defaultCover = 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop';
     setCategoryForm({
       id: '',
       slug: '',
@@ -575,16 +609,28 @@ export const AdminPortal: React.FC = () => {
       gender: genderChoice,
       eyebrow: `${genderChoice.toUpperCase()}'S WARDROBE · `,
       description: '',
-      image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop',
+      image: defaultCover,
+      images: [defaultCover],
       metaDescription: '',
     });
+    setNewCategoryImageUrl('');
+    setCategoryPreviewIndex(0);
     setIsCategoryModalOpen(true);
   };
 
   const handleOpenEditCategory = (cat: CategoryItem) => {
     setEditingCategory(cat);
     setCategoryOriginalSlug(cat.slug);
-    setCategoryForm({ ...cat });
+    const catImages = (cat.images && cat.images.length > 0)
+      ? cat.images
+      : (cat.image ? [cat.image] : []);
+    setCategoryForm({
+      ...cat,
+      image: cat.image || catImages[0] || '',
+      images: catImages.length > 0 ? [...catImages] : (cat.image ? [cat.image] : []),
+    });
+    setNewCategoryImageUrl('');
+    setCategoryPreviewIndex(0);
     setIsCategoryModalOpen(true);
   };
 
@@ -599,6 +645,14 @@ export const AdminPortal: React.FC = () => {
     const shortName = categoryForm.shortName.trim() || categoryForm.name.trim();
     const id = editingCategory ? editingCategory.id : slug;
 
+    // Filter valid images
+    const rawImages = categoryForm.images || [];
+    const validImages = rawImages.filter(img => Boolean(img && img.trim()));
+    if (categoryForm.image && !validImages.includes(categoryForm.image.trim())) {
+      validImages.unshift(categoryForm.image.trim());
+    }
+    const primaryCover = validImages[0] || categoryForm.image || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop';
+
     const payload: CategoryItem = {
       ...categoryForm,
       id,
@@ -607,7 +661,8 @@ export const AdminPortal: React.FC = () => {
       name: categoryForm.name.trim(),
       eyebrow: categoryForm.eyebrow.trim() || `${categoryForm.gender.toUpperCase()}'S WARDROBE · ${shortName.toUpperCase()}`,
       description: categoryForm.description.trim(),
-      image: categoryForm.image.trim(),
+      image: primaryCover,
+      images: validImages.length > 0 ? validImages : [primaryCover],
       metaDescription: categoryForm.metaDescription.trim() || `Explore luxury ${shortName} collection from Atelier Nōir.`,
     };
 
@@ -1525,6 +1580,7 @@ export const AdminPortal: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {womenCategories.map((cat) => {
                   const itemCount = products.filter(p => p.gender === 'women' && p.category === cat.slug).length;
+                  const catSlides = (cat.images && cat.images.length > 0) ? cat.images : (cat.image ? [cat.image] : []);
                   return (
                     <div
                       key={cat.slug}
@@ -1548,11 +1604,36 @@ export const AdminPortal: React.FC = () => {
                           <span className="text-[10px] text-stone-400 block mb-1">
                             Pill Label: <strong className="text-stone-300">{cat.shortName}</strong>
                           </span>
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/5 border border-white/10 text-stone-300">
-                            {itemCount} {itemCount === 1 ? 'Piece' : 'Pieces'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/5 border border-white/10 text-stone-300">
+                              {itemCount} {itemCount === 1 ? 'Piece' : 'Pieces'}
+                            </span>
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+                              catSlides.length > 1
+                                ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                                : 'bg-white/5 border-white/10 text-stone-400'
+                            }`}>
+                              {catSlides.length} {catSlides.length === 1 ? 'Card Slide' : 'Card Slides'}
+                            </span>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Mini Preview of Slides if Multiple */}
+                      {catSlides.length > 1 && (
+                        <div className="flex items-center space-x-1.5 overflow-x-auto py-1 px-2 rounded-xl bg-black/30 border border-white/5 scrollbar-none">
+                          <span className="text-[9px] font-mono uppercase text-stone-500 shrink-0 pr-1">Slides:</span>
+                          {catSlides.map((sImg, sIdx) => (
+                            <img
+                              key={sIdx}
+                              src={sImg}
+                              alt={`Slide ${sIdx + 1}`}
+                              className="w-6 h-8 object-cover rounded border border-white/20 shrink-0"
+                              title={`Slide #${sIdx + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
 
                       <p className="text-xs text-stone-400 font-light line-clamp-2 leading-relaxed">
                         {cat.description}
@@ -1615,6 +1696,7 @@ export const AdminPortal: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {menCategories.map((cat) => {
                   const itemCount = products.filter(p => p.gender === 'men' && p.category === cat.slug).length;
+                  const catSlides = (cat.images && cat.images.length > 0) ? cat.images : (cat.image ? [cat.image] : []);
                   return (
                     <div
                       key={cat.slug}
@@ -1638,11 +1720,36 @@ export const AdminPortal: React.FC = () => {
                           <span className="text-[10px] text-stone-400 block mb-1">
                             Pill Label: <strong className="text-stone-300">{cat.shortName}</strong>
                           </span>
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/5 border border-white/10 text-stone-300">
-                            {itemCount} {itemCount === 1 ? 'Piece' : 'Pieces'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/5 border border-white/10 text-stone-300">
+                              {itemCount} {itemCount === 1 ? 'Piece' : 'Pieces'}
+                            </span>
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+                              catSlides.length > 1
+                                ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                                : 'bg-white/5 border-white/10 text-stone-400'
+                            }`}>
+                              {catSlides.length} {catSlides.length === 1 ? 'Card Slide' : 'Card Slides'}
+                            </span>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Mini Preview of Slides if Multiple */}
+                      {catSlides.length > 1 && (
+                        <div className="flex items-center space-x-1.5 overflow-x-auto py-1 px-2 rounded-xl bg-black/30 border border-white/5 scrollbar-none">
+                          <span className="text-[9px] font-mono uppercase text-stone-500 shrink-0 pr-1">Slides:</span>
+                          {catSlides.map((sImg, sIdx) => (
+                            <img
+                              key={sIdx}
+                              src={sImg}
+                              alt={`Slide ${sIdx + 1}`}
+                              className="w-6 h-8 object-cover rounded border border-white/20 shrink-0"
+                              title={`Slide #${sIdx + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
 
                       <p className="text-xs text-stone-400 font-light line-clamp-2 leading-relaxed">
                         {cat.description}
@@ -2710,36 +2817,247 @@ export const AdminPortal: React.FC = () => {
 
               {/* Colors & Swatches */}
               <div className="space-y-4">
-                <span className="text-xs uppercase tracking-wider font-semibold text-stone-400 block border-b border-white/10 pb-2">
-                  4. Color Shades
-                </span>
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs uppercase tracking-wider font-semibold text-stone-400">
+                    4. Color Shades & Color-Specific Imagery
+                  </span>
+                  <span className="text-[10px] font-mono text-amber-400">
+                    {productForm.colors.length} {productForm.colors.length === 1 ? 'shade' : 'shades'} configured
+                  </span>
+                </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  {/* Swatch Pills with Dedicated Photo Count */}
                   <div className="flex flex-wrap gap-2">
-                    {productForm.colors.map((c, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-white/15 bg-white/5 text-xs"
-                      >
-                        <span className="w-3.5 h-3.5 rounded-full border border-white/30" style={{ backgroundColor: c.hex }} />
-                        <span>{c.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = productForm.colors.filter((_, i) => i !== idx);
-                            setProductForm({ ...productForm, colors: updated });
-                          }}
-                          className="text-stone-400 hover:text-red-400 ml-1"
+                    {productForm.colors.map((c, idx) => {
+                      const photoCount = c.images?.length || (c.image ? 1 : 0);
+                      const isPanelOpen = activeColorImageIndex === idx;
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs transition-all ${
+                            isPanelOpen
+                              ? 'border-amber-400 bg-amber-500/10 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                              : 'border-white/15 bg-white/5 hover:border-white/30'
+                          }`}
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <span className="w-3.5 h-3.5 rounded-full border border-white/30 shadow-sm" style={{ backgroundColor: c.hex }} />
+                          <span className="font-medium">{c.name}</span>
+
+                          {/* Manage Photos Button */}
+                          <button
+                            type="button"
+                            onClick={() => setActiveColorImageIndex(isPanelOpen ? null : idx)}
+                            className={`flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-mono border transition-all cursor-pointer ${
+                              photoCount > 0
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                                : 'bg-white/5 text-stone-400 border-white/10 hover:border-white/30 hover:text-white'
+                            }`}
+                            title={`Manage dedicated photos for ${c.name}`}
+                          >
+                            <ImageIcon className="w-2.5 h-2.5" />
+                            <span>{photoCount > 0 ? `${photoCount} photos` : '+ Photos'}</span>
+                          </button>
+
+                          {/* Delete Color */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = productForm.colors.filter((_, i) => i !== idx);
+                              setProductForm({ ...productForm, colors: updated });
+                              if (activeColorImageIndex === idx) setActiveColorImageIndex(null);
+                            }}
+                            className="text-stone-400 hover:text-red-400 ml-0.5 cursor-pointer"
+                            title="Remove color"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
+                  {/* Dedicated Photos Sub-Panel for Active Color */}
+                  {activeColorImageIndex !== null && productForm.colors[activeColorImageIndex] && (() => {
+                    const activeColor = productForm.colors[activeColorImageIndex];
+                    const colorImages = activeColor.images || (activeColor.image ? [activeColor.image] : []);
+
+                    const handleAddImageToColor = (imgUrl: string) => {
+                      if (!imgUrl.trim()) return;
+                      const formatted = convertGoogleDriveUrl(imgUrl);
+                      const updatedColors = productForm.colors.map((c, i) => {
+                        if (i !== activeColorImageIndex) return c;
+                        const currentImgs = c.images || (c.image ? [c.image] : []);
+                        return {
+                          ...c,
+                          image: currentImgs[0] || formatted,
+                          images: [...currentImgs, formatted],
+                        };
+                      });
+                      setProductForm({ ...productForm, colors: updatedColors });
+                      setNewColorImageUrl('');
+                    };
+
+                    const handleRemoveImageFromColor = (imgIdx: number) => {
+                      const updatedColors = productForm.colors.map((c, i) => {
+                        if (i !== activeColorImageIndex) return c;
+                        const currentImgs = c.images || (c.image ? [c.image] : []);
+                        const filtered = currentImgs.filter((_, idx) => idx !== imgIdx);
+                        return {
+                          ...c,
+                          image: filtered[0] || '',
+                          images: filtered,
+                        };
+                      });
+                      setProductForm({ ...productForm, colors: updatedColors });
+                    };
+
+                    return (
+                      <div className={`p-4 rounded-2xl border space-y-3.5 transition-all ${
+                        theme === 'alabaster' ? 'bg-stone-50 border-stone-300' : 'bg-black/60 border-amber-500/35 shadow-[0_0_20px_rgba(245,158,11,0.06)]'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2.5">
+                            <span className="w-4 h-4 rounded-full border border-white/40 shadow-sm" style={{ backgroundColor: activeColor.hex }} />
+                            <h4 className="text-xs font-serif tracking-wider uppercase text-amber-400 font-medium">
+                              Dedicated Photos for {activeColor.name}
+                            </h4>
+                            <span className="text-[10px] font-mono text-stone-400">
+                              ({colorImages.length} {colorImages.length === 1 ? 'photo' : 'photos'})
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveColorImageIndex(null)}
+                            className="text-[10px] uppercase font-mono tracking-wider px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-stone-300 cursor-pointer"
+                          >
+                            Close Panel
+                          </button>
+                        </div>
+
+                        <p className="text-[11px] text-stone-400 leading-relaxed font-light">
+                          When shoppers select <strong className="text-white font-medium">{activeColor.name}</strong> on the storefront product page or hover on the card swatch, these dedicated photos will be displayed.
+                        </p>
+
+                        {/* Gallery Grid for this Color */}
+                        {colorImages.length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {colorImages.map((img, imgIdx) => (
+                              <div key={imgIdx} className="relative group rounded-xl overflow-hidden border border-white/15 aspect-[3/4] bg-stone-900 shadow-sm">
+                                <img src={img} alt={`${activeColor.name} preview ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveImageFromColor(imgIdx)}
+                                    className="p-1.5 rounded-full bg-red-600 hover:bg-red-500 text-white cursor-pointer"
+                                    title="Remove photo from this color"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-stone-200">
+                                  #{imgIdx + 1} {imgIdx === 0 ? '(Cover)' : ''}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="py-4 text-center border border-dashed border-white/15 rounded-xl text-stone-500 text-xs">
+                            No dedicated photos yet. Product falls back to primary gallery photos. Add photos below.
+                          </div>
+                        )}
+
+                        {/* Input to add photo to this color */}
+                        <div className="flex items-center space-x-2 pt-1">
+                          <input
+                            type="url"
+                            value={newColorImageUrl}
+                            onChange={(e) => setNewColorImageUrl(e.target.value)}
+                            placeholder={`Paste photo URL for ${activeColor.name}...`}
+                            className={`flex-1 px-3 py-2 rounded-xl text-xs font-mono border focus:outline-none ${
+                              theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddImageToColor(newColorImageUrl)}
+                            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow cursor-pointer shrink-0"
+                          >
+                            Add Photo
+                          </button>
+                          {/* File Upload for this Color */}
+                          <label className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-medium uppercase tracking-wider transition-colors cursor-pointer shrink-0">
+                            <Upload className="w-3.5 h-3.5 text-amber-300" />
+                            <span>Upload</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (ev) => {
+                                    const rawUrl = ev.target?.result as string;
+                                    const img = new Image();
+                                    img.onload = () => {
+                                      const canvas = document.createElement('canvas');
+                                      const MAX_WIDTH = 1200;
+                                      const MAX_HEIGHT = 1600;
+                                      let width = img.width;
+                                      let height = img.height;
+                                      if (width > MAX_WIDTH) {
+                                        height = Math.round((height * MAX_WIDTH) / width);
+                                        width = MAX_WIDTH;
+                                      }
+                                      if (height > MAX_HEIGHT) {
+                                        width = Math.round((width * MAX_HEIGHT) / height);
+                                        height = MAX_HEIGHT;
+                                      }
+                                      canvas.width = width;
+                                      canvas.height = height;
+                                      const ctx = canvas.getContext('2d');
+                                      ctx?.drawImage(img, 0, 0, width, height);
+                                      const optimized = canvas.toDataURL('image/jpeg', 0.86);
+                                      handleAddImageToColor(optimized);
+                                    };
+                                    img.src = rawUrl;
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Quick Presets for Color Photos */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] uppercase font-mono tracking-wider text-stone-400 mr-1">
+                            Quick Presets:
+                          </span>
+                          {[
+                            { label: 'Obsidian Noir', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=1000&auto=format&fit=crop' },
+                            { label: 'Cashmere Cream', url: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop' },
+                            { label: 'Crimson Scarlet', url: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop' },
+                            { label: 'Emerald Tailoring', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => handleAddImageToColor(preset.url)}
+                              className="px-2 py-0.5 rounded border border-white/10 bg-white/5 hover:bg-white/10 text-[10px] text-stone-300 cursor-pointer"
+                            >
+                              + {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Quick Color Presets */}
-                  <div className="text-[11px] text-stone-400">
-                    <span className="block mb-1.5">Add from luxury swatch presets:</span>
+                  <div className="text-[11px] text-stone-400 pt-1">
+                    <span className="block mb-1.5 font-medium">Add from luxury swatch presets:</span>
                     <div className="flex flex-wrap gap-1.5">
                       {LUXURY_COLOR_PRESETS.map((preset) => (
                         <button
@@ -2747,7 +3065,10 @@ export const AdminPortal: React.FC = () => {
                           type="button"
                           onClick={() => {
                             if (!productForm.colors.some(c => c.name === preset.name)) {
-                              setProductForm({ ...productForm, colors: [...productForm.colors, preset] });
+                              setProductForm({
+                                ...productForm,
+                                colors: [...productForm.colors, { name: preset.name, hex: preset.hex, images: [] }],
+                              });
                             }
                           }}
                           className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/10 text-[10px] cursor-pointer"
@@ -2756,6 +3077,44 @@ export const AdminPortal: React.FC = () => {
                           <span>{preset.name}</span>
                         </button>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Color Creator */}
+                  <div className="pt-2 border-t border-white/10">
+                    <span className="text-[11px] text-stone-400 block mb-1.5">Or create custom shade:</span>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="color"
+                        value={customColorHex}
+                        onChange={(e) => setCustomColorHex(e.target.value)}
+                        className="w-8 h-8 rounded-lg border border-white/20 bg-transparent cursor-pointer shrink-0"
+                        title="Choose color shade"
+                      />
+                      <input
+                        type="text"
+                        value={customColorName}
+                        onChange={(e) => setCustomColorName(e.target.value)}
+                        placeholder="Color name (e.g. Royal Ruby, Champagne Silk)"
+                        className={`flex-1 px-3 py-1.5 rounded-xl text-xs border focus:outline-none ${
+                          theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customColorName.trim()) {
+                            setProductForm({
+                              ...productForm,
+                              colors: [...productForm.colors, { name: customColorName.trim(), hex: customColorHex, images: [] }],
+                            });
+                            setCustomColorName('');
+                          }
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-medium cursor-pointer shrink-0"
+                      >
+                        + Add Custom Shade
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2951,69 +3310,312 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5">
-                  Collection Cover Image URL *
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="url"
-                    required
-                    value={categoryForm.image}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, image: convertGoogleDriveUrl(e.target.value) })}
-                    placeholder="Paste image URL or Google Drive link..."
-                    className={`flex-1 px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none ${
-                      theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
-                    }`}
-                  />
-                  <label className="flex items-center space-x-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            const rawUrl = ev.target?.result as string;
-                            const img = new Image();
-                            img.onload = () => {
-                              const canvas = document.createElement('canvas');
-                              const MAX_WIDTH = 1200;
-                              const MAX_HEIGHT = 1600;
-                              let width = img.width;
-                              let height = img.height;
-                              if (width > MAX_WIDTH) {
-                                height = Math.round((height * MAX_WIDTH) / width);
-                                width = MAX_WIDTH;
-                              }
-                              if (height > MAX_HEIGHT) {
-                                width = Math.round((width * MAX_HEIGHT) / height);
-                                height = MAX_HEIGHT;
-                              }
-                              canvas.width = width;
-                              canvas.height = height;
-                              const ctx = canvas.getContext('2d');
-                              ctx?.drawImage(img, 0, 0, width, height);
-                              const optimized = canvas.toDataURL('image/jpeg', 0.86);
-                              setCategoryForm((prev) => ({ ...prev, image: optimized }));
-                            };
-                            img.src = rawUrl;
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
+              {/* Multi-Image Card Manager & Transition Preview */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] uppercase tracking-wider text-stone-400 font-semibold">
+                    Card Imagery & Jaw-Dropping Transitions *
                   </label>
+                  <span className="text-[10px] font-mono text-amber-400">
+                    {categoryForm.images?.length || (categoryForm.image ? 1 : 0)} {(categoryForm.images?.length || (categoryForm.image ? 1 : 0)) === 1 ? 'slide' : 'slides'} configured
+                  </span>
                 </div>
-                {categoryForm.image && (
-                  <div className="mt-2 w-20 h-24 rounded-lg overflow-hidden border border-white/15">
-                    <img src={categoryForm.image} alt="Preview" className="w-full h-full object-cover" />
+
+                <p className="text-[11px] text-stone-400 font-light leading-relaxed">
+                  Add multiple photos to enable the cinematic crossfade dissolve and Ken Burns zoom effect on this silhouette's homepage card.
+                </p>
+
+                {/* Slides Thumbnail Grid */}
+                {((categoryForm.images && categoryForm.images.length > 0) || categoryForm.image) && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                    {((categoryForm.images && categoryForm.images.length > 0) ? categoryForm.images : [categoryForm.image]).map((imgUrl, sIdx) => (
+                      <div
+                        key={sIdx}
+                        className={`relative group rounded-xl overflow-hidden border aspect-[3/4] bg-stone-900 shadow-md transition-all ${
+                          categoryPreviewIndex === sIdx ? 'border-amber-400 ring-1 ring-amber-400' : 'border-white/15'
+                        }`}
+                        onClick={() => setCategoryPreviewIndex(sIdx)}
+                      >
+                        <img src={imgUrl} alt={`Slide ${sIdx + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-1 space-y-1">
+                          {sIdx !== 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : [categoryForm.image];
+                                const target = currentImgs.splice(sIdx, 1)[0];
+                                currentImgs.unshift(target);
+                                setCategoryForm({ ...categoryForm, image: currentImgs[0], images: currentImgs });
+                                setCategoryPreviewIndex(0);
+                              }}
+                              className="px-2 py-0.5 rounded bg-amber-500 text-black text-[9px] font-bold uppercase tracking-wider cursor-pointer"
+                              title="Set as card cover slide"
+                            >
+                              Make Cover
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : [categoryForm.image];
+                              const updated = currentImgs.filter((_, idx) => idx !== sIdx);
+                              setCategoryForm({
+                                ...categoryForm,
+                                image: updated[0] || '',
+                                images: updated,
+                              });
+                              setCategoryPreviewIndex(0);
+                            }}
+                            className="p-1 rounded-full bg-red-600 hover:bg-red-500 text-white cursor-pointer"
+                            title="Remove slide"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-[9px] font-mono text-stone-200 pointer-events-none">
+                          #{sIdx + 1} {sIdx === 0 ? '(Cover)' : ''}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
+
+                {/* Add Slide Input & Upload */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="url"
+                      value={newCategoryImageUrl}
+                      onChange={(e) => setNewCategoryImageUrl(e.target.value)}
+                      placeholder="Paste image URL or Google Drive link..."
+                      className={`flex-1 px-3.5 py-2.5 rounded-xl text-xs font-mono border focus:outline-none ${
+                        theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newCategoryImageUrl.trim()) {
+                          const formatted = convertGoogleDriveUrl(newCategoryImageUrl);
+                          const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
+                          const updated = [...currentImgs, formatted];
+                          setCategoryForm({
+                            ...categoryForm,
+                            image: updated[0] || formatted,
+                            images: updated,
+                          });
+                          setNewCategoryImageUrl('');
+                          setCategoryPreviewIndex(updated.length - 1);
+                        }
+                      }}
+                      className="px-3.5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-md cursor-pointer shrink-0"
+                    >
+                      Add Slide
+                    </button>
+                    <label className="flex items-center space-x-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              const rawUrl = ev.target?.result as string;
+                              const img = new Image();
+                              img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const MAX_WIDTH = 1200;
+                                const MAX_HEIGHT = 1600;
+                                let width = img.width;
+                                let height = img.height;
+                                if (width > MAX_WIDTH) {
+                                  height = Math.round((height * MAX_WIDTH) / width);
+                                  width = MAX_WIDTH;
+                                }
+                                if (height > MAX_HEIGHT) {
+                                  width = Math.round((width * MAX_HEIGHT) / height);
+                                  height = MAX_HEIGHT;
+                                }
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext('2d');
+                                ctx?.drawImage(img, 0, 0, width, height);
+                                const optimized = canvas.toDataURL('image/jpeg', 0.86);
+                                const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
+                                const updated = [...currentImgs, optimized];
+                                setCategoryForm({
+                                  ...categoryForm,
+                                  image: updated[0] || optimized,
+                                  images: updated,
+                                });
+                                setCategoryPreviewIndex(updated.length - 1);
+                              };
+                              img.src = rawUrl;
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Quick Luxury Presets for Category Slides */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-stone-400 mr-1">
+                      Quick Presets:
+                    </span>
+                    {[
+                      { label: '🧥 Outerwear', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=1000&auto=format&fit=crop' },
+                      { label: '👗 Silk Kurti', url: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop' },
+                      { label: '💃 Evening Gown', url: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop' },
+                      { label: '👔 Blazer', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop' },
+                      { label: '🧶 Knitwear', url: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000&auto=format&fit=crop' },
+                      { label: '👜 Leather Bag', url: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=1000&auto=format&fit=crop' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
+                          const updated = [...currentImgs, preset.url];
+                          setCategoryForm({
+                            ...categoryForm,
+                            image: updated[0] || preset.url,
+                            images: updated,
+                          });
+                          setCategoryPreviewIndex(updated.length - 1);
+                        }}
+                        className="px-2 py-0.5 rounded border border-white/10 bg-white/5 hover:bg-white/10 text-[10px] text-stone-300 cursor-pointer"
+                      >
+                        + {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Interactive Live Card Preview with Jaw-Dropping Transition */}
+                {(() => {
+                  const previewSlides = (categoryForm.images && categoryForm.images.length > 0)
+                    ? categoryForm.images
+                    : (categoryForm.image ? [categoryForm.image] : []);
+                  if (previewSlides.length === 0) return null;
+
+                  const safeIdx = Math.min(categoryPreviewIndex, previewSlides.length - 1);
+
+                  return (
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-mono tracking-widest uppercase text-amber-400 flex items-center space-x-1">
+                          <Sparkles className="w-3 h-3" />
+                          <span>Live Card Transition Preview</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-stone-400">
+                          Slide {safeIdx + 1} of {previewSlides.length}
+                        </span>
+                      </div>
+
+                      <div className="relative aspect-[16/10] sm:aspect-[16/9] rounded-2xl overflow-hidden border border-white/20 bg-[#09090b] shadow-xl group">
+                        {/* Render all slides with cinematic crossfade & Ken Burns zoom */}
+                        {previewSlides.map((slideUrl, sIdx) => {
+                          const isActive = safeIdx === sIdx;
+                          return (
+                            <div
+                              key={sIdx}
+                              className={`absolute inset-0 transition-all duration-1000 ease-out ${
+                                isActive ? 'opacity-100 scale-105 z-0' : 'opacity-0 scale-100 z-[-1] pointer-events-none'
+                              }`}
+                            >
+                              <div
+                                className="w-full h-full bg-cover bg-center"
+                                style={{
+                                  backgroundImage: `url(${slideUrl})`,
+                                  filter: 'brightness(0.72) contrast(1.05)',
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+
+                        {/* Gradient Shadow Overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent z-10 pointer-events-none" />
+
+                        {/* Prev / Next Chevrons on Hover */}
+                        {previewSlides.length > 1 && (
+                          <div className="absolute inset-y-0 inset-x-2 z-20 flex items-center justify-between pointer-events-none">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCategoryPreviewIndex((prev) => (prev - 1 + previewSlides.length) % previewSlides.length);
+                              }}
+                              className="p-1.5 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 backdrop-blur-md pointer-events-auto transition-all cursor-pointer shadow-lg active:scale-95"
+                              aria-label="Previous slide"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCategoryPreviewIndex((prev) => (prev + 1) % previewSlides.length);
+                              }}
+                              className="p-1.5 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 backdrop-blur-md pointer-events-auto transition-all cursor-pointer shadow-lg active:scale-95"
+                              aria-label="Next slide"
+                            >
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Live Overlay Badges & Title */}
+                        <div className="absolute inset-0 p-4 flex flex-col justify-between z-20 pointer-events-none">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] tracking-[0.25em] uppercase text-stone-200 bg-black/70 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20">
+                              /{categoryForm.slug || 'category'}
+                            </span>
+                            <span className="text-[9px] font-mono tracking-widest text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
+                              {previewSlides.length} {previewSlides.length === 1 ? 'Photo' : 'Photos'}
+                            </span>
+                          </div>
+
+                          <div>
+                            {/* Glowing Progress Pills */}
+                            {previewSlides.length > 1 && (
+                              <div className="flex items-center space-x-1.5 mb-2 pointer-events-auto">
+                                {previewSlides.map((_, pIdx) => (
+                                  <button
+                                    key={pIdx}
+                                    type="button"
+                                    onClick={() => setCategoryPreviewIndex(pIdx)}
+                                    className={`h-1 rounded-full transition-all duration-500 cursor-pointer ${
+                                      safeIdx === pIdx
+                                        ? 'w-6 bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]'
+                                        : 'w-2 bg-white/30 hover:bg-white/60'
+                                    }`}
+                                    aria-label={`Go to slide ${pIdx + 1}`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            <h3 className="text-base sm:text-lg font-serif tracking-[0.03em] text-white">
+                              {categoryForm.name || 'Category Full Name'}
+                            </h3>
+                            <span className="text-[10px] font-sans tracking-[0.25em] uppercase text-stone-300 block">
+                              {categoryForm.shortName ? `Explore ${categoryForm.shortName}` : 'Explore Silhouettes'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>

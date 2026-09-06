@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
@@ -61,22 +61,36 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
+  // Dedicated gallery photos for currently selected color, smoothly falling back to product.images
+  const activeGalleryImages = useMemo(() => {
+    if (!product) return [];
+    const colorObj = product.colors?.find(c => c.name === selectedColor);
+    if (colorObj?.images && colorObj.images.length > 0) {
+      return colorObj.images;
+    }
+    if (colorObj?.image) {
+      return [colorObj.image, ...product.images.filter(img => img !== colorObj.image)];
+    }
+    return product.images && product.images.length > 0 ? product.images : [];
+  }, [product, selectedColor]);
+
   // Keyboard navigation for fullscreen lightbox
   useEffect(() => {
     if (!isFullscreenOpen) return;
+    const totalCount = activeGalleryImages.length || 1;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsFullscreenOpen(false);
         setIsZoomed(false);
       } else if (e.key === 'ArrowRight') {
-        setActiveImageIndex(prev => (prev + 1) % (product?.images.length || 1));
+        setActiveImageIndex(prev => (prev + 1) % totalCount);
       } else if (e.key === 'ArrowLeft') {
-        setActiveImageIndex(prev => (prev - 1 + (product?.images.length || 1)) % (product?.images.length || 1));
+        setActiveImageIndex(prev => (prev - 1 + totalCount) % totalCount);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreenOpen, product]);
+  }, [isFullscreenOpen, activeGalleryImages]);
 
   // Real Reviews Form State
   const [isWritingReview, setIsWritingReview] = useState(false);
@@ -216,7 +230,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="lg:col-span-7 flex flex-col-reverse md:flex-row gap-4">
               {/* Thumbnails */}
               <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto pb-2 md:pb-0 md:w-24 shrink-0">
-                {product.images.map((img, idx) => (
+                {activeGalleryImages.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImageIndex(idx)}
@@ -228,7 +242,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   >
                     <img
                       src={img}
-                      alt={`${product.name} thumbnail ${idx + 1}`}
+                      alt={`${product.name} ${selectedColor} thumbnail ${idx + 1}`}
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -240,10 +254,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 isAlabaster ? 'bg-stone-100 border-stone-200' : 'bg-[#16161b] border-white/10'
               }`}>
                 <img
-                  src={product.images[activeImageIndex] || product.images[0]}
-                  alt={product.name}
+                  key={`${selectedColor}-${activeImageIndex}`}
+                  src={activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0]}
+                  alt={`${product.name} - ${selectedColor}`}
                   onClick={() => setIsFullscreenOpen(true)}
-                  className="w-full h-full object-cover transition-all duration-500 cursor-zoom-in"
+                  className="w-full h-full object-cover transition-all duration-700 ease-out cursor-zoom-in animate-fade-in"
                 />
 
                 {/* Season Watermark at bottom-left */}
@@ -340,26 +355,48 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <span>
                       Color: <strong className="pdp-color-name text-white font-normal">{selectedColor}</strong>
                     </span>
+                    {(() => {
+                      const activeCol = product.colors.find(c => c.name === selectedColor);
+                      const dedicatedCount = activeCol?.images?.length || 0;
+                      return dedicatedCount > 0 ? (
+                        <span className="text-[10px] font-mono text-amber-400 font-normal">
+                          {dedicatedCount} shade {dedicatedCount === 1 ? 'photo' : 'photos'}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="flex items-center space-x-3">
-                    {product.colors.map((color) => (
-                      <button
-                        key={color.name}
-                        onClick={() => setSelectedColor(color.name)}
-                        className={`group relative p-1 rounded-full border transition-all cursor-pointer ${
-                          selectedColor === color.name
-                            ? 'border-white ring-1 ring-white scale-110'
-                            : 'border-white/20 hover:border-white/60'
-                        }`}
-                        title={color.name}
-                        aria-label={`Select color ${color.name}`}
-                      >
-                        <span
-                          className="block w-5 h-5 rounded-full border border-black/20"
-                          style={{ backgroundColor: color.hex }}
-                        />
-                      </button>
-                    ))}
+                    {product.colors.map((color) => {
+                      const hasDedicated = Boolean(color.images && color.images.length > 0);
+                      const isSelected = selectedColor === color.name;
+                      return (
+                        <button
+                          key={color.name}
+                          onClick={() => {
+                            setSelectedColor(color.name);
+                            setActiveImageIndex(0);
+                          }}
+                          className={`group relative p-1 rounded-full border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-white ring-2 ring-white/60 scale-110'
+                              : 'border-white/20 hover:border-white/60'
+                          }`}
+                          title={`${color.name}${hasDedicated ? ` (${color.images!.length} photos)` : ''}`}
+                          aria-label={`Select color ${color.name}`}
+                        >
+                          <span
+                            className="block w-5 h-5 rounded-full border border-black/20"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          {hasDedicated && (
+                            <span
+                              className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-black"
+                              title="Dedicated photos available"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -875,7 +912,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             <div className="flex items-center space-x-2">
               <span className="font-mono text-[11px] text-stone-400 px-2.5 py-1 rounded-full bg-white/10 border border-white/15">
-                {activeImageIndex + 1} / {product.images.length}
+                {activeImageIndex + 1} / {activeGalleryImages.length || 1}
               </span>
 
               {/* Zoom toggle button */}
@@ -912,13 +949,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               if (touchStartX === null) return;
               const touchEndX = e.changedTouches[0].clientX;
               const diff = touchStartX - touchEndX;
+              const totalImgs = activeGalleryImages.length || 1;
               if (Math.abs(diff) > 40) {
                 if (diff > 0) {
                   // Swipe Left -> Next Image
-                  setActiveImageIndex(prev => (prev + 1) % product.images.length);
+                  setActiveImageIndex(prev => (prev + 1) % totalImgs);
                 } else {
                   // Swipe Right -> Previous Image
-                  setActiveImageIndex(prev => (prev - 1 + product.images.length) % product.images.length);
+                  setActiveImageIndex(prev => (prev - 1 + totalImgs) % totalImgs);
                 }
                 setIsZoomed(false);
               }
@@ -926,11 +964,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             }}
           >
             {/* Previous Button */}
-            {product.images.length > 1 && (
+            {activeGalleryImages.length > 1 && (
               <button
                 type="button"
                 onClick={() => {
-                  setActiveImageIndex(prev => (prev - 1 + product.images.length) % product.images.length);
+                  setActiveImageIndex(prev => (prev - 1 + activeGalleryImages.length) % activeGalleryImages.length);
                   setIsZoomed(false);
                 }}
                 className="absolute left-1 sm:left-4 z-20 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-xl"
@@ -948,8 +986,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               onClick={() => setIsZoomed(prev => !prev)}
             >
               <img
-                src={product.images[activeImageIndex] || product.images[0]}
-                alt={product.name}
+                key={`lightbox-${selectedColor}-${activeImageIndex}`}
+                src={activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0]}
+                alt={`${product.name} - ${selectedColor}`}
                 className={`max-h-[76vh] sm:max-h-[82vh] max-w-[94vw] object-contain rounded-lg sm:rounded-xl shadow-2xl transition-transform duration-300 ${
                   isZoomed ? 'scale-135 sm:scale-160' : 'scale-100'
                 }`}
@@ -957,11 +996,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
 
             {/* Next Button */}
-            {product.images.length > 1 && (
+            {activeGalleryImages.length > 1 && (
               <button
                 type="button"
                 onClick={() => {
-                  setActiveImageIndex(prev => (prev + 1) % product.images.length);
+                  setActiveImageIndex(prev => (prev + 1) % activeGalleryImages.length);
                   setIsZoomed(false);
                 }}
                 className="absolute right-1 sm:right-4 z-20 p-2.5 sm:p-3 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-xl"
@@ -973,9 +1012,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
 
           {/* Bottom Thumbnails Strip (Mobile & Desktop) */}
-          {product.images.length > 1 && (
+          {activeGalleryImages.length > 1 && (
             <div className="relative z-20 flex items-center justify-center space-x-2 py-1 overflow-x-auto max-w-md mx-auto scrollbar-none">
-              {product.images.map((img, idx) => (
+              {activeGalleryImages.map((img, idx) => (
                 <button
                   key={idx}
                   type="button"
