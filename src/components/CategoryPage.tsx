@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import { ProductCard } from './ProductCard';
 import type { Product } from '../types/product';
 import { 
@@ -70,6 +71,8 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'rating' | 'newest'>('featured');
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+
+  useModalBackHandler(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false), 'category-filters');
 
   // Available Sizes for this gender
   const availableSizes = useMemo(() => {

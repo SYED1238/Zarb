@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import { isSupabaseConfigured, saveSupabaseCredentials } from '../lib/supabase';
 import {
   X,
@@ -24,6 +25,8 @@ export const AccountDrawer: React.FC = () => {
   } = useAuth();
 
   const { theme, showToast } = useStore();
+
+  useModalBackHandler(isAccountDrawerOpen, () => setIsAccountDrawerOpen(false), 'account-drawer');
 
   const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);

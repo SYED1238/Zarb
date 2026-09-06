@@ -1,5 +1,6 @@
 import React from 'react';
 import { useStore } from '../context/StoreContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import type { Product } from '../types/product';
 import { X, Heart, ShoppingBag, Trash2 } from 'lucide-react';
 
@@ -9,6 +10,8 @@ interface WishlistDrawerProps {
 
 export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ onSelectProduct }) => {
   const { isWishlistOpen, setIsWishlistOpen, wishlist, toggleWishlist, addToCart, products } = useStore();
+
+  useModalBackHandler(isWishlistOpen, () => setIsWishlistOpen(false), 'wishlist-drawer');
 
   if (!isWishlistOpen) return null;
 

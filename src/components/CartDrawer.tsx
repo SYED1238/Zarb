@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import { X, Trash2, Plus, Minus, ArrowRight, ShieldCheck, ShoppingBag } from 'lucide-react';
 
 export const CartDrawer: React.FC = () => {
@@ -16,6 +17,8 @@ export const CartDrawer: React.FC = () => {
     amountToFreeShipping,
     setIsCheckoutOpen,
   } = useStore();
+
+  useModalBackHandler(isCartOpen, () => setIsCartOpen(false), 'cart-drawer');
 
   const [promoCode, setPromoCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState(0);

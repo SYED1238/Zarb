@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import {
   X,
   CheckCircle2,
@@ -21,6 +22,19 @@ export const CheckoutModal: React.FC = () => {
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  useModalBackHandler(
+    isCheckoutOpen,
+    () => {
+      if (step > 1 && step < 4) {
+        setStep((prev) => (prev - 1) as any);
+      } else {
+        setIsCheckoutOpen(false);
+        setStep(1);
+      }
+    },
+    `checkout-modal-step-${step}`
+  );
 
   // Resume checkout if returning from Google OAuth redirect
   useEffect(() => {

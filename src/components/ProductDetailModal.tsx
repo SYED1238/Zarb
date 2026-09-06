@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import {
   X,
   Star,
@@ -107,6 +108,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     };
   }, [product]);
 
+  // Step-back history integration for product modal and fullscreen lightbox
+  useModalBackHandler(!!product, onClose, `product-detail-${product?.id || 'active'}`);
+  useModalBackHandler(
+    isFullscreenOpen,
+    () => {
+      setIsFullscreenOpen(false);
+      setIsZoomed(false);
+    },
+    'product-fullscreen-lightbox'
+  );
+
   if (!product) return null;
 
   const isAlabaster = theme === 'alabaster';
@@ -187,10 +199,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       {/* Modal Container */}
       <div id="pdp-modal-card" className="relative w-full max-w-6xl bg-[#0e0e11] border border-white/10 rounded-none sm:rounded-2xl z-10 my-auto shadow-2xl overflow-hidden animate-fade-in text-stone-200 min-h-screen sm:min-h-0 sm:max-h-[92vh] flex flex-col">
         {/* Close Button Header */}
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-30">
           <button
             onClick={onClose}
-            className="pdp-close-btn p-2.5 rounded-full bg-black/60 text-stone-300 hover:text-white hover:bg-black/90 border border-white/10 backdrop-blur-md transition-colors cursor-pointer"
+            className="pdp-close-btn p-2.5 rounded-full bg-black/70 text-stone-300 hover:text-white hover:bg-black border border-white/15 backdrop-blur-md transition-all active:scale-90 cursor-pointer shadow-xl"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -234,30 +246,33 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   className="w-full h-full object-cover transition-all duration-500 cursor-zoom-in"
                 />
 
-                {/* Full View Button near the image */}
-                <button
-                  type="button"
-                  onClick={() => setIsFullscreenOpen(true)}
-                  className={`absolute top-3 right-3 flex items-center space-x-1.5 px-3 py-1.5 rounded-full border backdrop-blur-md shadow-lg transition-all active:scale-95 cursor-pointer z-10 ${
-                    isAlabaster
-                      ? 'bg-white/90 hover:bg-white text-stone-900 border-stone-300/80 shadow-black/5'
-                      : 'bg-black/65 hover:bg-black/85 text-white border-white/20'
-                  }`}
-                  aria-label="View image in full size"
-                  title="Expand to Fullscreen View"
-                >
-                  <Maximize2 className={`w-3.5 h-3.5 ${isAlabaster ? 'text-amber-600' : 'text-amber-400'}`} />
-                  <span className="text-[10px] font-mono tracking-wider uppercase font-medium">Full View</span>
-                </button>
-
-                {/* Season Watermark */}
-                <div className={`absolute bottom-4 left-4 backdrop-blur-md px-3 py-1 rounded-full border text-[10px] tracking-[0.25em] uppercase ${
+                {/* Season Watermark at bottom-left */}
+                <div className={`absolute bottom-3.5 left-3.5 backdrop-blur-md px-3 py-1 rounded-full border text-[10px] tracking-[0.25em] uppercase pointer-events-none ${
                   isAlabaster
                     ? 'bg-white/80 border-stone-300 text-stone-700'
                     : 'bg-black/50 border-white/10 text-stone-300'
                 }`}>
                   {product.season || 'AW26 ATELIER'}
                 </div>
+
+                {/* Full View Button positioned cleanly at bottom-right, perfectly clear of the modal close button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFullscreenOpen(true);
+                  }}
+                  className={`absolute bottom-3.5 right-3.5 flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-xl transition-all duration-200 active:scale-95 hover:scale-105 cursor-pointer z-10 ${
+                    isAlabaster
+                      ? 'bg-white/90 hover:bg-white text-stone-900 border-stone-300/80 shadow-black/10'
+                      : 'bg-black/75 hover:bg-black/90 text-white border-white/20 shadow-black/50'
+                  }`}
+                  aria-label="View image in full size"
+                  title="Expand to Fullscreen View"
+                >
+                  <Maximize2 className={`w-3.5 h-3.5 ${isAlabaster ? 'text-amber-600' : 'text-amber-400'}`} />
+                  <span className="text-[10px] font-mono tracking-wider uppercase font-semibold">Full View</span>
+                </button>
               </div>
             </div>
 

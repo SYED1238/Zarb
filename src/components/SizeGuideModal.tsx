@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { X, Ruler } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 
 export const SizeGuideModal: React.FC = () => {
   const { isSizeGuideOpen, setIsSizeGuideOpen, gender } = useStore();
   const [unit, setUnit] = useState<'cm' | 'in'>('cm');
+
+  useModalBackHandler(isSizeGuideOpen, () => setIsSizeGuideOpen(false), 'size-guide-modal');
 
   if (!isSizeGuideOpen) return null;
 

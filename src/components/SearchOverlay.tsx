@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../context/StoreContext';
+import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import type { Product } from '../types/product';
 import { Search, X, ArrowUpRight, TrendingUp, Sparkles } from 'lucide-react';
 
@@ -13,6 +14,9 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   onSelectCategory,
 }) => {
   const { isSearchOpen, setIsSearchOpen, products } = useStore();
+
+  useModalBackHandler(isSearchOpen, () => setIsSearchOpen(false), 'search-overlay');
+
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
