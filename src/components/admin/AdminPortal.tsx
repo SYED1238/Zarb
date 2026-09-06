@@ -2760,9 +2760,13 @@ export const AdminPortal: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          if (newImageUrl.trim()) {
-                            const formatted = convertGoogleDriveUrl(newImageUrl);
-                            setProductForm({ ...productForm, images: [...productForm.images, formatted] });
+                          const urls = newImageUrl
+                            .split(/[\n,]+/)
+                            .map((u) => u.trim())
+                            .filter((u) => u.length > 0)
+                            .map(convertGoogleDriveUrl);
+                          if (urls.length > 0) {
+                            setProductForm((prev) => ({ ...prev, images: [...prev.images, ...urls] }));
                             setNewImageUrl('');
                           }
                         }}
@@ -3394,7 +3398,7 @@ export const AdminPortal: React.FC = () => {
                       type="url"
                       value={newCategoryImageUrl}
                       onChange={(e) => setNewCategoryImageUrl(e.target.value)}
-                      placeholder="Paste image URL or Google Drive link..."
+                      placeholder="Paste image URL(s) or Google Drive link..."
                       className={`flex-1 px-3.5 py-2.5 rounded-xl text-xs font-mono border focus:outline-none ${
                         theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                       }`}
@@ -3402,13 +3406,17 @@ export const AdminPortal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        if (newCategoryImageUrl.trim()) {
-                          const formatted = convertGoogleDriveUrl(newCategoryImageUrl);
+                        const urls = newCategoryImageUrl
+                          .split(/[\n,]+/)
+                          .map((u) => u.trim())
+                          .filter((u) => u.length > 0)
+                          .map(convertGoogleDriveUrl);
+                        if (urls.length > 0) {
                           const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
-                          const updated = [...currentImgs, formatted];
+                          const updated = [...currentImgs, ...urls];
                           setCategoryForm({
                             ...categoryForm,
-                            image: updated[0] || formatted,
+                            image: updated[0] || urls[0],
                             images: updated,
                           });
                           setNewCategoryImageUrl('');
