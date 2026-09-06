@@ -154,22 +154,43 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
       aria-label="Mobile Unified Navigation"
       className="md:hidden fixed bottom-5 inset-x-0 z-50 mx-auto w-[94%] max-w-[364px] pointer-events-auto select-none"
     >
+      {/* Downward Ambient Light Reflection behind the bar */}
+      <div className="absolute -bottom-8 left-0 right-0 h-16 pointer-events-none overflow-visible -z-10">
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[88%] h-14 pointer-events-none"
+          style={{
+            background: isAlabaster
+              ? 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.85) 0%, rgba(225, 220, 210, 0.25) 50%, transparent 75%)'
+              : 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 75%)',
+            filter: 'blur(18px)',
+          }}
+        />
+      </div>
+
       {/* Outer Floating Liquid Glass Unified Pill */}
       <div
-        className="relative flex items-center justify-between p-1 rounded-full transition-all duration-300"
+        className="relative flex items-center justify-between p-1 rounded-full transition-all duration-500 overflow-hidden"
         style={{
           background: isAlabaster
-            ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 245, 240, 0.96) 100%)'
-            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(20, 20, 25, 0.65) 45%, rgba(10, 10, 14, 0.8) 100%)',
-          backdropFilter: 'blur(34px) saturate(200%) contrast(108%)',
-          WebkitBackdropFilter: 'blur(34px) saturate(200%) contrast(108%)',
-          border: isAlabaster ? '1px solid rgba(0, 0, 0, 0.12)' : '1px solid rgba(255, 255, 255, 0.22)',
-          borderTop: isAlabaster ? '1px solid rgba(255, 255, 255, 1)' : '1px solid rgba(255, 255, 255, 0.6)',
+            ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, rgba(250, 248, 242, 0.38) 45%, rgba(242, 238, 230, 0.62) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.04) 40%, rgba(18, 18, 22, 0.45) 75%, rgba(255, 255, 255, 0.09) 100%)',
+          backdropFilter: 'blur(36px) saturate(210%) contrast(108%)',
+          WebkitBackdropFilter: 'blur(36px) saturate(210%) contrast(108%)',
+          border: isAlabaster ? '1px solid rgba(255, 255, 255, 0.85)' : '1px solid rgba(255, 255, 255, 0.22)',
+          borderTop: isAlabaster ? '1px solid rgba(255, 255, 255, 1)' : '1px solid rgba(255, 255, 255, 0.65)',
+          borderBottom: isAlabaster ? '1px solid rgba(0, 0, 0, 0.08)' : '1px solid rgba(255, 255, 255, 0.14)',
           boxShadow: isAlabaster
-            ? '0 20px 45px -10px rgba(35, 30, 25, 0.18), 0 4px 12px rgba(0, 0, 0, 0.05), inset 0 1px 1.5px 0 rgba(255, 255, 255, 1)'
-            : '0 20px 45px -10px rgba(0, 0, 0, 0.85), inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.5)',
+            ? '0 20px 45px -10px rgba(35, 30, 25, 0.15), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1.5px 2px 0 rgba(255, 255, 255, 1), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.04), inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.5), inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.5)'
+            : '0 30px 60px -15px rgba(0, 0, 0, 0.75), inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.75), inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.45), inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.25), inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.25)',
         }}
       >
+        {/* Liquid Glass Internal Specular Refraction Sheen */}
+        <div className="absolute inset-0 rounded-full pointer-events-none overflow-hidden -z-0">
+          <div
+            className="absolute -top-6 -left-10 w-48 h-20 bg-gradient-to-br from-white/30 via-white/10 to-transparent blur-sm transform -rotate-12 pointer-events-none"
+          />
+        </div>
+
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
@@ -178,13 +199,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
             <button
               key={tab.id}
               onClick={tab.action}
-              className={`relative flex-1 flex items-center justify-center h-11 rounded-full transition-all duration-300 cursor-pointer focus:outline-none ${
+              className={`relative z-10 flex-1 flex items-center justify-center h-11 rounded-full transition-all duration-300 cursor-pointer focus:outline-none ${
                 isActive
                   ? isAlabaster
                     ? 'bg-stone-950 text-white shadow-md'
                     : 'bg-white/[0.22] text-white shadow-[inset_0_1px_1.5px_0_rgba(255,255,255,0.5),0_2px_8px_rgba(0,0,0,0.3)] border border-white/25'
                   : isAlabaster
-                  ? 'text-stone-600 hover:text-stone-950 active:scale-95'
+                  ? 'text-stone-700 hover:text-black active:scale-95'
                   : 'text-stone-300 hover:text-white active:scale-95'
               }`}
               aria-label={tab.label}
@@ -196,7 +217,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
                     isActive
                       ? 'scale-110 stroke-[2.2] text-white'
                       : isAlabaster
-                      ? 'scale-100 stroke-[1.75] text-stone-700'
+                      ? 'scale-100 stroke-[1.85] text-stone-800'
                       : 'scale-100 stroke-[1.65] text-stone-300'
                   }`}
                 />
