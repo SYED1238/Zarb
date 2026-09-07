@@ -34,6 +34,8 @@ export const AccountDrawer: React.FC = () => {
     userOrders,
     isLoadingOrders,
     loginWithPhoneOtp,
+    pendingSyncCount,
+    triggerPendingSync,
   } = useAuth();
 
   const { theme, showToast } = useStore();
@@ -52,10 +54,10 @@ export const AccountDrawer: React.FC = () => {
     setIsOtpLoading(true);
     await openMsg91OtpWidget({
       mobileNumber: mobileInput.trim() || undefined,
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         setIsOtpLoading(false);
         const verified = mobileInput.trim() || data?.mobile || data?.identifier || '9876543210';
-        loginWithPhoneOtp(verified, data);
+        await loginWithPhoneOtp(verified, data);
         showToast('Phone verified via MSG91 OTP. Welcome to Zarb!');
       },
       onFailure: (err) => {
@@ -353,6 +355,25 @@ export const AccountDrawer: React.FC = () => {
               {/* Orders List */}
               {activeTab === 'orders' && (
                 <div className="space-y-4">
+                  {/* Pending Sync Alert Banner if offline orders exist */}
+                  {pendingSyncCount > 0 && (
+                    <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 flex items-center justify-between text-xs animate-fade-in">
+                      <div className="flex items-center space-x-2 text-amber-300">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-[11px] font-mono">
+                          {pendingSyncCount} order{pendingSyncCount > 1 ? 's' : ''} queued offline
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => triggerPendingSync()}
+                        className="px-2.5 py-1 rounded bg-amber-500 text-black text-[10px] uppercase font-mono font-semibold tracking-wider hover:bg-amber-400 transition-colors cursor-pointer"
+                      >
+                        Sync Now
+                      </button>
+                    </div>
+                  )}
+
                   {isLoadingOrders ? (
                     <div className="text-center py-8 text-xs text-stone-400">
                       Loading orders from Supabase...
@@ -376,9 +397,17 @@ export const AccountDrawer: React.FC = () => {
                                 {formatDate(ord.created_at)}
                               </div>
                             </div>
-                            <span className="text-[9px] uppercase px-2 py-0.5 rounded font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              {ord.order_status}
-                            </span>
+                            <div className="flex items-center space-x-1.5">
+                              {ord.sync_status === 'pending_sync' && (
+                                <span className="text-[9px] uppercase px-2 py-0.5 rounded font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center space-x-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                  <span>Pending Sync</span>
+                                </span>
+                              )}
+                              <span className="text-[9px] uppercase px-2 py-0.5 rounded font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                {ord.order_status}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Items Preview */}
@@ -427,12 +456,20 @@ export const AccountDrawer: React.FC = () => {
                   }`}>
                     <div className="flex justify-between border-b border-white/5 pb-2">
                       <span className="text-stone-400">Authenticated via</span>
-                      <span className="font-medium text-emerald-400">Google OAuth 2.0</span>
+                      <span className="font-medium text-emerald-400">
+                        {user.phone ? 'MSG91 Indian SMS OTP' : 'Google OAuth 2.0'}
+                      </span>
                     </div>
                     <div className="flex justify-between border-b border-white/5 pb-2">
-                      <span className="text-stone-400">Account ID</span>
+                      <span className="text-stone-400">Customer Account ID</span>
                       <span className="font-mono text-stone-300 text-[11px] truncate max-w-[180px]">{user.id}</span>
                     </div>
+                    {user.phone && (
+                      <div className="flex justify-between border-b border-white/5 pb-2">
+                        <span className="text-stone-400">Verified Phone</span>
+                        <span className="font-mono text-amber-400 text-[11px]">{user.phone}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-stone-400">Member Status</span>
                       <span className="text-white font-medium">Active Haute Patron</span>

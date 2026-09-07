@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import {
+  normalizeIndianPhone,
+  resolvePhoneCustomerId,
+  linkGoogleCustomerAccount,
+  syncPendingOrders,
+  queuePendingOrder,
+  markOrderAsSynced,
+  getPendingSyncOrders,
+} from '../utils/customerSync';
 
 export interface UserProfile {
   id: string;
@@ -43,6 +52,8 @@ export interface OrderRecord {
   payment_method: string;
   payment_status: string;
   order_status: 'confirmed' | 'processing' | 'dispatched' | 'delivered';
+  sync_status?: 'synced' | 'pending_sync';
+  sync_error?: string;
   created_at: string;
 }
 
@@ -57,8 +68,15 @@ interface AuthContextType {
   userOrders: OrderRecord[];
   isLoadingOrders: boolean;
   refreshOrders: () => Promise<void>;
-  saveOrder: (orderData: Omit<OrderRecord, 'id' | 'created_at'>) => Promise<{ success: boolean; orderNumber: string; error?: string }>;
-  loginWithPhoneOtp: (phone: string, tokenData?: any) => void;
+  saveOrder: (orderData: Omit<OrderRecord, 'id' | 'created_at'>) => Promise<{
+    success: boolean;
+    orderNumber: string;
+    isPendingSync: boolean;
+    error?: string;
+  }>;
+  loginWithPhoneOtp: (phone: string, tokenData?: any) => Promise<void>;
+  pendingSyncCount: number;
+  triggerPendingSync: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,19 +88,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
   const [userOrders, setUserOrders] = useState<OrderRecord[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(() => getPendingSyncOrders().length);
 
   // Map Supabase User to UserProfile
   const mapUserProfile = (u: User): UserProfile => {
+    const rawPhone = u.phone || u.user_metadata?.phone;
+    const norm = normalizeIndianPhone(rawPhone);
     return {
       id: u.id,
       email: u.email || '',
       fullName: u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || 'Client',
       avatarUrl: u.user_metadata?.avatar_url || u.user_metadata?.picture,
-      phone: u.phone,
+      phone: norm.e164 || rawPhone,
     };
   };
 
-  // Fetch orders from Supabase + Local Cache
+  // Fetch orders from Supabase (by customer ID) + Local Cache
   const refreshOrders = useCallback(async () => {
     setIsLoadingOrders(true);
     let combinedOrders: OrderRecord[] = [];
@@ -97,60 +118,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Error reading local orders cache', e);
     }
 
-    // 2. Read from Supabase if configured
-    if (isSupabaseConfigured()) {
+    // 2. Read from Supabase if configured & user is authenticated
+    if (isSupabaseConfigured() && user) {
       try {
+        const isUuid = Boolean(
+          user.id &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)
+        );
+
         let query = supabase
           .from('orders')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (user) {
-          const isUuid = Boolean(user.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id));
-          const cleanPhone = (user.phone || '').replace(/\D/g, '').slice(-10);
-          const orList: string[] = [];
-          if (isUuid) orList.push(`user_id.eq.${user.id}`);
-          if (user.email) orList.push(`customer_email.eq.${user.email}`);
-          if (cleanPhone) orList.push(`customer_phone.ilike.%${cleanPhone}%`);
-
-          if (orList.length > 0) {
-            query = query.or(orList.join(','));
-          }
-        } else {
-          // If guest, fetch by recent local email if any
-          const guestEmail = localStorage.getItem('atelier_last_checkout_email');
-          if (guestEmail) {
-            query = query.eq('customer_email', guestEmail);
-          }
+        if (isUuid) {
+          // Primary query by stable customer ID (no text-based phone search!)
+          query = query.eq('user_id', user.id);
+        } else if (user.email) {
+          query = query.eq('customer_email', user.email);
         }
 
         const { data, error } = await query;
-        if (!error && data && data.length > 0) {
-          // Merge avoiding duplicates by order_number
-          const existingNumbers = new Set(data.map((d: any) => d.order_number));
+        if (!error && data) {
+          const cloudOrders: OrderRecord[] = data.map((d: any) => ({
+            ...d,
+            sync_status: 'synced',
+          }));
+          const existingNumbers = new Set(cloudOrders.map(d => d.order_number));
+          // Merge local pending orders that haven't reached the cloud yet
           const uniqueLocals = combinedOrders.filter(o => !existingNumbers.has(o.order_number));
-          combinedOrders = [...data, ...uniqueLocals];
+          combinedOrders = [...cloudOrders, ...uniqueLocals];
         }
       } catch (e) {
         console.warn('Could not fetch cloud orders from Supabase', e);
       }
     }
 
-    // Filter for current user if logged in (by UUID, email, or phone)
+    // Filter for current user by stable user_id or linked email
     if (user) {
-      const cleanUserPhone = (user.phone || '').replace(/\D/g, '').slice(-10);
       combinedOrders = combinedOrders.filter(o => {
-        const orderPhone = (o.customer_phone || '').replace(/\D/g, '').slice(-10);
-        const matchPhone = cleanUserPhone && orderPhone && orderPhone === cleanUserPhone;
-        const matchEmail = user.email && o.customer_email?.toLowerCase() === user.email.toLowerCase();
         const matchUserId = user.id && o.user_id === user.id;
-        return matchUserId || matchEmail || matchPhone;
+        const matchEmail = Boolean(
+          user.email &&
+          o.customer_email &&
+          o.customer_email.toLowerCase() === user.email.toLowerCase()
+        );
+        return matchUserId || matchEmail;
       });
     }
 
     setUserOrders(combinedOrders);
+    setPendingSyncCount(getPendingSyncOrders().length);
     setIsLoadingOrders(false);
   }, [user]);
+
+  // Trigger manual or automatic retry of pending sync orders
+  const triggerPendingSync = useCallback(async () => {
+    const res = await syncPendingOrders();
+    setPendingSyncCount(res.remainingCount);
+    if (res.syncedCount > 0) {
+      await refreshOrders();
+    }
+  }, [refreshOrders]);
 
   // Auth state listener
   useEffect(() => {
@@ -164,7 +193,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setRawUser(session.user);
-        setUser(mapUserProfile(session.user));
+        const profile = mapUserProfile(session.user);
+        linkGoogleCustomerAccount(profile);
+        setUser(profile);
       } else {
         // Fallback: check saved phone OTP session
         try {
@@ -190,7 +221,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setRawUser(session.user);
-        setUser(mapUserProfile(session.user));
+        const profile = mapUserProfile(session.user);
+        linkGoogleCustomerAccount(profile);
+        setUser(profile);
       } else {
         try {
           const savedPhoneSession = localStorage.getItem('zarb_phone_session');
@@ -213,10 +246,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Refresh orders when user logs in or out
+  // Refresh orders when user changes
   useEffect(() => {
     refreshOrders();
   }, [user, refreshOrders]);
+
+  // Listen for network connectivity restored & retry pending orders
+  useEffect(() => {
+    const handleOnline = () => {
+      triggerPendingSync();
+    };
+
+    window.addEventListener('online', handleOnline);
+
+    // Initial background retry on app mount
+    triggerPendingSync();
+
+    // Periodic retry if pending orders remain
+    const interval = setInterval(() => {
+      if (getPendingSyncOrders().length > 0) {
+        triggerPendingSync();
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      clearInterval(interval);
+    };
+  }, [triggerPendingSync]);
 
   // Google OAuth Sign In
   const signInWithGoogle = async (): Promise<{ error?: string }> => {
@@ -227,7 +284,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      // Ensure redirect points directly to active deployed origin with trailing slash
       const currentOrigin = typeof window !== 'undefined' ? window.location.origin.replace(/\/+$/, '') : '';
       const redirectUrl = currentOrigin ? `${currentOrigin}/` : undefined;
 
@@ -268,16 +324,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Phone OTP Sign In (MSG91)
-  const loginWithPhoneOtp = useCallback((phone: string, tokenData?: any) => {
-    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+  // Phone OTP Sign In (MSG91) — Resolves stable Supabase Customer UUID
+  const loginWithPhoneOtp = useCallback(async (phone: string, tokenData?: any) => {
+    const resolved = await resolvePhoneCustomerId(phone);
     const phoneUser: UserProfile = {
-      id: `phone_${cleanPhone}`,
-      email: `${cleanPhone}@phone.zarb.shop`,
-      fullName: `Client (+91 ${cleanPhone})`,
-      phone: `+91 ${cleanPhone}`,
+      id: resolved.customerId,
+      email: resolved.email,
+      fullName: resolved.fullName,
+      phone: resolved.phone,
     };
+
     setUser(phoneUser);
+
     try {
       localStorage.setItem('zarb_phone_session', JSON.stringify({
         user: phoneUser,
@@ -288,36 +346,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Error persisting phone session', e);
     }
-  }, []);
 
-  // Save Order to Supabase & Local Cache
-  const saveOrder = async (orderData: Omit<OrderRecord, 'id' | 'created_at'>): Promise<{ success: boolean; orderNumber: string; error?: string }> => {
-    const isSupabaseUuid = Boolean(user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id));
+    // Trigger retry for any pending offline orders
+    triggerPendingSync();
+  }, [triggerPendingSync]);
+
+  // Save Order with Supabase Priority, Reliable Offline Queue & Idempotency
+  const saveOrder = async (orderData: Omit<OrderRecord, 'id' | 'created_at'>): Promise<{
+    success: boolean;
+    orderNumber: string;
+    isPendingSync: boolean;
+    error?: string;
+  }> => {
+    // 1. Stable client-generated UUID for idempotency
+    const clientUuid = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `ord-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // 2. E.164 phone normalization
+    const normPhone = normalizeIndianPhone(orderData.customer_phone);
+    const normalizedPhone = normPhone.e164 || orderData.customer_phone;
+
+    // 3. Authenticated customer ID linking
+    const isSupabaseUuid = Boolean(
+      user?.id &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)
+    );
+    const stableUserId = isSupabaseUuid ? user!.id : null;
+
     const fullOrder: OrderRecord = {
       ...orderData,
-      id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      user_id: isSupabaseUuid ? user!.id : null,
+      id: clientUuid,
+      user_id: stableUserId,
+      customer_phone: normalizedPhone,
       created_at: new Date().toISOString(),
+      sync_status: 'pending_sync',
     };
 
-    // 1. Immediately save to local storage
-    try {
-      const existing = localStorage.getItem('atelier_local_orders');
-      const ordersList: OrderRecord[] = existing ? JSON.parse(existing) : [];
-      const updatedList = [fullOrder, ...ordersList];
-      localStorage.setItem('atelier_local_orders', JSON.stringify(updatedList));
-      localStorage.setItem('atelier_last_checkout_email', orderData.customer_email);
-      setUserOrders(prev => [fullOrder, ...prev]);
-    } catch (e) {
-      console.error('Error saving order locally', e);
-    }
+    let isSavedToSupabase = false;
+    let syncErrorMsg: string | undefined;
 
-    // 2. Save to Supabase Cloud Database if configured
-    if (isSupabaseConfigured()) {
+    // 4. Attempt to save to Supabase FIRST with idempotency protection
+    if (isSupabaseConfigured() && typeof navigator !== 'undefined' && navigator.onLine) {
       try {
-        const { error } = await supabase
+        // Check if order number already exists
+        const { data: existing } = await supabase
           .from('orders')
-          .insert({
+          .select('id, order_number')
+          .eq('order_number', fullOrder.order_number)
+          .maybeSingle();
+
+        if (existing) {
+          isSavedToSupabase = true;
+        } else {
+          const insertPayload: Record<string, any> = {
+            id: fullOrder.id,
             order_number: fullOrder.order_number,
             user_id: fullOrder.user_id,
             customer_email: fullOrder.customer_email,
@@ -331,17 +414,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             payment_method: fullOrder.payment_method,
             payment_status: fullOrder.payment_status,
             order_status: fullOrder.order_status,
-          });
+          };
 
-        if (error) {
-          console.warn('Supabase cloud order insertion returned error, order preserved locally:', error.message);
+          const { error: insertErr } = await supabase.from('orders').insert(insertPayload);
+
+          if (!insertErr || insertErr.code === '23505') {
+            isSavedToSupabase = true;
+          } else {
+            syncErrorMsg = insertErr.message;
+            console.warn('Supabase order insert returned error, queuing for retry:', insertErr.message);
+          }
         }
       } catch (e: any) {
-        console.warn('Failed to insert order into Supabase cloud table, order preserved locally:', e);
+        syncErrorMsg = e?.message || 'Network exception';
+        console.warn('Supabase insert exception, queuing for retry:', e);
       }
+    } else {
+      syncErrorMsg = !isSupabaseConfigured() ? 'Supabase not configured' : 'Device offline';
     }
 
-    return { success: true, orderNumber: fullOrder.order_number };
+    // Set confirmed sync status
+    fullOrder.sync_status = isSavedToSupabase ? 'synced' : 'pending_sync';
+    if (syncErrorMsg && !isSavedToSupabase) {
+      fullOrder.sync_error = syncErrorMsg;
+    }
+
+    // 5. Store locally & update state
+    try {
+      const existingRaw = localStorage.getItem('atelier_local_orders');
+      const ordersList: OrderRecord[] = existingRaw ? JSON.parse(existingRaw) : [];
+      const filtered = ordersList.filter(o => o.order_number !== fullOrder.order_number);
+      const updatedList = [fullOrder, ...filtered];
+      localStorage.setItem('atelier_local_orders', JSON.stringify(updatedList));
+      localStorage.setItem('atelier_last_checkout_email', fullOrder.customer_email);
+      setUserOrders(prev => [fullOrder, ...prev.filter(o => o.order_number !== fullOrder.order_number)]);
+    } catch (e) {
+      console.error('Error saving order locally', e);
+    }
+
+    // 6. Manage pending queue: if not confirmed, queue; otherwise mark synced
+    if (!isSavedToSupabase) {
+      queuePendingOrder(fullOrder);
+      setPendingSyncCount(getPendingSyncOrders().length);
+    } else {
+      markOrderAsSynced(fullOrder.order_number);
+      setPendingSyncCount(getPendingSyncOrders().length);
+    }
+
+    return {
+      success: true,
+      orderNumber: fullOrder.order_number,
+      isPendingSync: !isSavedToSupabase,
+      error: syncErrorMsg,
+    };
   };
 
   return (
@@ -359,6 +484,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshOrders,
         saveOrder,
         loginWithPhoneOtp,
+        pendingSyncCount,
+        triggerPendingSync,
       }}
     >
       {children}

@@ -36,6 +36,7 @@ export const CheckoutModal: React.FC = () => {
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isOrderPendingSync, setIsOrderPendingSync] = useState(false);
 
   // Geolocation & Auto-detection state
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -282,11 +283,11 @@ export const CheckoutModal: React.FC = () => {
       const orderTotal = cartSubtotal + shippingCost;
 
       // Save order to cloud/local (user_id is automatically linked to user.id in AuthContext)
-      saveOrder({
+      const saveRes = await saveOrder({
         order_number: newOrderNum,
         customer_name: `${formData.firstName} ${formData.lastName}`.trim() || user.fullName,
         customer_email: user.email || formData.email,
-        customer_phone: `+91 ${formData.phone.replace(/^\+91\s*/, '').trim()}`,
+        customer_phone: formData.phone,
         shipping_address: {
           address: formData.address,
           apartment: formData.apartment,
@@ -304,6 +305,8 @@ export const CheckoutModal: React.FC = () => {
         payment_status: 'paid',
         order_status: 'confirmed',
       });
+
+      setIsOrderPendingSync(Boolean(saveRes?.isPendingSync));
 
       setStep(4);
       clearCart();
@@ -1054,14 +1057,25 @@ export const CheckoutModal: React.FC = () => {
               </p>
 
               {/* Cloud Server Registration Badge */}
-              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-1">
-                <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-semibold block">
-                  ✓ Recorded to Cloud Server Vault
-                </span>
-                <p className="text-[11px] text-stone-300">
-                  This acquisition is permanently saved under your verified client profile (<strong>{user?.email}</strong>).
-                </p>
-              </div>
+              {isOrderPendingSync ? (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center space-y-1">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-amber-400 font-semibold block">
+                    ⚡ Preserved Locally — Auto-Syncing with Cloud Vault
+                  </span>
+                  <p className="text-[11px] text-stone-300">
+                    Your bespoke acquisition is safely preserved on this device and queued to sync with your client profile (<strong>{user?.email}</strong>) as connectivity is verified.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-1">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-semibold block">
+                    ✓ Recorded to Cloud Server Vault
+                  </span>
+                  <p className="text-[11px] text-stone-300">
+                    This acquisition is permanently saved under your verified client profile (<strong>{user?.email}</strong>).
+                  </p>
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                 <button
