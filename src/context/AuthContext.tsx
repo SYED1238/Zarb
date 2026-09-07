@@ -106,7 +106,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .order('created_at', { ascending: false });
 
         if (user) {
-          query = query.or(`user_id.eq.${user.id},customer_email.eq.${user.email}`);
+          const isUuid = Boolean(user.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id));
+          const cleanPhone = (user.phone || '').replace(/\D/g, '').slice(-10);
+          const orList: string[] = [];
+          if (isUuid) orList.push(`user_id.eq.${user.id}`);
+          if (user.email) orList.push(`customer_email.eq.${user.email}`);
+          if (cleanPhone) orList.push(`customer_phone.ilike.%${cleanPhone}%`);
+
+          if (orList.length > 0) {
+            query = query.or(orList.join(','));
+          }
         } else {
           // If guest, fetch by recent local email if any
           const guestEmail = localStorage.getItem('atelier_last_checkout_email');
@@ -127,11 +136,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Filter for current user if logged in
+    // Filter for current user if logged in (by UUID, email, or phone)
     if (user) {
-      combinedOrders = combinedOrders.filter(o => 
-        o.user_id === user.id || o.customer_email?.toLowerCase() === user.email?.toLowerCase()
-      );
+      const cleanUserPhone = (user.phone || '').replace(/\D/g, '').slice(-10);
+      combinedOrders = combinedOrders.filter(o => {
+        const orderPhone = (o.customer_phone || '').replace(/\D/g, '').slice(-10);
+        const matchPhone = cleanUserPhone && orderPhone && orderPhone === cleanUserPhone;
+        const matchEmail = user.email && o.customer_email?.toLowerCase() === user.email.toLowerCase();
+        const matchUserId = user.id && o.user_id === user.id;
+        return matchUserId || matchEmail || matchPhone;
+      });
     }
 
     setUserOrders(combinedOrders);
@@ -278,10 +292,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Save Order to Supabase & Local Cache
   const saveOrder = async (orderData: Omit<OrderRecord, 'id' | 'created_at'>): Promise<{ success: boolean; orderNumber: string; error?: string }> => {
+    const isSupabaseUuid = Boolean(user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id));
     const fullOrder: OrderRecord = {
       ...orderData,
       id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      user_id: user ? user.id : null,
+      user_id: isSupabaseUuid ? user!.id : null,
       created_at: new Date().toISOString(),
     };
 

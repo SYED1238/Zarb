@@ -103,6 +103,19 @@ export const CheckoutModal: React.FC = () => {
     };
   });
 
+  // Automatically sync phone, email, and name when user signs in
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        email: prev.email || user.email,
+        phone: prev.phone || (user.phone ? user.phone.replace(/^\+91\s*/, '') : ''),
+        firstName: prev.firstName || (user.fullName ? user.fullName.split(' ')[0] : ''),
+        cardHolder: prev.cardHolder === 'CLIENT NAME' && user.fullName ? user.fullName.toUpperCase() : prev.cardHolder,
+      }));
+    }
+  }, [user]);
+
   const [orderNumber, setOrderNumber] = useState('');
 
   // Location detection triggers
