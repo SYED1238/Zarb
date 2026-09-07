@@ -41,17 +41,20 @@ function cleanCityName(raw?: string): string {
 /**
  * Reverse geocoding via OpenStreetMap Nominatim
  */
-async function reverseGeocodeNominatim(lat: number, lon: number): Promise<DetectedAddress | null> {
+export async function reverseGeocodeCoordinates(lat: number, lon: number): Promise<DetectedAddress | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'ZarbLuxuryBoutique/1.0 (client-concierge@zarb-couture.com)',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Language': 'en-IN,en;q=0.9',
       },
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Fallback to secondary reverse geocoder
+      return await reverseGeocodeBigDataCloud(lat, lon);
+    }
     const data = await res.json();
     const a = data.address || {};
 
@@ -98,7 +101,47 @@ async function reverseGeocodeNominatim(lat: number, lon: number): Promise<Detect
     };
   } catch (err) {
     console.warn('Nominatim reverse geocode failed, attempting secondary provider:', err);
-    return null;
+    return await reverseGeocodeBigDataCloud(lat, lon);
+  }
+}
+
+/**
+ * Search autocomplete for Indian addresses, landmarks, and localities
+ */
+export async function searchIndiaAddress(query: string): Promise<Array<{
+  lat: number;
+  lon: number;
+  displayName: string;
+  postcode?: string;
+  city?: string;
+  state?: string;
+}>> {
+  if (!query || query.trim().length < 2) return [];
+
+  try {
+    const q = encodeURIComponent(query.trim());
+    const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&countrycodes=in&limit=5&addressdetails=1`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'ZarbLuxuryBoutique/1.0 (client-concierge@zarb-couture.com)',
+        'Accept-Language': 'en-IN,en;q=0.9',
+      },
+    });
+
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    return data.map((d: any) => ({
+      lat: parseFloat(d.lat),
+      lon: parseFloat(d.lon),
+      displayName: d.display_name,
+      postcode: d.address?.postcode || '',
+      city: cleanCityName(d.address?.city || d.address?.town || d.address?.locality || ''),
+      state: d.address?.state || '',
+    }));
+  } catch (e) {
+    console.warn('Error searching Indian addresses:', e);
+    return [];
   }
 }
 
@@ -181,7 +224,7 @@ export async function detectUserLocation(): Promise<GeolocationResult> {
         const { latitude, longitude, accuracy } = pos.coords;
 
         // 1. Try Nominatim (precise street level)
-        let resolved = await reverseGeocodeNominatim(latitude, longitude);
+        let resolved = await reverseGeocodeCoordinates(latitude, longitude);
 
         // 2. Fallback to BigDataCloud if Nominatim failed
         if (!resolved) {

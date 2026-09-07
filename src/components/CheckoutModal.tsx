@@ -19,7 +19,6 @@ import {
   Loader2,
   AlertCircle,
   RotateCw,
-  Phone,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -28,15 +27,17 @@ import {
   getSavedAddress,
   saveAddressToStorage,
 } from '../utils/geolocation';
-import { openMsg91OtpWidget } from '../utils/msg91Otp';
+import { MapPinPickerModal } from './MapPinPickerModal';
+import type { DetectedAddress } from '../utils/geolocation';
 
 export const CheckoutModal: React.FC = () => {
   const { isCheckoutOpen, setIsCheckoutOpen, cartSubtotal, clearCart, cart, showToast } = useStore();
-  const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen, loginWithPhoneOtp } = useAuth();
+  const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen } = useAuth();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isOrderPendingSync, setIsOrderPendingSync] = useState(false);
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
 
   // Geolocation & Auto-detection state
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -195,6 +196,27 @@ export const CheckoutModal: React.FC = () => {
     }
   };
 
+  const handleConfirmMapAddress = (addr: DetectedAddress) => {
+    setFormData((prev) => ({
+      ...prev,
+      address: addr.address || prev.address,
+      apartment: addr.apartment || prev.apartment,
+      city: addr.city || prev.city,
+      state: addr.state || prev.state,
+      postalCode: addr.postalCode || prev.postalCode,
+      country: addr.country || 'India',
+    }));
+
+    saveAddressToStorage(addr);
+    setLocationStatus('success');
+    setLocationMessage('Pinned exact destination via interactive map.');
+    setDetectedMetadata({
+      source: 'gps',
+      summary: addr.displayName || `${addr.address}, ${addr.city} (${addr.postalCode})`,
+    });
+    showToast(`Pinned location & PIN code ${addr.postalCode || ''} applied.`);
+  };
+
   // Prefill authenticated user information whenever user logs in or changes
   useEffect(() => {
     if (user) {
@@ -217,25 +239,6 @@ export const CheckoutModal: React.FC = () => {
       showToast(res.error);
       setIsSigningIn(false);
     }
-  };
-
-  const [isPhoneOtpLaunching, setIsPhoneOtpLaunching] = useState(false);
-
-  const handleLaunchMsg91Otp = async () => {
-    setIsPhoneOtpLaunching(true);
-    await openMsg91OtpWidget({
-      onSuccess: (data) => {
-        setIsPhoneOtpLaunching(false);
-        const verifiedNumber = data?.mobile || data?.identifier || 'Indian Mobile';
-        loginWithPhoneOtp(verifiedNumber, data);
-        showToast('Phone verified via MSG91 OTP. Continuing checkout.');
-      },
-      onFailure: (err) => {
-        setIsPhoneOtpLaunching(false);
-        const msg = typeof err === 'string' ? err : (err?.message || 'Verification incomplete.');
-        showToast(msg);
-      },
-    });
   };
 
   if (!isCheckoutOpen) return null;
@@ -463,23 +466,6 @@ export const CheckoutModal: React.FC = () => {
                 <span>{isSigningIn ? 'Connecting to Google...' : 'Continue with Google'}</span>
               </button>
 
-              {/* Divider */}
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-white/10"></div>
-                <span className="flex-shrink mx-3 text-[10px] uppercase font-mono tracking-widest text-stone-500">Or Phone OTP</span>
-                <div className="flex-grow border-t border-white/10"></div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleLaunchMsg91Otp}
-                disabled={isPhoneOtpLaunching}
-                className="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-sans font-semibold tracking-wider uppercase transition-all cursor-pointer shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
-              >
-                <Phone className="w-4 h-4 text-black" />
-                <span>{isPhoneOtpLaunching ? 'Connecting to MSG91...' : 'Sign in with Indian Mobile (6-Digit OTP)'}</span>
-              </button>
-
               <button
                 type="button"
                 onClick={() => setIsCheckoutOpen(false)}
@@ -693,7 +679,17 @@ export const CheckoutModal: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => setIsMapPickerOpen(true)}
+                      className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 hover:text-amber-200 font-semibold text-xs uppercase tracking-wider flex items-center space-x-1.5 shadow-lg shadow-amber-500/10 transition-all cursor-pointer active:scale-95"
+                      title="Open interactive map to pin exact residence and get accurate PIN code"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
+                      <span>Pin on Map</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={handleDetectLocation}
@@ -708,7 +704,7 @@ export const CheckoutModal: React.FC = () => {
                       ) : (
                         <>
                           <Navigation className="w-3.5 h-3.5 fill-black" />
-                          <span>Detect My Location</span>
+                          <span>Detect GPS</span>
                         </>
                       )}
                     </button>
@@ -745,6 +741,15 @@ export const CheckoutModal: React.FC = () => {
                       <span className="text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase">
                         Via {detectedMetadata.source.toUpperCase()}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsMapPickerOpen(true)}
+                        className="text-amber-400 hover:text-amber-300 flex items-center space-x-1 pl-1 cursor-pointer underline underline-offset-2"
+                        title="Adjust pinpoint location & PIN code on interactive map"
+                      >
+                        <MapPin className="w-3 h-3" />
+                        <span>Adjust on Map</span>
+                      </button>
                       <button
                         type="button"
                         onClick={handleDetectLocation}
@@ -1106,6 +1111,15 @@ export const CheckoutModal: React.FC = () => {
       </>
     )}
       </div>
+
+      {/* Interactive Map Pin Picker Modal */}
+      <MapPinPickerModal
+        isOpen={isMapPickerOpen}
+        onClose={() => setIsMapPickerOpen(false)}
+        onConfirmAddress={handleConfirmMapAddress}
+        initialPostalCode={formData.postalCode}
+        theme="noir"
+      />
     </div>
   );
 };

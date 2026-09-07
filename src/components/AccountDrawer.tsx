@@ -14,15 +14,14 @@ import {
   MapPin,
   Navigation,
   Loader2,
-  Phone,
 } from 'lucide-react';
-import { openMsg91OtpWidget } from '../utils/msg91Otp';
 import {
   detectUserLocation,
   getSavedAddress,
   saveAddressToStorage,
   type DetectedAddress,
 } from '../utils/geolocation';
+import { MapPinPickerModal } from './MapPinPickerModal';
 
 export const AccountDrawer: React.FC = () => {
   const {
@@ -33,7 +32,6 @@ export const AccountDrawer: React.FC = () => {
     signOut,
     userOrders,
     isLoadingOrders,
-    loginWithPhoneOtp,
     pendingSyncCount,
     triggerPendingSync,
   } = useAuth();
@@ -44,29 +42,6 @@ export const AccountDrawer: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
-
-  // MSG91 Phone OTP Login State
-  const [mobileInput, setMobileInput] = useState('');
-  const [isOtpLoading, setIsOtpLoading] = useState(false);
-
-  const handlePhoneOtpLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setIsOtpLoading(true);
-    await openMsg91OtpWidget({
-      mobileNumber: mobileInput.trim() || undefined,
-      onSuccess: async (data) => {
-        setIsOtpLoading(false);
-        const verified = mobileInput.trim() || data?.mobile || data?.identifier || '9876543210';
-        await loginWithPhoneOtp(verified, data);
-        showToast('Phone verified via MSG91 OTP. Welcome to Zarb!');
-      },
-      onFailure: (err) => {
-        setIsOtpLoading(false);
-        const msg = typeof err === 'string' ? err : (err?.message || 'Verification incomplete or cancelled.');
-        showToast(msg);
-      },
-    });
-  };
 
   // Saved Delivery Address State
   const [savedAddress, setSavedAddress] = useState<Partial<DetectedAddress> | null>(() => getSavedAddress());
@@ -84,6 +59,14 @@ export const AccountDrawer: React.FC = () => {
     } else {
       showToast(res.error || 'Failed to detect location.');
     }
+  };
+
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
+
+  const handleConfirmMapAddress = (addr: DetectedAddress) => {
+    saveAddressToStorage(addr);
+    setSavedAddress(addr);
+    showToast(`Delivery destination & PIN ${addr.postalCode || ''} pinned & saved.`);
   };
 
   // Connection modal if user wants to enter credentials directly
@@ -255,41 +238,10 @@ export const AccountDrawer: React.FC = () => {
                   <span>Continue with Google</span>
                 </button>
 
-                {/* Divider */}
-                <div className="relative flex py-2 items-center">
-                  <div className="flex-grow border-t border-white/10"></div>
-                  <span className="flex-shrink mx-3 text-[10px] uppercase font-mono tracking-widest text-stone-500">Or Phone OTP</span>
-                  <div className="flex-grow border-t border-white/10"></div>
-                </div>
-
-                {/* MSG91 Indian Phone SMS OTP Form */}
-                <form onSubmit={handlePhoneOtpLogin} className="space-y-3">
-                  <div className="flex rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden focus-within:border-amber-500/50 transition-colors">
-                    <span className="px-3 py-3 text-xs font-mono text-stone-300 bg-white/[0.04] border-r border-white/10 flex items-center space-x-1">
-                      <span>🇮🇳</span>
-                      <span>+91</span>
-                    </span>
-                    <input
-                      type="tel"
-                      value={mobileInput}
-                      onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder="10-digit mobile number"
-                      className="w-full px-3 py-3 text-xs font-mono text-white bg-transparent focus:outline-none placeholder:text-stone-500"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isOtpLoading}
-                    className="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-sans font-semibold tracking-wider uppercase flex items-center justify-center space-x-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>{isOtpLoading ? 'Connecting to MSG91...' : 'Sign in with SMS OTP'}</span>
-                  </button>
-                  <span className="text-[10px] text-stone-500 block font-mono">
-                    Instant 6-digit SMS OTP via MSG91 (India +91 only)
-                  </span>
-                </form>
+                {/* Single Sign-On Security Note */}
+                <p className="text-[11px] text-stone-400 font-light pt-1 leading-relaxed">
+                  Single-tap authentication registered to your atelier client profile.
+                </p>
               </div>
             </div>
           ) : (
@@ -485,24 +437,35 @@ export const AccountDrawer: React.FC = () => {
                         <MapPin className="w-4 h-4 text-amber-400" />
                         <span className="font-medium text-xs text-white">Default Delivery Address</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleDetectSavedAddress}
-                        disabled={isDetectingAddress}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 text-[10px] uppercase tracking-wider font-mono flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        {isDetectingAddress ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Detecting...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Navigation className="w-3 h-3" />
-                            <span>Detect GPS</span>
-                          </>
-                        )}
-                      </button>
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setIsMapPickerOpen(true)}
+                          className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] uppercase tracking-wider font-mono flex items-center space-x-1 transition-colors cursor-pointer"
+                          title="Open interactive map to pin exact residence"
+                        >
+                          <MapPin className="w-3 h-3 text-amber-400" />
+                          <span>Pin on Map</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDetectSavedAddress}
+                          disabled={isDetectingAddress}
+                          className="px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-stone-300 border border-white/10 text-[10px] uppercase tracking-wider font-mono flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {isDetectingAddress ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Detecting...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Navigation className="w-3 h-3" />
+                              <span>GPS</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
 
                     {savedAddress?.address ? (
@@ -699,6 +662,15 @@ export const AccountDrawer: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Interactive Map Pin Picker Modal */}
+      <MapPinPickerModal
+        isOpen={isMapPickerOpen}
+        onClose={() => setIsMapPickerOpen(false)}
+        onConfirmAddress={handleConfirmMapAddress}
+        initialPostalCode={savedAddress?.postalCode}
+        theme={theme}
+      />
     </div>
   );
 };
