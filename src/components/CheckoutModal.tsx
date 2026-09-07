@@ -19,6 +19,7 @@ import {
   Loader2,
   AlertCircle,
   RotateCw,
+  Phone,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -27,10 +28,11 @@ import {
   getSavedAddress,
   saveAddressToStorage,
 } from '../utils/geolocation';
+import { openMsg91OtpWidget } from '../utils/msg91Otp';
 
 export const CheckoutModal: React.FC = () => {
   const { isCheckoutOpen, setIsCheckoutOpen, cartSubtotal, clearCart, cart, showToast } = useStore();
-  const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen } = useAuth();
+  const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen, loginWithPhoneOtp } = useAuth();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -201,6 +203,25 @@ export const CheckoutModal: React.FC = () => {
       showToast(res.error);
       setIsSigningIn(false);
     }
+  };
+
+  const [isPhoneOtpLaunching, setIsPhoneOtpLaunching] = useState(false);
+
+  const handleLaunchMsg91Otp = async () => {
+    setIsPhoneOtpLaunching(true);
+    await openMsg91OtpWidget({
+      onSuccess: (data) => {
+        setIsPhoneOtpLaunching(false);
+        const verifiedNumber = data?.mobile || data?.identifier || 'Indian Mobile';
+        loginWithPhoneOtp(verifiedNumber, data);
+        showToast('Phone verified via MSG91 OTP. Continuing checkout.');
+      },
+      onFailure: (err) => {
+        setIsPhoneOtpLaunching(false);
+        const msg = typeof err === 'string' ? err : (err?.message || 'Verification incomplete.');
+        showToast(msg);
+      },
+    });
   };
 
   if (!isCheckoutOpen) return null;
@@ -426,15 +447,21 @@ export const CheckoutModal: React.FC = () => {
                 <span>{isSigningIn ? 'Connecting to Google...' : 'Continue with Google'}</span>
               </button>
 
+              {/* Divider */}
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-white/10"></div>
+                <span className="flex-shrink mx-3 text-[10px] uppercase font-mono tracking-widest text-stone-500">Or Phone OTP</span>
+                <div className="flex-grow border-t border-white/10"></div>
+              </div>
+
               <button
                 type="button"
-                onClick={() => {
-                  setIsCheckoutOpen(false);
-                  setIsAccountDrawerOpen(true);
-                }}
-                className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 hover:text-white text-xs font-sans tracking-wider uppercase transition-colors cursor-pointer border border-white/10"
+                onClick={handleLaunchMsg91Otp}
+                disabled={isPhoneOtpLaunching}
+                className="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-sans font-semibold tracking-wider uppercase transition-all cursor-pointer shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
               >
-                Sign in with Email or Phone
+                <Phone className="w-4 h-4 text-black" />
+                <span>{isPhoneOtpLaunching ? 'Connecting to MSG91...' : 'Sign in with Indian Mobile (6-Digit OTP)'}</span>
               </button>
 
               <button

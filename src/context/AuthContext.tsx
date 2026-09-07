@@ -58,6 +58,7 @@ interface AuthContextType {
   isLoadingOrders: boolean;
   refreshOrders: () => Promise<void>;
   saveOrder: (orderData: Omit<OrderRecord, 'id' | 'created_at'>) => Promise<{ success: boolean; orderNumber: string; error?: string }>;
+  loginWithPhoneOtp: (phone: string, tokenData?: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -151,8 +152,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRawUser(session.user);
         setUser(mapUserProfile(session.user));
       } else {
-        setRawUser(null);
-        setUser(null);
+        // Fallback: check saved phone OTP session
+        try {
+          const savedPhoneSession = localStorage.getItem('zarb_phone_session');
+          if (savedPhoneSession) {
+            const parsed = JSON.parse(savedPhoneSession);
+            if (parsed?.user) {
+              setUser(parsed.user);
+            }
+          } else {
+            setRawUser(null);
+            setUser(null);
+          }
+        } catch {
+          setRawUser(null);
+          setUser(null);
+        }
       }
       setIsLoading(false);
     });
@@ -163,6 +178,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRawUser(session.user);
         setUser(mapUserProfile(session.user));
       } else {
+        try {
+          const savedPhoneSession = localStorage.getItem('zarb_phone_session');
+          if (savedPhoneSession) {
+            const parsed = JSON.parse(savedPhoneSession);
+            if (parsed?.user) {
+              setUser(parsed.user);
+              return;
+            }
+          }
+        } catch {}
         setRawUser(null);
         setUser(null);
       }
@@ -224,9 +249,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setRawUser(null);
       localStorage.removeItem('atelier_last_checkout_email');
+      localStorage.removeItem('zarb_phone_session');
       setUserOrders([]);
     }
   };
+
+  // Phone OTP Sign In (MSG91)
+  const loginWithPhoneOtp = useCallback((phone: string, tokenData?: any) => {
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+    const phoneUser: UserProfile = {
+      id: `phone_${cleanPhone}`,
+      email: `${cleanPhone}@phone.zarb.shop`,
+      fullName: `Client (+91 ${cleanPhone})`,
+      phone: `+91 ${cleanPhone}`,
+    };
+    setUser(phoneUser);
+    try {
+      localStorage.setItem('zarb_phone_session', JSON.stringify({
+        user: phoneUser,
+        tokenData,
+        timestamp: Date.now(),
+      }));
+      localStorage.setItem('atelier_last_checkout_email', phoneUser.email);
+    } catch (e) {
+      console.warn('Error persisting phone session', e);
+    }
+  }, []);
 
   // Save Order to Supabase & Local Cache
   const saveOrder = async (orderData: Omit<OrderRecord, 'id' | 'created_at'>): Promise<{ success: boolean; orderNumber: string; error?: string }> => {
@@ -295,6 +343,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoadingOrders,
         refreshOrders,
         saveOrder,
+        loginWithPhoneOtp,
       }}
     >
       {children}

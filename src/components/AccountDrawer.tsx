@@ -14,7 +14,9 @@ import {
   MapPin,
   Navigation,
   Loader2,
+  Phone,
 } from 'lucide-react';
+import { openMsg91OtpWidget } from '../utils/msg91Otp';
 import {
   detectUserLocation,
   getSavedAddress,
@@ -31,6 +33,7 @@ export const AccountDrawer: React.FC = () => {
     signOut,
     userOrders,
     isLoadingOrders,
+    loginWithPhoneOtp,
   } = useAuth();
 
   const { theme, showToast } = useStore();
@@ -39,6 +42,29 @@ export const AccountDrawer: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+
+  // MSG91 Phone OTP Login State
+  const [mobileInput, setMobileInput] = useState('');
+  const [isOtpLoading, setIsOtpLoading] = useState(false);
+
+  const handlePhoneOtpLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsOtpLoading(true);
+    await openMsg91OtpWidget({
+      mobileNumber: mobileInput.trim() || undefined,
+      onSuccess: (data) => {
+        setIsOtpLoading(false);
+        const verified = mobileInput.trim() || data?.mobile || data?.identifier || '9876543210';
+        loginWithPhoneOtp(verified, data);
+        showToast('Phone verified via MSG91 OTP. Welcome to Zarb!');
+      },
+      onFailure: (err) => {
+        setIsOtpLoading(false);
+        const msg = typeof err === 'string' ? err : (err?.message || 'Verification incomplete or cancelled.');
+        showToast(msg);
+      },
+    });
+  };
 
   // Saved Delivery Address State
   const [savedAddress, setSavedAddress] = useState<Partial<DetectedAddress> | null>(() => getSavedAddress());
@@ -226,6 +252,42 @@ export const AccountDrawer: React.FC = () => {
                   </svg>
                   <span>Continue with Google</span>
                 </button>
+
+                {/* Divider */}
+                <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-white/10"></div>
+                  <span className="flex-shrink mx-3 text-[10px] uppercase font-mono tracking-widest text-stone-500">Or Phone OTP</span>
+                  <div className="flex-grow border-t border-white/10"></div>
+                </div>
+
+                {/* MSG91 Indian Phone SMS OTP Form */}
+                <form onSubmit={handlePhoneOtpLogin} className="space-y-3">
+                  <div className="flex rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden focus-within:border-amber-500/50 transition-colors">
+                    <span className="px-3 py-3 text-xs font-mono text-stone-300 bg-white/[0.04] border-r border-white/10 flex items-center space-x-1">
+                      <span>🇮🇳</span>
+                      <span>+91</span>
+                    </span>
+                    <input
+                      type="tel"
+                      value={mobileInput}
+                      onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="10-digit mobile number"
+                      className="w-full px-3 py-3 text-xs font-mono text-white bg-transparent focus:outline-none placeholder:text-stone-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isOtpLoading}
+                    className="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-sans font-semibold tracking-wider uppercase flex items-center justify-center space-x-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>{isOtpLoading ? 'Connecting to MSG91...' : 'Sign in with SMS OTP'}</span>
+                  </button>
+                  <span className="text-[10px] text-stone-500 block font-mono">
+                    Instant 6-digit SMS OTP via MSG91 (India +91 only)
+                  </span>
+                </form>
               </div>
             </div>
           ) : (
