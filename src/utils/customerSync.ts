@@ -9,6 +9,7 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { OrderRecord, UserProfile } from '../context/AuthContext';
+import { emailService } from '../services/emailService';
 
 const CUSTOMER_LINKS_KEY = 'zarb_customer_identities';
 const PENDING_SYNC_KEY = 'atelier_pending_sync_orders';
@@ -444,6 +445,8 @@ export async function syncPendingOrders(): Promise<{
         // Successfully inserted into Supabase
         markOrderAsSynced(order.order_number);
         syncedCount++;
+        // Idempotent email dispatch
+        emailService.sendOrderConfirmationEmail(order).catch(() => {});
       }
     } catch (e: any) {
       console.warn(`Sync exception for order ${order.order_number}:`, e);

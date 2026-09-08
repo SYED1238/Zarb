@@ -53,6 +53,7 @@ import {
   optimizeImageFile,
   uploadToSupabaseStorage,
 } from '../../utils/imageUpload';
+import { emailService } from '../../services/emailService';
 
 const MASTER_PASSCODE = 'atelier2026';
 export const AUTHORIZED_ADMIN_EMAIL = 'syedhamza1238@gmail.com';
@@ -369,6 +370,16 @@ export const AdminPortal: React.FC = () => {
       }
     } else {
       showToast(`Order ${orderNumber} updated to ${newStatus.toUpperCase()}`);
+    }
+
+    // Trigger automatic transactional status email on legitimate transition (non-blocking)
+    if (existingOrder && existingOrder.customer_email && existingOrder.order_status !== newStatus) {
+      emailService.sendOrderStatusEmail(
+        { ...existingOrder, order_status: newStatus },
+        newStatus
+      ).catch(err => {
+        console.warn('[ADMIN] Background status email dispatch notice:', err);
+      });
     }
   };
 
@@ -2265,7 +2276,8 @@ export const AdminPortal: React.FC = () => {
                           >
                             <option value="processing">● Processing</option>
                             <option value="confirmed">● Confirmed</option>
-                            <option value="dispatched">● Dispatched</option>
+                            <option value="dispatched">● Dispatched / Shipped</option>
+                            <option value="out_for_delivery">● Out For Delivery</option>
                             <option value="delivered">● Delivered</option>
                             <option value="cancelled">● Cancelled</option>
                             <option value="refunded">● Refunded</option>

@@ -18,6 +18,7 @@ import {
   clearSavedAddressStorage,
   type DetectedAddress,
 } from '../utils/geolocation';
+import { emailService } from '../services/emailService';
 
 export interface UserProfile {
   id: string;
@@ -291,13 +292,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setRawUser(session.user);
         const profile = mapUserProfile(session.user);
         linkGoogleCustomerAccount(profile);
         setUser(profile);
         loadCustomerSavedAddress(session.user.id);
+
+        // Genuine Sign-in vs Session Restoration detection
+        if (event === 'SIGNED_IN' && profile.email) {
+          const userCreatedAt = new Date(session.user.created_at).getTime();
+          const isBrandNewUser = (Date.now() - userCreatedAt) < 180000; // created within last 3 minutes
+          const welcomeKey = `zarb_welcomed_${session.user.id}`;
+          const loginSessionKey = `zarb_login_notified_${session.user.id}`;
+          const currentTokenSub = session.access_token ? session.access_token.slice(-16) : 'token';
+
+          if (isBrandNewUser && !localStorage.getItem(welcomeKey)) {
+            localStorage.setItem(welcomeKey, 'true');
+            emailService.sendWelcomeEmail({
+              email: profile.email,
+              fullName: profile.fullName,
+              userId: profile.id,
+            }).catch(() => {});
+          } else if (sessionStorage.getItem(loginSessionKey) !== currentTokenSub) {
+            // Mark notified for this session to prevent duplicate emails on re-render / tab switch
+            sessionStorage.setItem(loginSessionKey, currentTokenSub);
+            emailService.sendWelcomeBackEmail({
+              email: profile.email,
+              fullName: profile.fullName,
+              userId: profile.id,
+            }).catch(() => {});
+          }
+        }
       } else {
         try {
           const savedPhoneSession = localStorage.getItem('zarb_phone_session');
@@ -610,6 +637,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       markOrderAsSynced(fullOrder.order_number);
       setPendingSyncCount(getPendingSyncOrders().length);
+    }
+
+    // 8. Trigger asynchronous, non-blocking order confirmation email
+    if (fullOrder.customer_email) {
+      emailService.sendOrderConfirmationEmail(fullOrder).catch(err => {
+        console.warn('[AUTH CONTEXT] Background order confirmation email notice:', err);
+      });
     }
 
     return {
