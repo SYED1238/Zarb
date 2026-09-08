@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
 import { Heart, Eye, ShoppingBag, Star } from 'lucide-react';
+import { getMediaUrl } from '../utils/media';
 
 interface ProductCardProps {
   product: Product;
@@ -75,9 +76,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         {/* Primary Image with Crossfade */}
         <img
           key={`${product.id}-${selectedColorIndex}-${isHovered}`}
-          src={activeImage}
+          src={getMediaUrl(activeImage)}
           alt={product.name}
           loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover object-center transition-all duration-700 ease-out group-hover:scale-105 animate-fade-in"
         />
 

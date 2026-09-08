@@ -19,6 +19,7 @@ import {
   type DetectedAddress,
 } from '../utils/geolocation';
 import { MapPinPickerModal } from './MapPinPickerModal';
+import { getMediaUrl } from '../utils/media';
 
 export const AccountDrawer: React.FC = () => {
   const {
@@ -332,8 +333,10 @@ export const AccountDrawer: React.FC = () => {
               >
                 {user.avatarUrl ? (
                   <img
-                    src={user.avatarUrl}
+                    src={getMediaUrl(user.avatarUrl)}
                     alt={user.fullName}
+                    loading="lazy"
+                    decoding="async"
                     className="w-14 h-14 rounded-2xl border border-amber-500/40 object-cover shadow-md"
                   />
                 ) : (
@@ -444,8 +447,10 @@ export const AccountDrawer: React.FC = () => {
                             {ord.items.slice(0, 3).map((item, idx) => (
                               <img
                                 key={idx}
-                                src={item.image}
+                                src={getMediaUrl(item.image)}
                                 alt={item.name}
+                                loading="lazy"
+                                decoding="async"
                                 className="w-12 h-14 object-cover rounded-lg bg-stone-900 border border-white/10 shrink-0"
                               />
                             ))}
@@ -627,7 +632,7 @@ export const AccountDrawer: React.FC = () => {
             <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
               {selectedOrder.items.map((it: any, i: number) => (
                 <div key={i} className="flex items-center space-x-3 text-xs border-b border-white/5 pb-2">
-                  <img src={it.image} alt={it.name} className="w-10 h-13 object-cover rounded bg-stone-900 shrink-0" />
+                  <img src={getMediaUrl(it.image)} alt={it.name} loading="lazy" decoding="async" className="w-10 h-13 object-cover rounded bg-stone-900 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate">{it.name}</div>
                     <div className="text-[10px] text-stone-400">

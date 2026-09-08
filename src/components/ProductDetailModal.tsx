@@ -3,6 +3,7 @@ import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
+import { getMediaUrl } from '../utils/media';
 import {
   X,
   Star,
@@ -280,9 +281,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     }`}
                   >
                     <img
-                      src={img}
+                      src={getMediaUrl(img)}
                       alt={`${product.name} ${selectedColor} thumbnail ${idx + 1}`}
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </button>
                 ))}
@@ -294,9 +297,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               }`}>
                 <img
                   key={`${selectedColor}-${activeImageIndex}`}
-                  src={activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0]}
+                  src={getMediaUrl(activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0])}
                   alt={`${product.name} - ${selectedColor}`}
                   onClick={() => setIsFullscreenOpen(true)}
+                  decoding="async"
                   className="w-full h-full object-cover transition-all duration-700 ease-out cursor-zoom-in animate-fade-in"
                 />
 
@@ -917,8 +921,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 >
                   <div className="aspect-[3/4] rounded-lg overflow-hidden bg-[#16161b] mb-2 border border-white/10">
                     <img
-                      src={rel.images[0]}
+                      src={getMediaUrl(rel.images[0])}
                       alt={rel.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   </div>
@@ -1035,8 +1041,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             >
               <img
                 key={`lightbox-${selectedColor}-${activeImageIndex}`}
-                src={activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0]}
+                src={getMediaUrl(activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0])}
                 alt={`${product.name} - ${selectedColor}`}
+                decoding="async"
                 className={`max-h-[76vh] sm:max-h-[82vh] max-w-[94vw] object-contain rounded-lg sm:rounded-xl shadow-2xl transition-transform duration-300 ${
                   isZoomed ? 'scale-135 sm:scale-160' : 'scale-100'
                 }`}
@@ -1076,7 +1083,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       : 'border-white/20 opacity-50 hover:opacity-90'
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={getMediaUrl(img)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>

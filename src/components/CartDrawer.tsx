@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import { X, Trash2, Plus, Minus, ArrowRight, ShieldCheck, ShoppingBag } from 'lucide-react';
+import { getMediaUrl } from '../utils/media';
 
 export const CartDrawer: React.FC = () => {
   const { user } = useAuth();
@@ -144,8 +145,10 @@ export const CartDrawer: React.FC = () => {
               <div key={item.id} className="pt-4 flex space-x-4 group">
                 <div className="w-20 aspect-[3/4] rounded-lg overflow-hidden bg-[#16161b] shrink-0 border border-white/10">
                   <img
-                    src={item.image}
+                    src={getMediaUrl(item.image)}
                     alt={item.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 </div>

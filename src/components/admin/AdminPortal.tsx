@@ -50,9 +50,10 @@ import {
 } from '../../lib/supabase';
 import {
   convertGoogleDriveUrl,
-  optimizeImageFile,
-  uploadToSupabaseStorage,
+  uploadImageToR2,
+  deleteImageFromR2,
 } from '../../utils/imageUpload';
+import { getMediaUrl, isR2Url } from '../../utils/media';
 import { emailService } from '../../services/emailService';
 
 const MASTER_PASSCODE = 'atelier2026';
@@ -3059,11 +3060,15 @@ export const AdminPortal: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {productForm.images.map((img, idx) => (
                       <div key={idx} className="relative group rounded-xl overflow-hidden border border-white/10 aspect-[3/4] bg-stone-900">
-                        <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img src={getMediaUrl(img)} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
                           <button
                             type="button"
                             onClick={() => {
+                              const target = productForm.images[idx];
+                              if (isR2Url(target)) {
+                                deleteImageFromR2(target);
+                              }
                               const updated = productForm.images.filter((_, i) => i !== idx);
                               setProductForm({ ...productForm, images: updated });
                             }}
@@ -3110,7 +3115,7 @@ export const AdminPortal: React.FC = () => {
                         Add Image
                       </button>
 
-                      {/* Local File Upload Button */}
+                      {/* Local File Upload Button to Cloudflare R2 */}
                       <label className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0">
                         <Upload className="w-3.5 h-3.5" />
                         <span>Upload Files</span>
@@ -3122,10 +3127,14 @@ export const AdminPortal: React.FC = () => {
                           onChange={async (e) => {
                             const files = Array.from(e.target.files || []);
                             if (files.length > 0) {
-                              const optimizedList = await Promise.all(files.map(optimizeImageFile));
-                              const valid = optimizedList.filter(Boolean);
+                              showToast('Uploading images to Cloudflare R2...');
+                              const results = await Promise.all(
+                                files.map((f) => uploadImageToR2(f, 'products', productForm.id || 'draft'))
+                              );
+                              const valid = results.map((r) => r.url).filter(Boolean);
                               if (valid.length > 0) {
                                 setProductForm((prev) => ({ ...prev, images: [...prev.images, ...valid] }));
+                                showToast(`Uploaded ${valid.length} image(s) directly to Cloudflare R2!`);
                               }
                             }
                             e.target.value = '';
@@ -3256,6 +3265,10 @@ export const AdminPortal: React.FC = () => {
                       const updatedColors = productForm.colors.map((c, i) => {
                         if (i !== activeColorImageIndex) return c;
                         const currentImgs = c.images || (c.image ? [c.image] : []);
+                        const target = currentImgs[imgIdx];
+                        if (isR2Url(target)) {
+                          deleteImageFromR2(target);
+                        }
                         const filtered = currentImgs.filter((_, idx) => idx !== imgIdx);
                         return {
                           ...c,
@@ -3298,7 +3311,7 @@ export const AdminPortal: React.FC = () => {
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                             {colorImages.map((img, imgIdx) => (
                               <div key={imgIdx} className="relative group rounded-xl overflow-hidden border border-white/15 aspect-[3/4] bg-stone-900 shadow-sm">
-                                <img src={img} alt={`${activeColor.name} preview ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                                <img src={getMediaUrl(img)} alt={`${activeColor.name} preview ${imgIdx + 1}`} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-1.5">
                                   <button
                                     type="button"
@@ -3339,7 +3352,7 @@ export const AdminPortal: React.FC = () => {
                           >
                             Add Photo
                           </button>
-                          {/* File Upload for this Color */}
+                          {/* File Upload for this Color directly to Cloudflare R2 */}
                           <label className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-medium uppercase tracking-wider transition-colors cursor-pointer shrink-0">
                             <Upload className="w-3.5 h-3.5 text-amber-300" />
                             <span>Upload Photos</span>
@@ -3351,8 +3364,12 @@ export const AdminPortal: React.FC = () => {
                               onChange={async (e) => {
                                 const files = Array.from(e.target.files || []);
                                 if (files.length > 0) {
-                                  const optimizedList = await Promise.all(files.map(optimizeImageFile));
-                                  const valid = optimizedList.filter(Boolean);
+                                  showToast(`Uploading photos for ${activeColor.name} to Cloudflare R2...`);
+                                  const entityId = `${productForm.id || 'draft'}-${activeColor.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+                                  const results = await Promise.all(
+                                    files.map((f) => uploadImageToR2(f, 'products', entityId))
+                                  );
+                                  const valid = results.map((r) => r.url).filter(Boolean);
                                   if (valid.length > 0) {
                                     const updatedColors = productForm.colors.map((c, i) => {
                                       if (i !== activeColorImageIndex) return c;
@@ -3365,6 +3382,7 @@ export const AdminPortal: React.FC = () => {
                                       };
                                     });
                                     setProductForm({ ...productForm, colors: updatedColors });
+                                    showToast(`Uploaded ${valid.length} photo(s) to Cloudflare R2!`);
                                   }
                                 }
                                 e.target.value = '';
@@ -3783,7 +3801,7 @@ export const AdminPortal: React.FC = () => {
                         : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
                     }`}>
                       <Upload className="w-3.5 h-3.5" />
-                      <span>{isUploadingCategoryImage ? 'Uploading to Supabase...' : 'Upload Device Image'}</span>
+                      <span>{isUploadingCategoryImage ? 'Uploading to Cloudflare R2...' : 'Upload Device Image'}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -3794,10 +3812,10 @@ export const AdminPortal: React.FC = () => {
                           const files = Array.from(e.target.files || []);
                           if (files.length > 0) {
                             setIsUploadingCategoryImage(true);
-                            showToast('Uploading visual to Supabase Storage...');
+                            showToast('Uploading visual to Cloudflare R2...');
                             try {
                               const uploadResults = await Promise.all(
-                                files.map((f) => uploadToSupabaseStorage(f, 'categories'))
+                                files.map((f) => uploadImageToR2(f, 'categories', categoryForm.slug || 'general'))
                               );
                               const valid = uploadResults.map((r) => r.url).filter(Boolean);
                               if (valid.length > 0) {
@@ -3809,10 +3827,10 @@ export const AdminPortal: React.FC = () => {
                                   images: updated,
                                 });
                                 setCategoryPreviewIndex(updated.length - 1);
-                                showToast(`Uploaded ${valid.length} image(s) for ${categoryForm.name || 'Category'}!`);
+                                showToast(`Uploaded ${valid.length} visual(s) to Cloudflare R2 for ${categoryForm.name || 'Category'}!`);
                               }
                             } catch (err: any) {
-                              console.error('Upload to Supabase failed:', err);
+                              console.error('Upload to Cloudflare R2 failed:', err);
                               showToast(`Upload failed: ${err.message}`);
                             } finally {
                               setIsUploadingCategoryImage(false);
@@ -3860,7 +3878,7 @@ export const AdminPortal: React.FC = () => {
                               <div
                                 className="w-full h-full bg-cover bg-center"
                                 style={{
-                                  backgroundImage: `url(${slideUrl})`,
+                                  backgroundImage: `url(${getMediaUrl(slideUrl)})`,
                                   filter: 'brightness(0.72) contrast(1.05)',
                                 }}
                               />

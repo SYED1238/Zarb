@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import type { CategoryItem } from '../data/categories';
 import { ArrowUpRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { getMediaUrl } from '../utils/media';
 
 interface CategoryTileCardProps {
   cat: CategoryItem;
@@ -118,7 +119,7 @@ const CategoryTileCard: React.FC<CategoryTileCardProps> = ({
                         ? 'opacity-100 scale-100 group-hover:scale-105 brightness-[0.88] contrast-[1.06]'
                         : 'opacity-0 scale-95 brightness-[0.6] contrast-[1.0]'
                     }`}
-                    style={{ backgroundImage: `url(${imgUrl})` }}
+                    style={{ backgroundImage: `url(${getMediaUrl(imgUrl)})` }}
                   />
                 );
               })}

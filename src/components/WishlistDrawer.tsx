@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import type { Product } from '../types/product';
 import { X, Heart, ShoppingBag, Trash2 } from 'lucide-react';
+import { getMediaUrl } from '../utils/media';
 
 interface WishlistDrawerProps {
   onSelectProduct: (p: Product) => void;
@@ -93,8 +94,10 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ onSelectProduct 
                   className="w-20 aspect-[3/4] rounded-lg overflow-hidden bg-[#16161b] shrink-0 border border-white/10 cursor-pointer"
                 >
                   <img
-                    src={product.images[0]}
+                    src={getMediaUrl(product.images[0])}
                     alt={product.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 </div>
