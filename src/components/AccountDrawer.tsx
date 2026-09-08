@@ -117,8 +117,8 @@ export const AccountDrawer: React.FC = () => {
 
     setIsSigningIn(true);
 
-    // 3. Luxurious micro-delay allowing the user to experience the button animation before redirect
-    await new Promise((resolve) => setTimeout(resolve, 450));
+    // Micro-delay for ripple feedback before redirect
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     const res = await signInWithGoogle();
     if (res.error) {

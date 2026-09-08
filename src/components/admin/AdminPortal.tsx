@@ -126,6 +126,24 @@ export const AdminPortal: React.FC = () => {
 
     const verifyAdminSession = async () => {
       setIsCheckingAuth(true);
+
+      // Check for any OAuth errors in URL hash or search params
+      try {
+        const rawHash = window.location.hash || '';
+        const rawSearch = window.location.search || '';
+        const params = new URLSearchParams(rawHash.startsWith('#') ? rawHash.slice(1) : rawSearch);
+        const oauthError = params.get('error_description') || params.get('error');
+        if (oauthError) {
+          const cleanMsg = decodeURIComponent(oauthError.replace(/\+/g, ' '));
+          setAuthError(cleanMsg);
+          showToast(`Sign-in notice: ${cleanMsg}`);
+          setIsCheckingAuth(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('Could not parse URL auth params', e);
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!isMounted) return;
@@ -140,6 +158,10 @@ export const AdminPortal: React.FC = () => {
             sessionStorage.setItem('atelier_admin_auth', 'true');
             if (rememberDevice) {
               localStorage.setItem('atelier_admin_auth', 'true');
+            }
+            // Clean up hash from browser address bar
+            if (window.location.hash) {
+              window.history.replaceState(null, '', window.location.pathname + window.location.search);
             }
           } else {
             // Strictly reject any other account
@@ -175,6 +197,9 @@ export const AdminPortal: React.FC = () => {
           sessionStorage.setItem('atelier_admin_auth', 'true');
           if (rememberDevice) {
             localStorage.setItem('atelier_admin_auth', 'true');
+          }
+          if (window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
           }
           showToast(`Authorized: Welcome Syed Hamza (${session.user.email})`);
         } else {
