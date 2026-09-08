@@ -10,6 +10,14 @@ import {
   markOrderAsSynced,
   getPendingSyncOrders,
 } from '../utils/customerSync';
+import {
+  fetchCustomerAddressFromSupabase,
+  saveCustomerAddressToSupabase,
+  getSavedAddress,
+  saveAddressToStorage,
+  clearSavedAddressStorage,
+  type DetectedAddress,
+} from '../utils/geolocation';
 
 export interface UserProfile {
   id: string;
@@ -17,6 +25,7 @@ export interface UserProfile {
   fullName: string;
   avatarUrl?: string;
   phone?: string;
+  shippingAddress?: Partial<DetectedAddress>;
 }
 
 export interface OrderItemRecord {
@@ -27,6 +36,13 @@ export interface OrderItemRecord {
   size: string;
   color: string;
   image: string;
+}
+
+export interface OrderStatusHistoryItem {
+  status: string;
+  timestamp: string;
+  note?: string;
+  updatedBy?: string;
 }
 
 export interface OrderRecord {
@@ -43,18 +59,23 @@ export interface OrderRecord {
     state: string;
     postalCode: string;
     country: string;
-    shippingMethod: string;
+    shippingMethod?: string;
+    order_meta?: any;
   };
   items: OrderItemRecord[];
   subtotal: number;
   shipping_cost: number;
+  discount_amount?: number;
+  coupon_code?: string;
   total_amount: number;
   payment_method: string;
   payment_status: string;
-  order_status: 'confirmed' | 'processing' | 'dispatched' | 'delivered';
+  order_status: 'confirmed' | 'processing' | 'dispatched' | 'delivered' | 'cancelled' | 'refunded';
+  status_history?: OrderStatusHistoryItem[];
   sync_status?: 'synced' | 'pending_sync';
   sync_error?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 interface AuthContextType {
@@ -77,6 +98,8 @@ interface AuthContextType {
   loginWithPhoneOtp: (phone: string, tokenData?: any) => Promise<void>;
   pendingSyncCount: number;
   triggerPendingSync: () => Promise<void>;
+  savedAddress: Partial<DetectedAddress> | null;
+  updateCustomerAddress: (address: Partial<DetectedAddress>) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -90,20 +113,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(() => getPendingSyncOrders().length);
 
+  // Customer Delivery Destination State — Supabase is permanent source of truth
+  const [savedAddress, setSavedAddress] = useState<Partial<DetectedAddress> | null>(() => getSavedAddress());
+
+  // Load customer's permanent address from Supabase cloud database
+  const loadCustomerSavedAddress = useCallback(async (userId: string) => {
+    if (!userId) return;
+    try {
+      const cloudAddress = await fetchCustomerAddressFromSupabase(userId);
+      if (cloudAddress && cloudAddress.address) {
+        setSavedAddress(cloudAddress);
+        saveAddressToStorage(cloudAddress);
+      }
+    } catch (e) {
+      console.warn('Could not load address from Supabase:', e);
+    }
+  }, []);
+
+  // Update customer's delivery destination permanently in Supabase Cloud & local state
+  const updateCustomerAddress = useCallback(async (address: Partial<DetectedAddress>): Promise<boolean> => {
+    setSavedAddress(address);
+    saveAddressToStorage(address);
+
+    if (user?.id) {
+      const ok = await saveCustomerAddressToSupabase(user.id, address);
+      return ok;
+    }
+    return true;
+  }, [user]);
+
   // Map Supabase User to UserProfile
   const mapUserProfile = (u: User): UserProfile => {
     const rawPhone = u.phone || u.user_metadata?.phone;
     const norm = normalizeIndianPhone(rawPhone);
+    const metaAddress = u.user_metadata?.shipping_address;
     return {
       id: u.id,
       email: u.email || '',
       fullName: u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || 'Client',
       avatarUrl: u.user_metadata?.avatar_url || u.user_metadata?.picture,
       phone: norm.e164 || rawPhone,
+      shippingAddress: metaAddress,
     };
   };
 
-  // Fetch orders from Supabase (by customer ID) + Local Cache
+  // Fetch orders from Supabase (strictly by customer user_id) + Local Cache
   const refreshOrders = useCallback(async () => {
     setIsLoadingOrders(true);
     let combinedOrders: OrderRecord[] = [];
@@ -132,7 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .order('created_at', { ascending: false });
 
         if (isUuid) {
-          // Primary query by stable customer ID (no text-based phone search!)
+          // Primary query strictly by stable customer ID (Requirement 5)
           query = query.eq('user_id', user.id);
         } else if (user.email) {
           query = query.eq('customer_email', user.email);
@@ -140,10 +194,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const { data, error } = await query;
         if (!error && data) {
-          const cloudOrders: OrderRecord[] = data.map((d: any) => ({
-            ...d,
-            sync_status: 'synced',
-          }));
+          const cloudOrders: OrderRecord[] = data.map((d: any) => {
+            // Unpack order_meta if present in shipping_address
+            const meta = d.shipping_address?.order_meta || {};
+            return {
+              ...d,
+              discount_amount: d.discount_amount ?? meta.discount_amount ?? 0,
+              coupon_code: d.coupon_code ?? meta.coupon_code ?? '',
+              status_history: d.status_history ?? meta.status_history ?? [
+                {
+                  status: d.order_status || 'confirmed',
+                  timestamp: d.created_at,
+                  note: 'Order recorded in cloud registry.',
+                  updatedBy: 'Atelier System',
+                }
+              ],
+              sync_status: 'synced',
+            };
+          });
           const existingNumbers = new Set(cloudOrders.map(d => d.order_number));
           // Merge local pending orders that haven't reached the cloud yet
           const uniqueLocals = combinedOrders.filter(o => !existingNumbers.has(o.order_number));
@@ -154,16 +222,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Filter for current user by stable user_id or linked email
+    // Strictly filter for current customer by stable user_id (never name or phone text!)
     if (user) {
       combinedOrders = combinedOrders.filter(o => {
-        const matchUserId = user.id && o.user_id === user.id;
-        const matchEmail = Boolean(
+        if (user.id && o.user_id) {
+          return o.user_id === user.id;
+        }
+        return Boolean(
           user.email &&
           o.customer_email &&
           o.customer_email.toLowerCase() === user.email.toLowerCase()
         );
-        return matchUserId || matchEmail;
       });
     }
 
@@ -196,6 +265,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const profile = mapUserProfile(session.user);
         linkGoogleCustomerAccount(profile);
         setUser(profile);
+        loadCustomerSavedAddress(session.user.id);
       } else {
         // Fallback: check saved phone OTP session
         try {
@@ -204,6 +274,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const parsed = JSON.parse(savedPhoneSession);
             if (parsed?.user) {
               setUser(parsed.user);
+              if (parsed.user.id) {
+                loadCustomerSavedAddress(parsed.user.id);
+              }
             }
           } else {
             setRawUser(null);
@@ -224,6 +297,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const profile = mapUserProfile(session.user);
         linkGoogleCustomerAccount(profile);
         setUser(profile);
+        loadCustomerSavedAddress(session.user.id);
       } else {
         try {
           const savedPhoneSession = localStorage.getItem('zarb_phone_session');
@@ -231,6 +305,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const parsed = JSON.parse(savedPhoneSession);
             if (parsed?.user) {
               setUser(parsed.user);
+              if (parsed.user.id) {
+                loadCustomerSavedAddress(parsed.user.id);
+              }
               return;
             }
           }
@@ -244,7 +321,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadCustomerSavedAddress]);
 
   // Refresh orders when user changes
   useEffect(() => {
@@ -279,7 +356,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async (): Promise<{ error?: string }> => {
     if (!isSupabaseConfigured()) {
       return {
-        error: 'Supabase credentials are not connected yet. Please enter your Project URL and Anon Key in the Admin Portal or .env file.'
+        error: 'Sign-in is temporarily unavailable. Please try again in a moment or contact concierge.'
       };
     }
 
@@ -318,6 +395,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setUser(null);
       setRawUser(null);
+      setSavedAddress(null);
+      clearSavedAddressStorage();
       localStorage.removeItem('atelier_last_checkout_email');
       localStorage.removeItem('zarb_phone_session');
       setUserOrders([]);
@@ -358,35 +437,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isPendingSync: boolean;
     error?: string;
   }> => {
-    // 1. Stable client-generated UUID for idempotency
-    const clientUuid = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `ord-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // 1. Stable client-generated RFC4122 UUID v4 for PostgreSQL uuid column & idempotency
+    const generateValidUuid = (): string => {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        try {
+          return crypto.randomUUID();
+        } catch {}
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    };
+    const clientUuid = generateValidUuid();
 
     // 2. E.164 phone normalization
     const normPhone = normalizeIndianPhone(orderData.customer_phone);
     const normalizedPhone = normPhone.e164 || orderData.customer_phone;
 
-    // 3. Authenticated customer ID linking
+    // 3. Authenticated customer ID linking (stable auth.users UUID)
     const isSupabaseUuid = Boolean(
-      user?.id &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)
+      (rawUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawUser.id)) ||
+      (user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id))
     );
-    const stableUserId = isSupabaseUuid ? user!.id : null;
+    const stableUserId = rawUser?.id || (isSupabaseUuid ? user!.id : null);
+
+    // 4. Initial status history trail
+    const initialHistory: OrderStatusHistoryItem[] = orderData.status_history && orderData.status_history.length > 0
+      ? orderData.status_history
+      : [
+          {
+            status: orderData.order_status || 'confirmed',
+            timestamp: new Date().toISOString(),
+            note: 'Order placed & recorded in permanent cloud registry.',
+            updatedBy: 'Client Checkout',
+          },
+        ];
 
     const fullOrder: OrderRecord = {
       ...orderData,
       id: clientUuid,
       user_id: stableUserId,
       customer_phone: normalizedPhone,
+      discount_amount: orderData.discount_amount ?? 0,
+      coupon_code: orderData.coupon_code ?? '',
+      status_history: initialHistory,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       sync_status: 'pending_sync',
     };
+
+    // Automatically update the customer's permanent delivery address in Supabase
+    if (stableUserId && orderData.shipping_address) {
+      updateCustomerAddress(orderData.shipping_address).catch(() => {});
+    }
 
     let isSavedToSupabase = false;
     let syncErrorMsg: string | undefined;
 
-    // 4. Attempt to save to Supabase FIRST with idempotency protection
+    // 5. Attempt to save to Supabase FIRST with idempotency protection
     if (isSupabaseConfigured() && typeof navigator !== 'undefined' && navigator.onLine) {
       try {
         // Check if order number already exists
@@ -410,13 +520,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             items: fullOrder.items,
             subtotal: fullOrder.subtotal,
             shipping_cost: fullOrder.shipping_cost,
+            discount_amount: fullOrder.discount_amount,
+            coupon_code: fullOrder.coupon_code,
+            status_history: fullOrder.status_history,
             total_amount: fullOrder.total_amount,
             payment_method: fullOrder.payment_method,
             payment_status: fullOrder.payment_status,
             order_status: fullOrder.order_status,
+            updated_at: fullOrder.updated_at,
           };
 
-          const { error: insertErr } = await supabase.from('orders').insert(insertPayload);
+          let { error: insertErr } = await supabase.from('orders').insert(insertPayload);
+
+          // If foreign key error (23503: user_id not yet committed to auth.users), retry with user_id: null
+          if (insertErr && insertErr.code === '23503') {
+            insertPayload.user_id = null;
+            const fkRetry = await supabase.from('orders').insert(insertPayload);
+            insertErr = fkRetry.error;
+          }
+
+          // If extra columns do not exist in Supabase yet (Postgres code 42703), encapsulate in shipping_address.order_meta
+          if (insertErr && (insertErr.code === '42703' || insertErr.message?.includes('does not exist'))) {
+            const fallbackPayload: Record<string, any> = {
+              id: fullOrder.id,
+              order_number: fullOrder.order_number,
+              user_id: insertPayload.user_id,
+              customer_email: fullOrder.customer_email,
+              customer_name: fullOrder.customer_name,
+              customer_phone: fullOrder.customer_phone,
+              shipping_address: {
+                ...fullOrder.shipping_address,
+                order_meta: {
+                  discount_amount: fullOrder.discount_amount,
+                  coupon_code: fullOrder.coupon_code,
+                  status_history: fullOrder.status_history,
+                },
+              },
+              items: fullOrder.items,
+              subtotal: fullOrder.subtotal,
+              shipping_cost: fullOrder.shipping_cost,
+              total_amount: fullOrder.total_amount,
+              payment_method: fullOrder.payment_method,
+              payment_status: fullOrder.payment_status,
+              order_status: fullOrder.order_status,
+              updated_at: fullOrder.updated_at,
+            };
+            const retryRes = await supabase.from('orders').insert(fallbackPayload);
+            insertErr = retryRes.error;
+          }
 
           if (!insertErr || insertErr.code === '23505') {
             isSavedToSupabase = true;
@@ -439,7 +590,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fullOrder.sync_error = syncErrorMsg;
     }
 
-    // 5. Store locally & update state
+    // 6. Store locally & update state
     try {
       const existingRaw = localStorage.getItem('atelier_local_orders');
       const ordersList: OrderRecord[] = existingRaw ? JSON.parse(existingRaw) : [];
@@ -452,7 +603,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error saving order locally', e);
     }
 
-    // 6. Manage pending queue: if not confirmed, queue; otherwise mark synced
+    // 7. Manage pending queue: if not confirmed, queue; otherwise mark synced
     if (!isSavedToSupabase) {
       queuePendingOrder(fullOrder);
       setPendingSyncCount(getPendingSyncOrders().length);
@@ -486,6 +637,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithPhoneOtp,
         pendingSyncCount,
         triggerPendingSync,
+        savedAddress,
+        updateCustomerAddress,
       }}
     >
       {children}

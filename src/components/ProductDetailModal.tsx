@@ -164,7 +164,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     addReview({
       productId: product.id,
       userId: user?.id,
-      authorName: reviewAuthor.trim() || 'Verified Client',
+      authorName: reviewAuthor.trim() || 'Verified Customer',
       authorLocation: reviewLocation.trim() || 'India',
       rating: reviewRating,
       title: reviewTitle.trim() || undefined,
@@ -583,7 +583,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       onClick={() => toggleAccordion('reviews')}
                       className="pdp-accordion-trigger w-full py-4 flex items-center justify-between text-xs tracking-[0.15em] uppercase text-stone-200 hover:text-white text-left font-medium cursor-pointer"
                     >
-                      <span>Verified Client Reviews ({productReviews.length})</span>
+                      <span>Verified Customer Reviews ({productReviews.length})</span>
                       {openAccordion === 'reviews' ? (
                         <ChevronUp className="w-4 h-4" />
                       ) : (
@@ -652,7 +652,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                                 <Sparkles className="w-3.5 h-3.5" />
                                 <span>Write Verified Review</span>
                               </span>
-                              <span className="text-[10px] text-stone-400">Authentic Client Feedback</span>
+                              <span className="text-[10px] text-stone-400">Authentic Customer Feedback</span>
                             </div>
 
                             {/* Clickable Star Rating Picker */}
@@ -703,7 +703,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                                   required
                                   value={reviewAuthor}
                                   onChange={(e) => setReviewAuthor(e.target.value)}
-                                  placeholder="e.g. Priya Sharma / Zarb Client"
+                                  placeholder="e.g. Priya Sharma"
                                   className={`w-full rounded-xl px-3.5 py-2 text-xs border focus:outline-none ${
                                     theme === 'alabaster'
                                       ? 'bg-stone-50 border-stone-300 text-black'
@@ -815,7 +815,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                                 {rev.verifiedPurchase && (
                                   <span className="flex items-center space-x-1 text-[10px] font-mono tracking-wider uppercase text-emerald-400/90 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
                                     <CheckCircle2 className="w-3 h-3" />
-                                    <span>Verified Client</span>
+                                    <span>Verified Buyer</span>
                                   </span>
                                 )}
                               </div>

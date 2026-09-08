@@ -341,7 +341,7 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
                     : 'text-stone-300 hover:text-white'
                   }`}
                 aria-label="Account & Orders"
-                title={user ? `${user.fullName} (Orders & Account)` : 'Client Sign In (Google Auth)'}
+                title={user ? `${user.fullName} (Orders & Account)` : 'Sign In / Account'}
               >
                 {user?.avatarUrl ? (
                   <img

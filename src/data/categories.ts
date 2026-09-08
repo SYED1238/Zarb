@@ -7,7 +7,7 @@ export interface CategoryItem {
   eyebrow: string;
   description: string;
   image: string;
-  images?: string[]; // Multiple photos for jaw-dropping card transition
+  images?: string[]; // Multiple photos configured from admin page
   metaDescription: string;
 }
 
@@ -20,12 +20,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · KURTIS",
     description: 'Contemporary silhouettes crafted for effortless everyday elegance. Pure Mulberry silks, hand-spun Chanderi, and architectural draping.',
-    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?q=80&w=1000&auto=format&fit=crop'
-    ],
+    image: '/images/categories/women/kurtis.png',
+    images: ['/images/categories/women/kurtis.png'],
     metaDescription: "Explore contemporary women's luxury kurtis and tunics from Zarb.",
   },
   {
@@ -36,12 +32,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · DRESSES & GOWNS",
     description: 'Liquid bias-cut charmeuse, sculptural floor-skimming pool hems, and architectural evening gowns.',
-    image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?q=80&w=1000&auto=format&fit=crop'
-    ],
+    image: '/images/categories/women/dresses-gowns.png',
+    images: ['/images/categories/women/dresses-gowns.png'],
     metaDescription: "Discover luxury women's evening dresses and gowns from Zarb.",
   },
   {
@@ -52,11 +44,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · BLAZERS & OUTERWEAR",
     description: 'Structured hour-glass tailoring, Italian wool gabardine, and cocoon cashmere trench silhouettes.',
-    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=1000&auto=format&fit=crop'
-    ],
+    image: '/images/categories/women/blazers-outerwear.png',
+    images: ['/images/categories/women/blazers-outerwear.png'],
     metaDescription: "Shop women's luxury tailored blazers and overcoats from Zarb.",
   },
   {
@@ -67,11 +56,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · TOPS & KNITWEAR",
     description: 'Fine ribbed Mongolian cashmere, second-skin Mulberry silk knits, and minimal modern layers.',
-    image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000&auto=format&fit=crop',
-    images: [
-      'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?q=80&w=1000&auto=format&fit=crop'
-    ],
+    image: '/images/categories/women/tops-knitwear.png',
+    images: ['/images/categories/women/tops-knitwear.png'],
     metaDescription: "Explore luxury cashmere tops and knitwear for women by Zarb.",
   },
   {
@@ -82,7 +68,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · SHIRTS & BLOUSES",
     description: 'Sculptural band collars, Italian double-twist cotton poplin, and relaxed tailoring.',
-    image: 'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/women/shirts-blouses.png',
+    images: ['/images/categories/women/shirts-blouses.png'],
     metaDescription: "Discover atelier-crafted silk blouses and minimalist shirts for women.",
   },
   {
@@ -93,7 +80,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · TROUSERS",
     description: 'High-rise architectural trousers, deep forward knife pleats, and sweeping fluid drape.',
-    image: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/women/trousers.png',
+    images: ['/images/categories/women/trousers.png'],
     metaDescription: "Luxury women's high-waisted tailored trousers from Zarb.",
   },
   {
@@ -104,7 +92,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · DENIM",
     description: 'Unwashed Japanese Kurabo denim crafted in distinct curved barrel and relaxed straight fits.',
-    image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/women/denim.png',
+    images: ['/images/categories/women/denim.png'],
     metaDescription: "Explore Japanese selvedge and sculpted women's denim from Zarb.",
   },
   {
@@ -115,7 +104,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · LEATHER BAGS",
     description: 'Full-grain French box calfskin saddle bags, hand-burnished edges, and solid palladium hardware.',
-    image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/women/leather-bags.png',
+    images: ['/images/categories/women/leather-bags.png'],
     metaDescription: "Luxury handcrafted leather bags and accessories from Zarb.",
   },
   {
@@ -126,7 +116,8 @@ export const WOMEN_CATEGORIES: CategoryItem[] = [
     gender: 'women',
     eyebrow: "WOMEN'S WARDROBE · FOOTWEAR",
     description: 'Purist square-toe mules, glove-soft lambskin nappa, and architectural sculpted flared heels.',
-    image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/women/footwear.png',
+    images: ['/images/categories/women/footwear.png'],
     metaDescription: "Shop women's luxury leather footwear, boots, and mules from Zarb.",
   },
 ];
@@ -140,7 +131,8 @@ export const MEN_CATEGORIES: CategoryItem[] = [
     gender: 'men',
     eyebrow: "MEN'S WARDROBE · T-SHIRTS & KNITS",
     description: 'Heavyweight double-mercerized Peruvian Pima jersey tees and ultra-fine cashmere knitwear.',
-    image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/men/t-shirts.png',
+    images: ['/images/categories/men/t-shirts.png'],
     metaDescription: "Discover luxury Peruvian Pima t-shirts and knitwear for men from Zarb.",
   },
   {
@@ -151,7 +143,8 @@ export const MEN_CATEGORIES: CategoryItem[] = [
     gender: 'men',
     eyebrow: "MEN'S WARDROBE · SHIRTS",
     description: 'Mandarin stand collar shirts, double-twist Egyptian cotton poplin, and tailored overshirts.',
-    image: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/men/shirts.png',
+    images: ['/images/categories/men/shirts.png'],
     metaDescription: "Shop men's tailored dress shirts and minimalist overshirts from Zarb.",
   },
   {
@@ -162,7 +155,8 @@ export const MEN_CATEGORIES: CategoryItem[] = [
     gender: 'men',
     eyebrow: "MEN'S WARDROBE · TROUSERS",
     description: 'Forward double pleats, high-rise tab waistbands, brass side adjusters, and sweeping drape.',
-    image: 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/men/trousers.png',
+    images: ['/images/categories/men/trousers.png'],
     metaDescription: "Luxury men's double-pleated wool trousers crafted for modern distinction.",
   },
   {
@@ -173,7 +167,8 @@ export const MEN_CATEGORIES: CategoryItem[] = [
     gender: 'men',
     eyebrow: "MEN'S WARDROBE · JEANS",
     description: 'Shuttle-loom 14.5oz untreated raw denim from Kuroki Mills, Okayama, Japan with custom hardware.',
-    image: 'https://images.unsplash.com/photo-1542272604-780c96856592?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/men/jeans.png',
+    images: ['/images/categories/men/jeans.png'],
     metaDescription: "Authentic Japanese selvedge denim for men by Zarb.",
   },
   {
@@ -184,7 +179,8 @@ export const MEN_CATEGORIES: CategoryItem[] = [
     gender: 'men',
     eyebrow: "MEN'S WARDROBE · JACKETS & COATS",
     description: 'Double-faced cashmere Chesterfield overcoats, roped-shoulder blazers, and sharp outerwear.',
-    image: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/men/jackets.png',
+    images: ['/images/categories/men/jackets.png'],
     metaDescription: "Explore men's luxury tailoring, cashmere overcoats, and architectural jackets.",
   },
   {
@@ -195,7 +191,8 @@ export const MEN_CATEGORIES: CategoryItem[] = [
     gender: 'men',
     eyebrow: "MEN'S WARDROBE · SNEAKERS & BOOTS",
     description: 'Goodyear-welted French box calfskin Chelsea boots and minimalist leather luxury sneakers.',
-    image: 'https://images.unsplash.com/photo-1638247025967-b4e38f787b76?q=80&w=1000&auto=format&fit=crop',
+    image: '/images/categories/men/sneakers.png',
+    images: ['/images/categories/men/sneakers.png'],
     metaDescription: "Handcrafted European leather boots and sneakers for men from Zarb.",
   },
   {
@@ -206,8 +203,9 @@ export const MEN_CATEGORIES: CategoryItem[] = [
     gender: 'men',
     eyebrow: "MEN'S WARDROBE · ACCESSORIES",
     description: 'Full-grain Italian Saffiano duffles, minimalist cardholders, and luxury leather goods.',
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=1000&auto=format&fit=crop',
-    metaDescription: "Zarb luxury men's leather accessories, bags, and travel goods.",
+    image: '/images/categories/men/accessories.png',
+    images: ['/images/categories/men/accessories.png'],
+    metaDescription: "Luxury Italian leather accessories and goods for men from Zarb.",
   },
 ];
 

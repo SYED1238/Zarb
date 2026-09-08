@@ -361,8 +361,18 @@ export async function syncPendingOrders(): Promise<{
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order.user_id)
       );
 
+      const isOrderUuid = Boolean(
+        order.id &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order.id)
+      );
+
+      // Deterministic UUID fallback if order.id is not a standard UUID
+      const validOrderId = isOrderUuid
+        ? order.id
+        : (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : generateDeterministicUuid(order.order_number));
+
       const insertPayload: Record<string, any> = {
-        id: order.id, // Stable client-generated UUID
+        id: validOrderId,
         order_number: order.order_number,
         user_id: isUuid ? order.user_id : null,
         customer_email: order.customer_email,
@@ -372,13 +382,54 @@ export async function syncPendingOrders(): Promise<{
         items: order.items,
         subtotal: order.subtotal,
         shipping_cost: order.shipping_cost,
+        discount_amount: order.discount_amount ?? 0,
+        coupon_code: order.coupon_code ?? null,
+        status_history: order.status_history ?? [],
         total_amount: order.total_amount,
         payment_method: order.payment_method,
         payment_status: order.payment_status,
         order_status: order.order_status,
+        updated_at: order.updated_at || new Date().toISOString(),
       };
 
-      const { error: insertErr } = await supabase.from('orders').insert(insertPayload);
+      let { error: insertErr } = await supabase.from('orders').insert(insertPayload);
+
+      // Handle foreign key error (23503: user_id does not exist in auth.users table yet)
+      if (insertErr && insertErr.code === '23503') {
+        insertPayload.user_id = null;
+        const fkRetry = await supabase.from('orders').insert(insertPayload);
+        insertErr = fkRetry.error;
+      }
+
+      // If extra columns do not exist yet (code 42703), encapsulate in shipping_address.order_meta
+      if (insertErr && (insertErr.code === '42703' || insertErr.message?.includes('does not exist'))) {
+        const fallbackPayload: Record<string, any> = {
+          id: validOrderId,
+          order_number: order.order_number,
+          user_id: insertPayload.user_id,
+          customer_email: order.customer_email,
+          customer_name: order.customer_name,
+          customer_phone: order.customer_phone,
+          shipping_address: {
+            ...order.shipping_address,
+            order_meta: {
+              discount_amount: order.discount_amount,
+              coupon_code: order.coupon_code,
+              status_history: order.status_history,
+            },
+          },
+          items: order.items,
+          subtotal: order.subtotal,
+          shipping_cost: order.shipping_cost,
+          total_amount: order.total_amount,
+          payment_method: order.payment_method,
+          payment_status: order.payment_status,
+          order_status: order.order_status,
+          updated_at: order.updated_at || new Date().toISOString(),
+        };
+        const retryRes = await supabase.from('orders').insert(fallbackPayload);
+        insertErr = retryRes.error;
+      }
 
       if (insertErr) {
         // If duplicate key error, the order is already in the database

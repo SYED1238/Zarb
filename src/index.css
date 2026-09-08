@@ -1229,6 +1229,90 @@ html.theme-alabaster .liquid-droplet:hover {
 }
 
 /* ========================================================== */
+/* CENTER MODAL & JAW-DROPPING SIGN-IN BUTTON ANIMATIONS     */
+/* ========================================================== */
+@keyframes modalZoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.01) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-zoom {
+  animation: modalZoomIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes buttonShockwave {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 30px 15px rgba(245, 158, 11, 0.4);
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+    box-shadow: 0 0 60px 30px rgba(245, 158, 11, 0);
+  }
+}
+
+.animate-shockwave {
+  animation: buttonShockwave 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes shimmerRay {
+  0% {
+    transform: translateX(-150%) skewX(-25deg);
+  }
+  100% {
+    transform: translateX(250%) skewX(-25deg);
+  }
+}
+
+.animate-shimmer-ray {
+  animation: shimmerRay 3s ease-in-out infinite;
+}
+
+@keyframes auraRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-aura-rotate {
+  animation: auraRotate 6s linear infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2.5s ease-in-out infinite;
+}
+
+/* ========================================================== */
 /* JAW-DROPPING CINEMATIC SLIDESHOW & SHUTTER TRANSITIONS     */
 /* ========================================================== */
 @keyframes shutterFlash {

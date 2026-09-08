@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
+import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
-import { isSupabaseConfigured, saveSupabaseCredentials } from '../lib/supabase';
 import {
   X,
   Lock,
@@ -10,15 +10,12 @@ import {
   Package,
   ShieldCheck,
   Sparkles,
-  Database,
   MapPin,
   Navigation,
   Loader2,
 } from 'lucide-react';
 import {
   detectUserLocation,
-  getSavedAddress,
-  saveAddressToStorage,
   type DetectedAddress,
 } from '../utils/geolocation';
 import { MapPinPickerModal } from './MapPinPickerModal';
@@ -34,6 +31,8 @@ export const AccountDrawer: React.FC = () => {
     isLoadingOrders,
     pendingSyncCount,
     triggerPendingSync,
+    savedAddress,
+    updateCustomerAddress,
   } = useAuth();
 
   const { theme, showToast } = useStore();
@@ -43,8 +42,11 @@ export const AccountDrawer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
+  // Jaw-dropping button interaction states
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isShockwaveActive, setIsShockwaveActive] = useState(false);
+
   // Saved Delivery Address State
-  const [savedAddress, setSavedAddress] = useState<Partial<DetectedAddress> | null>(() => getSavedAddress());
   const [isDetectingAddress, setIsDetectingAddress] = useState(false);
 
   const handleDetectSavedAddress = async () => {
@@ -53,8 +55,7 @@ export const AccountDrawer: React.FC = () => {
     setIsDetectingAddress(false);
 
     if (res.success && res.address) {
-      saveAddressToStorage(res.address);
-      setSavedAddress(res.address);
+      await updateCustomerAddress(res.address);
       showToast('Delivery address pinpointed & saved to your profile.');
     } else {
       showToast(res.error || 'Failed to detect location.');
@@ -63,20 +64,12 @@ export const AccountDrawer: React.FC = () => {
 
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
 
-  const handleConfirmMapAddress = (addr: DetectedAddress) => {
-    saveAddressToStorage(addr);
-    setSavedAddress(addr);
+  const handleConfirmMapAddress = async (addr: DetectedAddress) => {
+    await updateCustomerAddress(addr);
     showToast(`Delivery destination & PIN ${addr.postalCode || ''} pinned & saved.`);
   };
 
-  // Connection modal if user wants to enter credentials directly
-  const [showConnectModal, setShowConnectModal] = useState(false);
-  const [inputUrl, setInputUrl] = useState('');
-  const [inputKey, setInputKey] = useState('');
-
   if (!isAccountDrawerOpen) return null;
-
-  const isConfigured = isSupabaseConfigured();
 
   const formatPrice = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -98,195 +91,279 @@ export const AccountDrawer: React.FC = () => {
     }
   };
 
-  const handleGoogleClick = async () => {
-    if (!isConfigured) {
-      setShowConnectModal(true);
-      return;
+  const handleGoogleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    // 1. Jaw-dropping shockwave animation
+    setIsShockwaveActive(true);
+    setTimeout(() => setIsShockwaveActive(false), 900);
+
+    // 2. Jaw-dropping confetti & champagne gold starlight burst
+    try {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = (rect.left + rect.width / 2) / window.innerWidth;
+      const y = (rect.top + rect.height / 2) / window.innerHeight;
+
+      confetti({
+        particleCount: 55,
+        spread: 75,
+        origin: { x, y },
+        colors: ['#f59e0b', '#fbbf24', '#d97706', '#ffffff', '#38bdf8', '#34d399'],
+        ticks: 150,
+        gravity: 1.1,
+        scalar: 0.95,
+      });
+    } catch {
+      // Graceful fallback
     }
+
+    setIsSigningIn(true);
+
+    // 3. Luxurious micro-delay allowing the user to experience the button animation before redirect
+    await new Promise((resolve) => setTimeout(resolve, 450));
 
     const res = await signInWithGoogle();
     if (res.error) {
-      showToast(`Sign In Error: ${res.error}`);
-    }
-  };
-
-  const handleSaveConnection = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputUrl.trim() || !inputKey.trim()) {
-      showToast('Both Project URL and Anon Key are required');
-      return;
-    }
-
-    const ok = saveSupabaseCredentials(inputUrl.trim(), inputKey.trim());
-    if (ok) {
-      showToast('Supabase successfully connected!');
-      setShowConnectModal(false);
-      window.location.reload();
-    } else {
-      showToast('Invalid URL. Must start with https://');
+      setIsSigningIn(false);
+      showToast(res.error);
     }
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
       role="dialog"
       aria-modal="true"
-      aria-label="Account Drawer"
+      aria-label="Account Center"
     >
-      {/* Backdrop */}
+      {/* Deep Luxury Backdrop Blur */}
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/80 backdrop-blur-xl transition-all duration-300 animate-fade-in"
         onClick={() => setIsAccountDrawerOpen(false)}
       />
 
-      {/* Drawer Container */}
-      <div className={`relative w-full max-w-md h-full flex flex-col z-10 shadow-2xl overflow-hidden animate-slide-right ${
-        theme === 'alabaster'
-          ? 'bg-[#faf9f5] text-[#121214] border-l border-stone-200'
-          : 'bg-[#0e0e12] text-stone-100 border-l border-white/10'
-      }`}>
-        {/* Drawer Header */}
-        <div className={`p-5 sm:p-6 border-b flex items-center justify-between ${
-          theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#09090c] border-white/10'
-        }`}>
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <Sparkles className="w-4 h-4" />
+      {/* Centered Modal Box */}
+      <div
+        className={`relative w-full ${
+          !user ? 'max-w-md sm:max-w-lg' : 'max-w-2xl max-h-[88vh]'
+        } flex flex-col z-10 shadow-2xl overflow-hidden rounded-3xl animate-modal-zoom border transition-all ${
+          theme === 'alabaster'
+            ? 'bg-[#faf9f5]/95 text-[#121214] border-stone-300/80 shadow-[0_25px_70px_rgba(0,0,0,0.3)]'
+            : 'bg-[#0c0c11]/95 text-stone-100 border-white/15 shadow-[0_30px_90px_rgba(0,0,0,0.85)] backdrop-blur-2xl'
+        }`}
+      >
+        {/* Modal Header */}
+        <div
+          className={`px-6 py-5 border-b flex items-center justify-between ${
+            theme === 'alabaster' ? 'bg-white/80 border-stone-200' : 'bg-white/[0.03] border-white/10'
+          }`}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-sm">
+              <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-brand tracking-[0.25em] text-xs font-semibold uppercase block">
-                ZARB CLIENT
+              <span className="font-brand tracking-[0.25em] text-sm font-semibold uppercase block">
+                ZARB
               </span>
-              <span className="text-[9px] font-mono tracking-wider text-stone-400 uppercase">
-                {user ? 'Verified Profile & Orders' : 'Haute Membership'}
+              <span className="text-xs text-stone-400 font-sans tracking-wide">
+                {user ? 'Verified Personal Account' : 'Account & Orders'}
               </span>
             </div>
           </div>
 
           <button
             onClick={() => setIsAccountDrawerOpen(false)}
-            className="p-1.5 text-stone-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-            aria-label="Close Account"
+            className="p-2 text-stone-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Supabase Status Banner (if not connected yet) */}
-        {!isConfigured && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-5 py-3 flex items-center justify-between text-xs">
-            <div className="flex items-center space-x-2 text-amber-300">
-              <Database className="w-4 h-4 shrink-0" />
-              <span>Connect Supabase Project</span>
-            </div>
-            <button
-              onClick={() => setShowConnectModal(true)}
-              className="text-[10px] font-semibold tracking-wider uppercase px-2.5 py-1 rounded bg-amber-500 text-black hover:bg-amber-400 cursor-pointer"
-            >
-              Enter Keys
-            </button>
-          </div>
-        )}
-
-        {/* Drawer Content */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+        {/* Modal Body Content */}
+        <div className="flex-1 overflow-y-auto">
           {/* =============================================================== */}
-          {/* STATE A: NOT SIGNED IN                                          */}
+          {/* STATE A: NOT SIGNED IN (CENTER BOX DIALOG)                      */}
           {/* =============================================================== */}
           {!user ? (
-            <div className="space-y-6">
-              <div className={`p-6 rounded-2xl border text-center space-y-4 ${
-                theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
-              }`}>
-                <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                  <Lock className="w-6 h-6 stroke-[1.5]" />
+            <div className="p-6 sm:p-8 space-y-6 text-center">
+              {/* Crest Badge */}
+              <div className="relative inline-flex items-center justify-center">
+                <div className="absolute -inset-3 bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-600/20 rounded-3xl blur-xl animate-glow-pulse" />
+                <div className="relative w-20 h-20 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-xl">
+                  <Lock className="w-9 h-9 stroke-[1.75]" />
                 </div>
+              </div>
 
-                <div>
-                  <h3 className="text-xl font-serif">Sign in to Zarb</h3>
-                  <p className="text-xs text-stone-400 font-light mt-1.5 leading-relaxed">
-                    Access your permanent order provenance, white-glove dispatch updates, and personalized atelier concierge.
-                  </p>
-                </div>
+              {/* Attractive, Clear Heading & Subtitle */}
+              <div className="space-y-2">
+                <h3 className={`text-2xl sm:text-3xl font-serif font-medium tracking-wide ${
+                  theme === 'alabaster' ? 'text-[#121214]' : 'text-white'
+                }`}>
+                  Sign in to Zarb
+                </h3>
+                <p className={`text-sm sm:text-base font-light max-w-sm mx-auto leading-relaxed ${
+                  theme === 'alabaster' ? 'text-stone-600' : 'text-stone-300'
+                }`}>
+                  Access your order history, track deliveries in real time, and manage your saved addresses.
+                </p>
+              </div>
 
-                {/* Google Sign In Button */}
+              {/* The Jaw-Dropping Google Button Container */}
+              <div className="relative pt-2">
+                {/* Ambient dynamic glowing aura behind button */}
+                <div className="absolute -inset-1.5 rounded-3xl bg-gradient-to-r from-amber-500/30 via-yellow-400/30 to-amber-500/30 blur-lg opacity-70 group-hover:opacity-100 transition-opacity animate-glow-pulse pointer-events-none" />
+
+                {/* Shockwave expanding halo ring */}
+                {isShockwaveActive && (
+                  <span className="absolute inset-0 rounded-2xl bg-amber-400/60 animate-shockwave pointer-events-none z-20" />
+                )}
+
                 <button
                   type="button"
                   onClick={handleGoogleClick}
-                  className="w-full py-3 px-4 rounded-xl bg-white hover:bg-stone-100 text-stone-900 text-xs font-sans font-medium tracking-wide flex items-center justify-center space-x-3 shadow-md transition-all cursor-pointer border border-stone-300"
+                  disabled={isSigningIn}
+                  className={`relative w-full py-4 px-6 rounded-2xl flex items-center justify-center space-x-3.5 shadow-xl transition-all duration-300 cursor-pointer overflow-hidden active:scale-[0.97] hover:-translate-y-0.5 z-10 ${
+                    theme === 'alabaster'
+                      ? 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_15px_35px_rgba(245,158,11,0.2)]'
+                      : 'bg-white hover:bg-stone-50 text-stone-950 border border-white/90 shadow-[0_10px_35px_rgba(255,255,255,0.18)] hover:shadow-[0_15px_40px_rgba(245,158,11,0.3)]'
+                  }`}
                 >
-                  {/* Official Google Icon SVG */}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                    />
-                  </svg>
-                  <span>Continue with Google</span>
-                </button>
+                  {/* Continuous Shimmer Light Beam */}
+                  <span className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden rounded-2xl">
+                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-200/40 to-transparent -translate-x-full animate-shimmer-ray" />
+                  </span>
 
-                {/* Single Sign-On Security Note */}
-                <p className="text-[11px] text-stone-400 font-light pt-1 leading-relaxed">
-                  Single-tap authentication registered to your atelier client profile.
-                </p>
+                  {isSigningIn ? (
+                    <div className="flex items-center space-x-3 text-stone-900">
+                      <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                      <span className="text-base sm:text-lg font-semibold tracking-wide text-stone-900">
+                        Connecting to Google...
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Official Google Icon SVG */}
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span className="text-base sm:text-lg font-semibold tracking-wide text-stone-900">
+                        Continue with Google
+                      </span>
+                    </>
+                  )}
+                </button>
               </div>
+
+              {/* Value Guarantees Badges (clear, readable, not small) */}
+              <div className="grid grid-cols-3 gap-3 pt-2">
+                <div
+                  className={`p-3.5 rounded-2xl border text-center space-y-1 ${
+                    theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-white/[0.03] border-white/10'
+                  }`}
+                >
+                  <ShieldCheck className="w-5 h-5 mx-auto text-emerald-500" />
+                  <div className={`text-xs font-semibold ${theme === 'alabaster' ? 'text-stone-900' : 'text-stone-200'}`}>
+                    Encrypted
+                  </div>
+                  <div className={`text-[11px] ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                    256-bit SSL
+                  </div>
+                </div>
+                <div
+                  className={`p-3.5 rounded-2xl border text-center space-y-1 ${
+                    theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-white/[0.03] border-white/10'
+                  }`}
+                >
+                  <Sparkles className="w-5 h-5 mx-auto text-amber-500" />
+                  <div className={`text-xs font-semibold ${theme === 'alabaster' ? 'text-stone-900' : 'text-stone-200'}`}>
+                    Instant
+                  </div>
+                  <div className={`text-[11px] ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                    1-Tap Login
+                  </div>
+                </div>
+                <div
+                  className={`p-3.5 rounded-2xl border text-center space-y-1 ${
+                    theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-white/[0.03] border-white/10'
+                  }`}
+                >
+                  <Package className="w-5 h-5 mx-auto text-sky-500" />
+                  <div className={`text-xs font-semibold ${theme === 'alabaster' ? 'text-stone-900' : 'text-stone-200'}`}>
+                    Orders
+                  </div>
+                  <div className={`text-[11px] ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                    Live Tracking
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Footnote */}
+              <p className={`text-xs sm:text-sm font-light leading-relaxed max-w-sm mx-auto ${
+                theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+              }`}>
+                Single-tap authentication securely registered to your personal account.
+              </p>
             </div>
           ) : (
             /* =============================================================== */
-            /* STATE B: AUTHENTICATED WITH GOOGLE                              */
+            /* STATE B: AUTHENTICATED (CENTER MODAL DIALOG)                    */
             /* =============================================================== */
-            <div className="space-y-6">
+            <div className="p-6 sm:p-8 space-y-6">
               {/* User Profile Card */}
-              <div className={`p-4 rounded-2xl border flex items-center space-x-3.5 ${
-                theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
-              }`}>
+              <div
+                className={`p-5 rounded-2xl border flex items-center space-x-4 ${
+                  theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.03] border-white/10'
+                }`}
+              >
                 {user.avatarUrl ? (
                   <img
                     src={user.avatarUrl}
                     alt={user.fullName}
-                    className="w-12 h-12 rounded-full border border-amber-500/40 object-cover"
+                    className="w-14 h-14 rounded-2xl border border-amber-500/40 object-cover shadow-md"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-serif font-bold text-base">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-serif font-bold text-xl shadow-md">
                     {user.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center space-x-2">
-                    <h3 className="font-serif text-sm font-medium truncate">
+                    <h3 className="font-serif text-lg font-medium truncate">
                       {user.fullName}
                     </h3>
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   </div>
-                  <p className="text-xs text-stone-400 truncate">
+                  <p className="text-sm text-stone-400 truncate mt-0.5">
                     {user.email}
                   </p>
-                  <span className="inline-block mt-1 text-[9px] font-mono tracking-wider text-amber-500 uppercase">
-                    Haute Member
+                  <span className="inline-block mt-1.5 text-xs font-mono tracking-wider text-amber-500 uppercase font-medium">
+                    Verified Member
                   </span>
                 </div>
               </div>
 
-              {/* Sub-Tabs: Orders vs Details */}
+              {/* Sub-Tabs: Orders vs Preferences */}
               <div className="flex items-center space-x-2 border-b border-white/10 pb-2">
                 <button
                   onClick={() => setActiveTab('orders')}
-                  className={`px-3 py-1.5 rounded-lg text-xs tracking-wider uppercase font-medium transition-colors cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm tracking-wider uppercase font-semibold transition-all cursor-pointer ${
                     activeTab === 'orders'
-                      ? 'bg-white text-black'
+                      ? 'bg-white text-black shadow-md'
                       : 'text-stone-400 hover:text-white'
                   }`}
                 >
@@ -294,13 +371,13 @@ export const AccountDrawer: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('profile')}
-                  className={`px-3 py-1.5 rounded-lg text-xs tracking-wider uppercase font-medium transition-colors cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm tracking-wider uppercase font-semibold transition-all cursor-pointer ${
                     activeTab === 'profile'
-                      ? 'bg-white text-black'
+                      ? 'bg-white text-black shadow-md'
                       : 'text-stone-400 hover:text-white'
                   }`}
                 >
-                  Preferences
+                  Preferences & Addresses
                 </button>
               </div>
 
@@ -309,17 +386,17 @@ export const AccountDrawer: React.FC = () => {
                 <div className="space-y-4">
                   {/* Pending Sync Alert Banner if offline orders exist */}
                   {pendingSyncCount > 0 && (
-                    <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 flex items-center justify-between text-xs animate-fade-in">
+                    <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 flex items-center justify-between text-xs sm:text-sm animate-fade-in">
                       <div className="flex items-center space-x-2 text-amber-300">
-                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                        <span className="text-[11px] font-mono">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="font-mono">
                           {pendingSyncCount} order{pendingSyncCount > 1 ? 's' : ''} queued offline
                         </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => triggerPendingSync()}
-                        className="px-2.5 py-1 rounded bg-amber-500 text-black text-[10px] uppercase font-mono font-semibold tracking-wider hover:bg-amber-400 transition-colors cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl bg-amber-500 text-black text-xs uppercase font-mono font-semibold tracking-wider hover:bg-amber-400 transition-colors cursor-pointer"
                       >
                         Sync Now
                       </button>
@@ -327,36 +404,36 @@ export const AccountDrawer: React.FC = () => {
                   )}
 
                   {isLoadingOrders ? (
-                    <div className="text-center py-8 text-xs text-stone-400">
-                      Loading orders from Supabase...
+                    <div className="text-center py-12 text-sm text-stone-400">
+                      Loading your orders...
                     </div>
                   ) : userOrders.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                       {userOrders.map((ord) => (
                         <div
                           key={ord.id}
                           onClick={() => setSelectedOrder(ord)}
-                          className={`p-4 rounded-xl border transition-all cursor-pointer hover:border-amber-400/50 ${
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-amber-400/50 ${
                             theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#121216] border-white/10'
                           }`}
                         >
                           <div className="flex items-start justify-between">
                             <div>
-                              <div className="font-mono text-xs font-semibold text-amber-400">
+                              <div className="font-mono text-sm font-semibold text-amber-400">
                                 {ord.order_number}
                               </div>
-                              <div className="text-[10px] text-stone-400 mt-0.5">
+                              <div className="text-xs text-stone-400 mt-0.5">
                                 {formatDate(ord.created_at)}
                               </div>
                             </div>
                             <div className="flex items-center space-x-1.5">
                               {ord.sync_status === 'pending_sync' && (
-                                <span className="text-[9px] uppercase px-2 py-0.5 rounded font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center space-x-1">
+                                <span className="text-xs uppercase px-2 py-0.5 rounded-md font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center space-x-1">
                                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                                   <span>Pending Sync</span>
                                 </span>
                               )}
-                              <span className="text-[9px] uppercase px-2 py-0.5 rounded font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <span className="text-xs uppercase px-2.5 py-0.5 rounded-md font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                 {ord.order_status}
                               </span>
                             </div>
@@ -369,19 +446,19 @@ export const AccountDrawer: React.FC = () => {
                                 key={idx}
                                 src={item.image}
                                 alt={item.name}
-                                className="w-10 h-13 object-cover rounded bg-stone-900 border border-white/10 shrink-0"
+                                className="w-12 h-14 object-cover rounded-lg bg-stone-900 border border-white/10 shrink-0"
                               />
                             ))}
                             {ord.items.length > 3 && (
-                              <span className="text-[10px] text-stone-400 pl-1 font-mono">
+                              <span className="text-xs text-stone-400 pl-1 font-mono">
                                 +{ord.items.length - 3} more
                               </span>
                             )}
                           </div>
 
-                          <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs">
-                            <span className="text-stone-400 text-[11px]">Total Paid:</span>
-                            <span className="font-medium text-white">
+                          <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs sm:text-sm">
+                            <span className="text-stone-400">Total Paid:</span>
+                            <span className="font-semibold text-white">
                               {formatPrice(ord.total_amount)}
                             </span>
                           </div>
@@ -389,10 +466,10 @@ export const AccountDrawer: React.FC = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-10 border border-dashed border-white/10 rounded-2xl p-6 text-stone-400 space-y-2">
-                      <Package className="w-8 h-8 mx-auto text-stone-500" />
-                      <h4 className="text-sm font-serif text-white">No Orders Placed Yet</h4>
-                      <p className="text-xs font-light">
+                    <div className="text-center py-12 border border-dashed border-white/10 rounded-3xl p-6 text-stone-400 space-y-2">
+                      <Package className="w-10 h-10 mx-auto text-stone-500" />
+                      <h4 className="text-base font-serif text-white">No Orders Placed Yet</h4>
+                      <p className="text-xs sm:text-sm font-light">
                         Acquisitions made under {user.email} will permanently display here.
                       </p>
                     </div>
@@ -402,65 +479,69 @@ export const AccountDrawer: React.FC = () => {
 
               {/* Profile Details Tab */}
               {activeTab === 'profile' && (
-                <div className="space-y-4">
-                  <div className={`p-4 rounded-xl border text-xs space-y-3 ${
-                    theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
-                  }`}>
-                    <div className="flex justify-between border-b border-white/5 pb-2">
-                      <span className="text-stone-400">Authenticated via</span>
+                <div className="space-y-5">
+                  <div
+                    className={`p-4 rounded-2xl border text-xs sm:text-sm space-y-3 ${
+                      theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
+                    }`}
+                  >
+                    <div className="flex justify-between border-b border-white/5 pb-2.5">
+                      <span className="text-stone-400">Sign-in Method</span>
                       <span className="font-medium text-emerald-400">
-                        {user.phone ? 'MSG91 Indian SMS OTP' : 'Google OAuth 2.0'}
+                        {user.phone ? 'Verified Mobile' : 'Google Account'}
                       </span>
                     </div>
-                    <div className="flex justify-between border-b border-white/5 pb-2">
-                      <span className="text-stone-400">Customer Account ID</span>
-                      <span className="font-mono text-stone-300 text-[11px] truncate max-w-[180px]">{user.id}</span>
+                    <div className="flex justify-between border-b border-white/5 pb-2.5">
+                      <span className="text-stone-400">Account ID</span>
+                      <span className="font-mono text-stone-300 text-xs truncate max-w-[200px]">{user.id}</span>
                     </div>
                     {user.phone && (
-                      <div className="flex justify-between border-b border-white/5 pb-2">
+                      <div className="flex justify-between border-b border-white/5 pb-2.5">
                         <span className="text-stone-400">Verified Phone</span>
-                        <span className="font-mono text-amber-400 text-[11px]">{user.phone}</span>
+                        <span className="font-mono text-amber-400 text-xs">{user.phone}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span className="text-stone-400">Member Status</span>
-                      <span className="text-white font-medium">Active Haute Patron</span>
+                      <span className="text-stone-400">Membership Status</span>
+                      <span className="text-white font-medium">Verified Active Member</span>
                     </div>
                   </div>
 
                   {/* Saved Delivery Destination Card */}
-                  <div className={`p-4 rounded-xl border space-y-3 ${
-                    theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
-                  }`}>
+                  <div
+                    className={`p-4 rounded-2xl border space-y-3 ${
+                      theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
+                    }`}
+                  >
                     <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
                       <div className="flex items-center space-x-2">
                         <MapPin className="w-4 h-4 text-amber-400" />
-                        <span className="font-medium text-xs text-white">Default Delivery Address</span>
+                        <span className="font-medium text-xs sm:text-sm text-white">Default Delivery Address</span>
                       </div>
-                      <div className="flex items-center space-x-1.5">
+                      <div className="flex items-center space-x-2">
                         <button
                           type="button"
                           onClick={() => setIsMapPickerOpen(true)}
-                          className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] uppercase tracking-wider font-mono flex items-center space-x-1 transition-colors cursor-pointer"
+                          className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs uppercase tracking-wider font-mono flex items-center space-x-1.5 transition-colors cursor-pointer"
                           title="Open interactive map to pin exact residence"
                         >
-                          <MapPin className="w-3 h-3 text-amber-400" />
+                          <MapPin className="w-3.5 h-3.5 text-amber-400" />
                           <span>Pin on Map</span>
                         </button>
                         <button
                           type="button"
                           onClick={handleDetectSavedAddress}
                           disabled={isDetectingAddress}
-                          className="px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-stone-300 border border-white/10 text-[10px] uppercase tracking-wider font-mono flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
+                          className="px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-stone-300 border border-white/10 text-xs uppercase tracking-wider font-mono flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
                         >
                           {isDetectingAddress ? (
                             <>
-                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               <span>Detecting...</span>
                             </>
                           ) : (
                             <>
-                              <Navigation className="w-3 h-3" />
+                              <Navigation className="w-3.5 h-3.5" />
                               <span>GPS</span>
                             </>
                           )}
@@ -469,7 +550,7 @@ export const AccountDrawer: React.FC = () => {
                     </div>
 
                     {savedAddress?.address ? (
-                      <div className="text-xs space-y-1">
+                      <div className="text-xs sm:text-sm space-y-1">
                         <p className="text-stone-200 font-medium leading-snug">{savedAddress.address}</p>
                         {savedAddress.apartment && (
                           <p className="text-stone-400">{savedAddress.apartment}</p>
@@ -477,44 +558,45 @@ export const AccountDrawer: React.FC = () => {
                         <p className="text-stone-400">
                           {savedAddress.city}, {savedAddress.state} — {savedAddress.postalCode}, {savedAddress.country || 'India'}
                         </p>
-                        <div className="pt-1 flex items-center space-x-2">
+                        <div className="pt-1.5 flex items-center space-x-2">
                           {savedAddress.accuracy && (
-                            <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                               GPS ±{savedAddress.accuracy}m
                             </span>
                           )}
-                          <span className="text-[9px] font-mono text-stone-400">
+                          <span className="text-xs font-mono text-stone-400">
                             Saved for fast 1-tap checkout
                           </span>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-center py-3 text-stone-400 text-xs space-y-1">
+                      <div className="text-center py-4 text-stone-400 text-xs sm:text-sm space-y-1">
                         <p>No default address saved yet.</p>
-                        <p className="text-[10px] text-stone-500">
-                          Click "Detect GPS" above or enter an address at checkout to save your atelier destination.
+                        <p className="text-xs text-stone-500">
+                          Click "Pin on Map" or "GPS" above to save your delivery location.
                         </p>
                       </div>
                     )}
                   </div>
+
+                  {/* Sign Out Button */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={signOut}
+                      className="w-full py-3.5 rounded-2xl border border-red-500/20 text-red-400 hover:bg-red-500/10 text-xs sm:text-sm tracking-wider uppercase font-semibold flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Sign Out of Zarb</span>
+                    </button>
+                  </div>
                 </div>
               )}
-
-              {/* Sign Out Button */}
-              <div className="pt-4 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={signOut}
-                  className="w-full py-3 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 text-xs tracking-wider uppercase font-medium flex items-center justify-center space-x-2 transition-colors cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out of Zarb</span>
-                </button>
-              </div>
             </div>
           )}
         </div>
       </div>
+
 
       {/* =============================================================== */}
       {/* ORDER DETAILS MODAL                                             */}
@@ -559,17 +641,107 @@ export const AccountDrawer: React.FC = () => {
               ))}
             </div>
 
+            {/* Live Haute Couture Dispatch Progress Bar */}
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-stone-400 font-mono text-[10px] uppercase tracking-wider">Provenance Status</span>
+                <span className={`text-[10px] font-mono uppercase px-2.5 py-0.5 rounded-full font-medium ${
+                  selectedOrder.order_status === 'delivered'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : selectedOrder.order_status === 'dispatched'
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                    : selectedOrder.order_status === 'cancelled'
+                    ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                    : selectedOrder.order_status === 'refunded'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                }`}>
+                  {selectedOrder.order_status}
+                </span>
+              </div>
+
+              {/* Progress Stepper (if not cancelled/refunded) */}
+              {selectedOrder.order_status !== 'cancelled' && selectedOrder.order_status !== 'refunded' ? (
+                <div>
+                  <div className="grid grid-cols-4 gap-1.5 pt-1">
+                    {['confirmed', 'processing', 'dispatched', 'delivered'].map((st, idx) => {
+                      const stages = ['confirmed', 'processing', 'dispatched', 'delivered'];
+                      const currentIdx = stages.indexOf(selectedOrder.order_status || 'confirmed');
+                      const isDone = currentIdx >= idx;
+                      const isCurrent = currentIdx === idx;
+                      return (
+                        <div key={st} className="space-y-1.5">
+                          <div className={`h-1.5 rounded-full transition-all ${
+                            isDone
+                              ? 'bg-gradient-to-r from-amber-400 to-amber-500 shadow-sm'
+                              : 'bg-white/10'
+                          }`} />
+                          <div className={`text-[9px] font-mono uppercase tracking-wider text-center ${
+                            isCurrent
+                              ? 'text-amber-400 font-semibold'
+                              : isDone
+                              ? 'text-stone-300'
+                              : 'text-stone-500'
+                          }`}>
+                            {st}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-[11px] text-red-300 font-mono">
+                  Order status: {selectedOrder.order_status.toUpperCase()}
+                </div>
+              )}
+
+              {/* Order Status History Log (Requirement 3: Preserve update history) */}
+              {Array.isArray(selectedOrder.status_history) && selectedOrder.status_history.length > 0 && (
+                <div className="pt-2 border-t border-white/5 space-y-1.5">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-stone-400 block">
+                    Order Status History
+                  </span>
+                  <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                    {selectedOrder.status_history.map((h: any, idx: number) => (
+                      <div key={idx} className="flex items-start justify-between text-[10px] p-1.5 rounded bg-white/[0.02] border border-white/5 font-mono">
+                        <div>
+                          <span className="text-amber-400 font-medium uppercase">{h.status}</span>
+                          {h.note && <span className="text-stone-400 ml-1.5 font-sans text-[10px]">{h.note}</span>}
+                        </div>
+                        <span className="text-stone-500 text-[9px] shrink-0 ml-2">
+                          {new Date(h.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })} · {new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Summary */}
             <div className="bg-white/[0.03] p-3.5 rounded-xl text-xs space-y-1.5">
               <div className="flex justify-between text-stone-400">
                 <span>Destination</span>
-                <span className="text-white">{selectedOrder.shipping_address?.city}, {selectedOrder.shipping_address?.state}</span>
+                <span className="text-white text-right max-w-[240px] truncate">
+                  {selectedOrder.shipping_address?.address}, {selectedOrder.shipping_address?.city} ({selectedOrder.shipping_address?.postalCode})
+                </span>
               </div>
               <div className="flex justify-between text-stone-400">
-                <span>Dispatch Status</span>
-                <span className="text-emerald-400 font-mono uppercase">{selectedOrder.order_status}</span>
+                <span>Subtotal</span>
+                <span className="text-stone-300">{formatPrice(selectedOrder.subtotal || selectedOrder.total_amount)}</span>
               </div>
-              <div className="flex justify-between font-medium pt-1 border-t border-white/10 text-sm">
+              {selectedOrder.discount_amount > 0 && (
+                <div className="flex justify-between text-emerald-400">
+                  <span>Discount {selectedOrder.coupon_code ? `(${selectedOrder.coupon_code})` : ''}</span>
+                  <span>-{formatPrice(selectedOrder.discount_amount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-stone-400">
+                <span>Shipping</span>
+                <span className="text-stone-300">{selectedOrder.shipping_cost === 0 ? 'Complimentary' : formatPrice(selectedOrder.shipping_cost)}</span>
+              </div>
+              <div className="flex justify-between font-medium pt-1.5 border-t border-white/10 text-sm">
                 <span>Total Amount Paid</span>
                 <span className="text-amber-400">{formatPrice(selectedOrder.total_amount)}</span>
               </div>
@@ -581,84 +753,6 @@ export const AccountDrawer: React.FC = () => {
             >
               Close Record
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* =============================================================== */}
-      {/* MODAL: DIRECT SUPABASE CREDENTIALS CONNECTION                   */}
-      {/* =============================================================== */}
-      {showConnectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className={`w-full max-w-md rounded-3xl border shadow-2xl p-6 space-y-5 ${
-            theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-[#121216] border-white/15 text-white'
-          }`}>
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center space-x-2">
-                <Database className="w-5 h-5 text-amber-400" />
-                <h3 className="font-serif text-base">Connect Supabase Cloud</h3>
-              </div>
-              <button
-                onClick={() => setShowConnectModal(false)}
-                className="p-1.5 text-stone-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-stone-400 leading-relaxed">
-              From your open Supabase dashboard tab, go to <strong>Project Settings &rarr; API</strong> and paste your Project URL and Anon public key below.
-            </p>
-
-            <form onSubmit={handleSaveConnection} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1">
-                  Project URL *
-                </label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://xyzcompany.supabase.co"
-                  value={inputUrl}
-                  onChange={(e) => setInputUrl(e.target.value)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl font-mono text-xs border focus:outline-none ${
-                    theme === 'alabaster' ? 'bg-stone-100 border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1">
-                  Project API Anon Key *
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  value={inputKey}
-                  onChange={(e) => setInputKey(e.target.value)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl font-mono text-xs border focus:outline-none ${
-                    theme === 'alabaster' ? 'bg-stone-100 border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
-                  }`}
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowConnectModal(false)}
-                  className="px-4 py-2 rounded-xl border border-white/20 text-stone-400"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold uppercase tracking-wider shadow-lg"
-                >
-                  Connect & Save
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

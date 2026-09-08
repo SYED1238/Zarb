@@ -62,7 +62,7 @@ export const Footer: React.FC = () => {
           {/* Col 3: Client Concierge */}
           <div className="space-y-3">
             <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-white">
-              Client Concierge
+              Customer Concierge
             </h4>
             <ul className="space-y-2 text-stone-400 text-xs">
               <li><a href="#catalog-section" className="hover:text-white transition-colors">Private Fitting Appointments</a></li>

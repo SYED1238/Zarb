@@ -238,9 +238,104 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Automatically load categories from Supabase cloud on initial mount
+  const refreshCategoriesFromCloud = async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data, error } = await supabase.from('categories').select('*');
+      if (!error && data && data.length > 0) {
+        const cloudWomen: CategoryItem[] = [];
+        const cloudMen: CategoryItem[] = [];
+
+        for (const row of data) {
+          const item: CategoryItem = {
+            id: row.id,
+            slug: row.slug,
+            name: row.name,
+            shortName: row.short_name || row.name,
+            gender: row.gender === 'men' ? 'men' : 'women',
+            eyebrow: row.eyebrow || '',
+            description: row.description || '',
+            image: row.image || '',
+            images: row.image ? [row.image] : [],
+            metaDescription: row.meta_description || '',
+          };
+          if (item.gender === 'women') {
+            cloudWomen.push(item);
+          } else {
+            cloudMen.push(item);
+          }
+        }
+
+        if (cloudWomen.length > 0) {
+          setWomenCategories(prev => {
+            const merged = [...prev];
+            for (const cw of cloudWomen) {
+              const idx = merged.findIndex(c => c.id === cw.id || c.slug === cw.slug);
+              if (idx >= 0) {
+                merged[idx] = {
+                  ...merged[idx],
+                  ...cw,
+                  image: cw.image || merged[idx].image,
+                  images: (cw.images && cw.images.length > 0) ? cw.images : merged[idx].images,
+                };
+              } else {
+                merged.push(cw);
+              }
+            }
+            return merged;
+          });
+        }
+
+        if (cloudMen.length > 0) {
+          setMenCategories(prev => {
+            const merged = [...prev];
+            for (const cm of cloudMen) {
+              const idx = merged.findIndex(c => c.id === cm.id || c.slug === cm.slug);
+              if (idx >= 0) {
+                merged[idx] = {
+                  ...merged[idx],
+                  ...cm,
+                  image: cm.image || merged[idx].image,
+                  images: (cm.images && cm.images.length > 0) ? cm.images : merged[idx].images,
+                };
+              } else {
+                merged.push(cm);
+              }
+            }
+            return merged;
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Could not refresh categories from Supabase:', e);
+    }
+  };
+
   useEffect(() => {
     refreshProductsFromCloud();
+    refreshCategoriesFromCloud();
   }, []);
+
+  const cleanCategoryImages = (cat: CategoryItem): CategoryItem => {
+    // Keep valid images, filtering out any legacy stock Unsplash URLs
+    const validSlides = (cat.images || []).filter(
+      (img) => typeof img === 'string' && img.trim().length > 0 && !img.includes('images.unsplash.com')
+    );
+    const hasExplicitCover = typeof cat.image === 'string' && cat.image.trim().length > 0 && !cat.image.includes('images.unsplash.com');
+    const defaultImg = `/images/categories/${cat.gender}/${cat.slug}.png`;
+    const validCover = hasExplicitCover ? cat.image.trim() : (validSlides[0] || defaultImg);
+    const finalSlides = validSlides.length > 0 ? [...validSlides] : [validCover];
+    if (validCover && !finalSlides.includes(validCover)) {
+      finalSlides.unshift(validCover);
+    }
+
+    return {
+      ...cat,
+      image: validCover,
+      images: finalSlides,
+    };
+  };
 
   const [womenCategories, setWomenCategories] = useState<CategoryItem[]>(() => {
     try {
@@ -248,19 +343,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(c => {
-            const defaultMatch = WOMEN_CATEGORIES.find(d => d.slug === c.slug);
-            return {
-              ...c,
-              images: (c.images && c.images.length > 0) ? c.images : (defaultMatch?.images || [c.image].filter(Boolean)),
-            };
-          });
+          return parsed.map((c) => cleanCategoryImages(c));
         }
       }
     } catch (e) {
       console.error('Failed to load women categories', e);
     }
-    return WOMEN_CATEGORIES;
+    return WOMEN_CATEGORIES.map(cleanCategoryImages);
   });
 
   const [menCategories, setMenCategories] = useState<CategoryItem[]>(() => {
@@ -269,19 +358,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(c => {
-            const defaultMatch = MEN_CATEGORIES.find(d => d.slug === c.slug);
-            return {
-              ...c,
-              images: (c.images && c.images.length > 0) ? c.images : (defaultMatch?.images || [c.image].filter(Boolean)),
-            };
-          });
+          return parsed.map((c) => cleanCategoryImages(c));
         }
       }
     } catch (e) {
       console.error('Failed to load men categories', e);
     }
-    return MEN_CATEGORIES;
+    return MEN_CATEGORIES.map(cleanCategoryImages);
   });
 
   // Sync catalog updates to localStorage
@@ -647,16 +730,35 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // CRUD Methods for Categories
-  const addCategory = (category: CategoryItem) => {
+  const addCategory = async (category: CategoryItem) => {
     if (category.gender === 'women') {
       setWomenCategories(prev => [...prev, category]);
     } else {
       setMenCategories(prev => [...prev, category]);
     }
     showToast(`Created category "${category.name}"`);
+
+    // Auto-sync to Supabase cloud
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('categories').upsert({
+          id: category.id,
+          slug: category.slug,
+          name: category.name,
+          short_name: category.shortName || category.name,
+          gender: category.gender,
+          eyebrow: category.eyebrow,
+          description: category.description,
+          image: category.image,
+          meta_description: category.metaDescription,
+        }, { onConflict: 'id' });
+      } catch (err: any) {
+        console.warn('Supabase category insert sync notice:', err.message);
+      }
+    }
   };
 
-  const updateCategory = (updatedCat: CategoryItem, oldSlug?: string) => {
+  const updateCategory = async (updatedCat: CategoryItem, oldSlug?: string) => {
     const effectiveOldSlug = oldSlug || updatedCat.slug;
     if (updatedCat.gender === 'women') {
       setWomenCategories(prev => prev.map(c => (c.slug === effectiveOldSlug || c.id === updatedCat.id) ? updatedCat : c));
@@ -674,15 +776,43 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
     }
     showToast(`Updated category "${updatedCat.name}"`);
+
+    // Auto-sync to Supabase cloud
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('categories').upsert({
+          id: updatedCat.id,
+          slug: updatedCat.slug,
+          name: updatedCat.name,
+          short_name: updatedCat.shortName || updatedCat.name,
+          gender: updatedCat.gender,
+          eyebrow: updatedCat.eyebrow,
+          description: updatedCat.description,
+          image: updatedCat.image,
+          meta_description: updatedCat.metaDescription,
+        }, { onConflict: 'id' });
+      } catch (err: any) {
+        console.warn('Supabase category update sync notice:', err.message);
+      }
+    }
   };
 
-  const deleteCategory = (genderChoice: 'men' | 'women', slug: string) => {
+  const deleteCategory = async (genderChoice: 'men' | 'women', slug: string) => {
     if (genderChoice === 'women') {
       setWomenCategories(prev => prev.filter(c => c.slug !== slug && c.id !== slug));
     } else {
       setMenCategories(prev => prev.filter(c => c.slug !== slug && c.id !== slug));
     }
     showToast(`Category removed from catalog`);
+
+    // Auto-sync delete to Supabase cloud
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('categories').delete().or(`slug.eq.${slug},id.eq.${slug}`);
+      } catch (err: any) {
+        console.warn('Supabase category delete sync notice:', err.message);
+      }
+    }
   };
 
   const resetToDefaults = () => {

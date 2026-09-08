@@ -7,6 +7,8 @@
  * 3. Network / IP-based locality fallback if GPS permission is denied or unavailable
  */
 
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+
 export interface DetectedAddress {
   address: string;
   apartment: string;
@@ -298,4 +300,94 @@ export function saveAddressToStorage(address: Partial<DetectedAddress>): void {
   } catch (e) {
     console.warn('Failed to save address to localStorage:', e);
   }
+}
+
+export function clearSavedAddressStorage(): void {
+  try {
+    localStorage.removeItem(SAVED_ADDRESS_STORAGE_KEY);
+  } catch (e) {
+    console.warn('Failed to clear address from localStorage:', e);
+  }
+}
+
+/**
+ * Permanently load customer address from Supabase cloud database
+ */
+export async function fetchCustomerAddressFromSupabase(userId: string): Promise<Partial<DetectedAddress> | null> {
+  if (!isSupabaseConfigured() || !userId) return null;
+  try {
+    // 1. Try public.profiles table
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('shipping_address')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!profileErr && profile?.shipping_address && typeof profile.shipping_address === 'object') {
+      return profile.shipping_address as Partial<DetectedAddress>;
+    }
+
+    // 2. Check authenticated user metadata in Supabase Auth
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id === userId && user.user_metadata?.shipping_address) {
+      return user.user_metadata.shipping_address as Partial<DetectedAddress>;
+    }
+
+    // 3. Fallback: check customer's most recent order in Supabase
+    const { data: latestOrder } = await supabase
+      .from('orders')
+      .select('shipping_address')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestOrder?.shipping_address && typeof latestOrder.shipping_address === 'object') {
+      return latestOrder.shipping_address as Partial<DetectedAddress>;
+    }
+  } catch (e) {
+    console.warn('Could not load customer address from Supabase:', e);
+  }
+  return null;
+}
+
+/**
+ * Permanently save customer shipping address to Supabase cloud database
+ */
+export async function saveCustomerAddressToSupabase(
+  userId: string,
+  address: Partial<DetectedAddress>
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !userId) return false;
+  let isSaved = false;
+
+  // 1. Save to Supabase Auth User Metadata (permanent per user_id across devices & reloads)
+  try {
+    const { error: authErr } = await supabase.auth.updateUser({
+      data: { shipping_address: address },
+    });
+    if (!authErr) {
+      isSaved = true;
+    }
+  } catch (e) {
+    console.warn('Could not update user metadata address in Supabase:', e);
+  }
+
+  // 2. Upsert into public.profiles table
+  try {
+    const { error: profileErr } = await supabase
+      .from('profiles')
+      .upsert({
+        id: userId,
+        shipping_address: address,
+        updated_at: new Date().toISOString(),
+      });
+    if (!profileErr) {
+      isSaved = true;
+    }
+  } catch (e) {
+    console.warn('Could not upsert profile address in Supabase:', e);
+  }
+
+  return isSaved;
 }

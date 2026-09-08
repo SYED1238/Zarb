@@ -51,9 +51,11 @@ import {
 import {
   convertGoogleDriveUrl,
   optimizeImageFile,
+  uploadToSupabaseStorage,
 } from '../../utils/imageUpload';
 
 const MASTER_PASSCODE = 'atelier2026';
+export const AUTHORIZED_ADMIN_EMAIL = 'syedhamza1238@gmail.com';
 
 const LUXURY_COLOR_PRESETS = [
   { name: 'Obsidian Noir', hex: '#111113' },
@@ -104,14 +106,101 @@ export const AdminPortal: React.FC = () => {
     deleteReview,
   } = useStore();
 
-  // Authentication State
+  // Authentication State (Google OAuth restricted to syedhamza1238@gmail.com)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('atelier_admin_auth') === 'true' ||
            localStorage.getItem('atelier_admin_auth') === 'true';
   });
+  const [adminUser, setAdminUser] = useState<any>(null);
+  const [isSigningInWithGoogle, setIsSigningInWithGoogle] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [passcodeInput, setPasscodeInput] = useState('');
-  const [rememberDevice, setRememberDevice] = useState(false);
-  const [authError, setAuthError] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(true);
+  const [showPasskeyFallback, setShowPasskeyFallback] = useState(false);
+
+  // Monitor Supabase Authentication & Enforce Single Email Restriction
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifyAdminSession = async () => {
+      setIsCheckingAuth(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        if (session?.user?.email) {
+          const email = session.user.email.toLowerCase().trim();
+          if (email === AUTHORIZED_ADMIN_EMAIL.toLowerCase().trim()) {
+            setIsAuthenticated(true);
+            setAdminUser(session.user);
+            setUnauthorizedEmail(null);
+            setAuthError(null);
+            sessionStorage.setItem('atelier_admin_auth', 'true');
+            if (rememberDevice) {
+              localStorage.setItem('atelier_admin_auth', 'true');
+            }
+          } else {
+            // Strictly reject any other account
+            await supabase.auth.signOut();
+            setIsAuthenticated(false);
+            setAdminUser(null);
+            sessionStorage.removeItem('atelier_admin_auth');
+            localStorage.removeItem('atelier_admin_auth');
+            setUnauthorizedEmail(session.user.email);
+            setAuthError(`Access Denied: ${session.user.email} is not authorized.`);
+          }
+        }
+      } catch (err: any) {
+        console.error('Admin session verify error:', err);
+      } finally {
+        if (isMounted) setIsCheckingAuth(false);
+      }
+    };
+
+    verifyAdminSession();
+
+    // Listen for OAuth redirects & session updates
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
+      if (session?.user?.email) {
+        const email = session.user.email.toLowerCase().trim();
+        if (email === AUTHORIZED_ADMIN_EMAIL.toLowerCase().trim()) {
+          setIsAuthenticated(true);
+          setAdminUser(session.user);
+          setUnauthorizedEmail(null);
+          setAuthError(null);
+          sessionStorage.setItem('atelier_admin_auth', 'true');
+          if (rememberDevice) {
+            localStorage.setItem('atelier_admin_auth', 'true');
+          }
+          showToast(`Authorized: Welcome Syed Hamza (${session.user.email})`);
+        } else {
+          // Immediately boot out unauthorized users
+          await supabase.auth.signOut();
+          setIsAuthenticated(false);
+          setAdminUser(null);
+          sessionStorage.removeItem('atelier_admin_auth');
+          localStorage.removeItem('atelier_admin_auth');
+          setUnauthorizedEmail(session.user.email);
+          setAuthError(`Access Denied: ${session.user.email} is not authorized.`);
+          showToast(`Access Denied: Account ${session.user.email} is unauthorized. Only ${AUTHORIZED_ADMIN_EMAIL} can access this portal.`);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        setAdminUser(null);
+        sessionStorage.removeItem('atelier_admin_auth');
+        localStorage.removeItem('atelier_admin_auth');
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [rememberDevice]);
 
   // Active Management Tab
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'reviews' | 'pricing' | 'backup'>('products');
@@ -143,13 +232,30 @@ export const AdminPortal: React.FC = () => {
           .from('orders')
           .select('*')
           .order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) {
-          const numbers = new Set(data.map((d: any) => d.order_number));
+
+        if (!error && data) {
+          const cloudOrders = data.map((d: any) => {
+            const meta = d.shipping_address?.order_meta || {};
+            return {
+              ...d,
+              discount_amount: d.discount_amount ?? meta.discount_amount ?? 0,
+              coupon_code: d.coupon_code ?? meta.coupon_code ?? '',
+              status_history: d.status_history ?? meta.status_history ?? [
+                {
+                  status: d.order_status || 'confirmed',
+                  timestamp: d.created_at,
+                  note: 'Order recorded in cloud registry.',
+                  updatedBy: 'Atelier System',
+                }
+              ],
+            };
+          });
+          const numbers = new Set(cloudOrders.map((d: any) => d.order_number));
           const uniqueLocals = combined.filter((o: any) => !numbers.has(o.order_number));
-          combined = [...data, ...uniqueLocals];
+          combined = [...cloudOrders, ...uniqueLocals];
         }
       } catch (e) {
-        console.warn('Could not fetch cloud orders', e);
+        console.warn('Could not fetch cloud orders from Supabase', e);
       }
     }
     setOrders(combined);
@@ -157,24 +263,88 @@ export const AdminPortal: React.FC = () => {
   };
 
   const handleUpdateOrderStatus = async (orderNumber: string, newStatus: string) => {
-    setOrders(prev => prev.map(o => o.order_number === orderNumber ? { ...o, order_status: newStatus } : o));
+    const timestamp = new Date().toISOString();
+    const existingOrder = orders.find(o => o.order_number === orderNumber);
+    const existingHistory = Array.isArray(existingOrder?.status_history) ? existingOrder.status_history : [];
+    const newHistoryEntry = {
+      status: newStatus,
+      timestamp,
+      note: `Status updated to ${newStatus.toUpperCase()} via Admin Concierge Portal`,
+      updatedBy: 'Admin Portal',
+    };
+    const updatedHistory = [...existingHistory, newHistoryEntry];
+
+    // Optimistically update local state
+    setOrders(prev => prev.map(o => o.order_number === orderNumber ? {
+      ...o,
+      order_status: newStatus,
+      updated_at: timestamp,
+      status_history: updatedHistory,
+    } : o));
+
+    // Update local cache
     try {
       const saved = localStorage.getItem('atelier_local_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
-        const updated = parsed.map((o: any) => o.order_number === orderNumber ? { ...o, order_status: newStatus } : o);
+        const updated = parsed.map((o: any) => o.order_number === orderNumber ? {
+          ...o,
+          order_status: newStatus,
+          updated_at: timestamp,
+          status_history: updatedHistory,
+        } : o);
         localStorage.setItem('atelier_local_orders', JSON.stringify(updated));
       }
     } catch {}
 
+    // Persist immediately to Supabase
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('orders').update({ order_status: newStatus }).eq('order_number', orderNumber);
-      } catch (e) {
-        console.warn('Could not update order status in Supabase', e);
+        const updatePayload: Record<string, any> = {
+          order_status: newStatus,
+          updated_at: timestamp,
+          status_history: updatedHistory,
+        };
+
+        let { error } = await supabase
+          .from('orders')
+          .update(updatePayload)
+          .eq('order_number', orderNumber);
+
+        // If status_history column does not exist in Supabase yet (code 42703), fallback to updating order_status and updated_at directly
+        if (error && (error.code === '42703' || error.message?.includes('does not exist'))) {
+          const currentShipping = existingOrder?.shipping_address || {};
+          const fallbackPayload: Record<string, any> = {
+            order_status: newStatus,
+            updated_at: timestamp,
+            shipping_address: {
+              ...currentShipping,
+              order_meta: {
+                ...(currentShipping.order_meta || {}),
+                status_history: updatedHistory,
+              },
+            },
+          };
+          const fallbackRes = await supabase
+            .from('orders')
+            .update(fallbackPayload)
+            .eq('order_number', orderNumber);
+          error = fallbackRes.error;
+        }
+
+        if (error) {
+          console.warn('Supabase status update error:', error.message);
+          showToast(`Order updated locally (Supabase note: ${error.message})`);
+        } else {
+          showToast(`Order ${orderNumber} updated to ${newStatus.toUpperCase()} (Cloud Persisted)`);
+        }
+      } catch (e: any) {
+        console.warn('Exception updating order status in Supabase:', e);
+        showToast(`Order ${orderNumber} updated to ${newStatus.toUpperCase()}`);
       }
+    } else {
+      showToast(`Order ${orderNumber} updated to ${newStatus.toUpperCase()}`);
     }
-    showToast(`Order ${orderNumber} updated to ${newStatus.toUpperCase()}`);
   };
 
   // Reviews State
@@ -334,6 +504,7 @@ export const AdminPortal: React.FC = () => {
   });
   const [newCategoryImageUrl, setNewCategoryImageUrl] = useState('');
   const [categoryPreviewIndex, setCategoryPreviewIndex] = useState(0);
+  const [isUploadingCategoryImage, setIsUploadingCategoryImage] = useState(false);
 
   // Bulk pricing temporary edits
   const [bulkEdits, setBulkEdits] = useState<Record<string, { price: number; compareAtPrice?: number; stock: number }>>({});
@@ -366,25 +537,66 @@ export const AdminPortal: React.FC = () => {
     }).format(val);
   };
 
-  // Auth Handler
+  // Google OAuth Sign-In Handler (Exclusive for syedhamza1238@gmail.com)
+  const handleGoogleSignIn = async () => {
+    setIsSigningInWithGoogle(true);
+    setAuthError(null);
+    setUnauthorizedEmail(null);
+
+    try {
+      const redirectUrl = `${window.location.origin}/admin`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Google Sign-In Error:', error);
+        setAuthError(error.message);
+        showToast(`Google Sign-In Error: ${error.message}`);
+        setIsSigningInWithGoogle(false);
+      }
+    } catch (err: any) {
+      console.error('Google Sign-In Exception:', err);
+      setAuthError(err.message || 'Failed to initialize Google Sign-In');
+      setIsSigningInWithGoogle(false);
+    }
+  };
+
+  // Emergency Passkey Login Handler
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passcodeInput.trim() === MASTER_PASSCODE) {
       setIsAuthenticated(true);
-      setAuthError(false);
+      setAuthError(null);
+      setUnauthorizedEmail(null);
       sessionStorage.setItem('atelier_admin_auth', 'true');
       if (rememberDevice) {
         localStorage.setItem('atelier_admin_auth', 'true');
       }
-      showToast('Welcome to Zarb Master Portal');
+      showToast('Welcome to Zarb Master Portal (Passkey Override)');
     } else {
-      setAuthError(true);
-      showToast('Invalid Access Passkey');
+      setAuthError('Invalid Master Passkey');
+      showToast('Invalid Master Passkey');
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Signout error:', e);
+    }
     setIsAuthenticated(false);
+    setAdminUser(null);
+    setUnauthorizedEmail(null);
+    setAuthError(null);
     sessionStorage.removeItem('atelier_admin_auth');
     localStorage.removeItem('atelier_admin_auth');
     showToast('Logged out of Admin Portal');
@@ -586,7 +798,6 @@ export const AdminPortal: React.FC = () => {
   const handleOpenCreateCategory = (genderChoice: 'women' | 'men') => {
     setEditingCategory(null);
     setCategoryOriginalSlug('');
-    const defaultCover = 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop';
     setCategoryForm({
       id: '',
       slug: '',
@@ -595,8 +806,8 @@ export const AdminPortal: React.FC = () => {
       gender: genderChoice,
       eyebrow: `${genderChoice.toUpperCase()}'S WARDROBE · `,
       description: '',
-      image: defaultCover,
-      images: [defaultCover],
+      image: '',
+      images: [],
       metaDescription: '',
     });
     setNewCategoryImageUrl('');
@@ -608,12 +819,13 @@ export const AdminPortal: React.FC = () => {
     setEditingCategory(cat);
     setCategoryOriginalSlug(cat.slug);
     const catImages = (cat.images && cat.images.length > 0)
-      ? cat.images
-      : (cat.image ? [cat.image] : []);
+      ? cat.images.filter(img => Boolean(img && !img.includes('images.unsplash.com')))
+      : (cat.image && !cat.image.includes('images.unsplash.com') ? [cat.image] : []);
+    const catCover = (cat.image && !cat.image.includes('images.unsplash.com')) ? cat.image : (catImages[0] || '');
     setCategoryForm({
       ...cat,
-      image: cat.image || catImages[0] || '',
-      images: catImages.length > 0 ? [...catImages] : (cat.image ? [cat.image] : []),
+      image: catCover,
+      images: catImages,
     });
     setNewCategoryImageUrl('');
     setCategoryPreviewIndex(0);
@@ -631,13 +843,13 @@ export const AdminPortal: React.FC = () => {
     const shortName = categoryForm.shortName.trim() || categoryForm.name.trim();
     const id = editingCategory ? editingCategory.id : slug;
 
-    // Filter valid images
+    // Filter valid images (only what admin uploaded/added)
     const rawImages = categoryForm.images || [];
-    const validImages = rawImages.filter(img => Boolean(img && img.trim()));
-    if (categoryForm.image && !validImages.includes(categoryForm.image.trim())) {
+    const validImages = rawImages.filter(img => Boolean(img && img.trim() && !img.includes('images.unsplash.com')));
+    if (categoryForm.image && !categoryForm.image.includes('images.unsplash.com') && !validImages.includes(categoryForm.image.trim())) {
       validImages.unshift(categoryForm.image.trim());
     }
-    const primaryCover = validImages[0] || categoryForm.image || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop';
+    const primaryCover = validImages[0] || (categoryForm.image && !categoryForm.image.includes('images.unsplash.com') ? categoryForm.image.trim() : '');
 
     const payload: CategoryItem = {
       ...categoryForm,
@@ -648,8 +860,8 @@ export const AdminPortal: React.FC = () => {
       eyebrow: categoryForm.eyebrow.trim() || `${categoryForm.gender.toUpperCase()}'S WARDROBE · ${shortName.toUpperCase()}`,
       description: categoryForm.description.trim(),
       image: primaryCover,
-      images: validImages.length > 0 ? validImages : [primaryCover],
-      metaDescription: categoryForm.metaDescription.trim() || `Explore luxury ${shortName} collection from Atelier Nōir.`,
+      images: validImages,
+      metaDescription: categoryForm.metaDescription.trim() || `Explore luxury ${shortName} collection from Zarb.`,
     };
 
     if (editingCategory) {
@@ -919,81 +1131,157 @@ export const AdminPortal: React.FC = () => {
   // =========================================================================
   // RENDER: PASSCODE LOCK GATEWAY
   // =========================================================================
+  // =========================================================================
+  // RENDER: GOOGLE SIGN-IN GATEWAY (EXCLUSIVE FOR syedhamza1238@gmail.com)
+  // =========================================================================
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#070709] text-white flex items-center justify-center p-4 selection:bg-amber-500/30">
         <div className="w-full max-w-md bg-[#101014] border border-white/10 rounded-3xl p-8 sm:p-10 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
           {/* Subtle gold specular beam */}
           <div className="absolute -top-24 -left-24 w-52 h-52 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-52 h-52 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="text-center mb-8 relative z-10">
-            <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-white/5 border border-white/15 flex items-center justify-center text-amber-300 shadow-inner">
-              <Lock className="w-6 h-6 stroke-[1.5]" />
+          <div className="text-center mb-6 relative z-10">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center text-amber-300 shadow-xl">
+              <ShieldCheck className="w-8 h-8 stroke-[1.5]" />
             </div>
-            <span className="text-[10px] font-mono tracking-[0.35em] uppercase text-stone-400 block mb-1">
+            <span className="text-[10px] font-mono tracking-[0.35em] uppercase text-amber-400/90 block mb-1">
               Atelier Archive Security
             </span>
             <h1 className="text-2xl font-serif tracking-widest text-white">
               HAUTE PORTAL GATE
             </h1>
             <p className="text-xs text-stone-400 font-light mt-2 leading-relaxed">
-              Administrative authorization required to configure inventory, pricing, imagery, and silhouette collections.
+              Administrative authorization required. Access is strictly restricted to the authorized master administrator.
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5 relative z-10">
-            <div>
-              <label className="block text-[10px] font-sans tracking-[0.2em] uppercase text-stone-300 mb-2">
-                Master Passkey
-              </label>
-              <input
-                type="password"
-                value={passcodeInput}
-                onChange={(e) => setPasscodeInput(e.target.value)}
-                placeholder="Enter access code..."
-                autoFocus
-                className="w-full px-4 py-3.5 bg-black/50 border border-white/15 focus:border-amber-400/80 rounded-xl text-sm font-mono text-white tracking-widest focus:outline-none transition-all placeholder:text-stone-600 shadow-inner"
-              />
-              {authError && (
-                <p className="text-xs text-red-400 mt-2 flex items-center space-x-1">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  <span>Invalid passkey. (Hint: default is <code>atelier2026</code>)</span>
-                </p>
-              )}
+          {/* Designated Authorized Email Badge */}
+          <div className="mb-6 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center space-x-3 relative z-10">
+            <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0">
+              <Mail className="w-4 h-4" />
             </div>
+            <div className="flex-1 min-w-0 text-left">
+              <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-stone-400 block">
+                Exclusive Authorized Account
+              </span>
+              <span className="text-xs font-mono font-semibold text-amber-300 truncate block">
+                {AUTHORIZED_ADMIN_EMAIL}
+              </span>
+            </div>
+          </div>
 
-            <div className="flex items-center justify-between text-xs text-stone-400">
-              <label className="flex items-center space-x-2 cursor-pointer">
+          {/* Unauthorized Access Denied Alert Banner */}
+          {unauthorizedEmail && (
+            <div className="mb-6 p-4 rounded-2xl bg-red-500/15 border border-red-500/35 text-left relative z-10 animate-fade-in shadow-xl">
+              <div className="flex items-center space-x-2 text-red-400 font-mono text-xs font-bold uppercase tracking-wider mb-1.5">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>ACCESS DENIED (UNAUTHORIZED)</span>
+              </div>
+              <p className="text-xs text-red-200/90 leading-relaxed">
+                The account <strong className="font-mono text-white underline">{unauthorizedEmail}</strong> is not authorized to access this portal. Only <strong className="font-mono text-amber-300">{AUTHORIZED_ADMIN_EMAIL}</strong> has administrative permissions.
+              </p>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {authError && !unauthorizedEmail && (
+            <div className="mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-red-300 flex items-center space-x-2 relative z-10">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          <div className="space-y-4 relative z-10">
+            {/* PRIMARY ACTION: SIGN IN WITH GOOGLE */}
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isSigningInWithGoogle || isCheckingAuth}
+              className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-stone-100 text-stone-950 text-xs font-sans tracking-[0.15em] uppercase font-bold transition-all duration-300 shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:shadow-[0_15px_35px_rgba(255,255,255,0.15)] hover:scale-[1.01] active:scale-[0.99] cursor-pointer flex items-center justify-center space-x-3 border border-white/80 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              {isSigningInWithGoogle ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-stone-900" />
+                  <span>Connecting to Google...</span>
+                </>
+              ) : (
+                <>
+                  {/* Official Google 'G' Icon */}
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                  <span>Sign In with Google</span>
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center justify-between text-xs text-stone-400 pt-1">
+              <label className="flex items-center space-x-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={rememberDevice}
                   onChange={(e) => setRememberDevice(e.target.checked)}
                   className="rounded border-white/20 bg-white/5 text-amber-500 focus:ring-0 cursor-pointer"
                 />
-                <span className="text-[11px] tracking-wider uppercase">Remember device</span>
+                <span className="text-[10px] tracking-wider uppercase text-stone-400">Remember device</span>
               </label>
+
               <button
                 type="button"
-                onClick={() => setPasscodeInput(MASTER_PASSCODE)}
-                className="text-[11px] text-amber-400/80 hover:text-amber-300 transition-colors"
+                onClick={() => setShowPasskeyFallback(!showPasskeyFallback)}
+                className="text-[10px] text-stone-400 hover:text-amber-300 transition-colors uppercase tracking-wider underline cursor-pointer"
               >
-                Auto-fill Key
+                {showPasskeyFallback ? 'Hide Passkey' : 'Emergency Passkey'}
               </button>
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-3.5 rounded-xl bg-white hover:bg-stone-200 text-black text-xs font-sans tracking-[0.25em] uppercase font-semibold transition-all duration-300 shadow-lg cursor-pointer flex items-center justify-center space-x-2"
-            >
-              <Unlock className="w-4 h-4" />
-              <span>Unlock Gateway</span>
-            </button>
-          </form>
+            {/* Emergency Master Passkey Toggle Form */}
+            {showPasskeyFallback && (
+              <form onSubmit={handleLogin} className="pt-4 border-t border-white/10 space-y-3 animate-fade-in">
+                <div>
+                  <label className="block text-[9px] font-mono tracking-[0.2em] uppercase text-stone-400 mb-1.5">
+                    Emergency Master Passkey
+                  </label>
+                  <input
+                    type="password"
+                    value={passcodeInput}
+                    onChange={(e) => setPasscodeInput(e.target.value)}
+                    placeholder="Enter passkey..."
+                    className="w-full px-4 py-3 bg-black/50 border border-white/15 focus:border-amber-400/80 rounded-xl text-sm font-mono text-white tracking-widest focus:outline-none transition-all placeholder:text-stone-600 shadow-inner"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-mono tracking-[0.2em] uppercase transition-all duration-300 border border-white/15 cursor-pointer flex items-center justify-center space-x-2"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Verify Passkey</span>
+                </button>
+              </form>
+            )}
+          </div>
 
           <div className="mt-8 pt-6 border-t border-white/10 text-center">
             <button
               onClick={() => navigate('/')}
-              className="text-xs text-stone-400 hover:text-white transition-colors tracking-wider uppercase flex items-center justify-center space-x-1.5 mx-auto"
+              className="text-xs text-stone-400 hover:text-white transition-colors tracking-wider uppercase flex items-center justify-center space-x-1.5 mx-auto cursor-pointer"
             >
               <span>Return to Public Storefront</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -1039,6 +1327,17 @@ export const AdminPortal: React.FC = () => {
 
           {/* Right Actions */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Authenticated Master Admin Badge */}
+            <div className="hidden lg:flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs text-stone-300">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-mono text-stone-300 text-[11px] tracking-wider">
+                {adminUser?.email || AUTHORIZED_ADMIN_EMAIL}
+              </span>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300 border border-amber-400/30 uppercase tracking-widest font-semibold">
+                Super Admin
+              </span>
+            </div>
+
             {/* Storefront Link */}
             <button
               onClick={() => navigate('/')}
@@ -1068,10 +1367,11 @@ export const AdminPortal: React.FC = () => {
             {/* Logout */}
             <button
               onClick={handleLogout}
-              className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors cursor-pointer"
-              title="Lock Admin Portal"
+              className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors cursor-pointer flex items-center space-x-1.5 text-xs font-mono"
+              title="Lock Admin Portal & Sign Out"
             >
-              <Lock className="w-4 h-4" />
+              <Lock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>
@@ -1575,11 +1875,18 @@ export const AdminPortal: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-start space-x-3.5">
-                        <img
-                          src={cat.image}
-                          alt={cat.name}
-                          className="w-16 h-20 object-cover rounded-xl bg-stone-900 border border-white/10 shrink-0"
-                        />
+                        {cat.image ? (
+                          <img
+                            src={cat.image}
+                            alt={cat.name}
+                            className="w-16 h-20 object-cover rounded-xl bg-stone-900 border border-white/10 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-20 rounded-xl bg-stone-900/80 border border-white/10 flex flex-col items-center justify-center text-stone-500 shrink-0 p-1">
+                            <Sparkles className="w-4 h-4 text-amber-500/60 mb-1" />
+                            <span className="text-[8px] font-mono uppercase text-center leading-tight">No Image</span>
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block">
                             /{cat.slug}
@@ -1691,11 +1998,18 @@ export const AdminPortal: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-start space-x-3.5">
-                        <img
-                          src={cat.image}
-                          alt={cat.name}
-                          className="w-16 h-20 object-cover rounded-xl bg-stone-900 border border-white/10 shrink-0"
-                        />
+                        {cat.image ? (
+                          <img
+                            src={cat.image}
+                            alt={cat.name}
+                            className="w-16 h-20 object-cover rounded-xl bg-stone-900 border border-white/10 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-20 rounded-xl bg-stone-900/80 border border-white/10 flex flex-col items-center justify-center text-stone-500 shrink-0 p-1">
+                            <Sparkles className="w-4 h-4 text-amber-500/60 mb-1" />
+                            <span className="text-[8px] font-mono uppercase text-center leading-tight">No Image</span>
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block">
                             /{cat.slug}
@@ -1929,6 +2243,7 @@ export const AdminPortal: React.FC = () => {
                             <option value="dispatched">● Dispatched</option>
                             <option value="delivered">● Delivered</option>
                             <option value="cancelled">● Cancelled</option>
+                            <option value="refunded">● Refunded</option>
                           </select>
                         </div>
                       </div>
@@ -1937,31 +2252,64 @@ export const AdminPortal: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                         {/* Client Identity */}
                         <div className={`p-3 rounded-xl ${theme === 'alabaster' ? 'bg-stone-50' : 'bg-white/[0.02]'}`}>
-                          <span className="text-[10px] uppercase font-mono tracking-wider text-stone-400 block mb-1">
-                            Client Details
-                          </span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] uppercase font-mono tracking-wider text-stone-400">
+                              Client Details
+                            </span>
+                            {ord.user_id ? (
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`Supabase User UUID: ${ord.user_id}`}>
+                                Auth ID Linked
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-stone-500/10 text-stone-400 border border-stone-500/20">
+                                Guest
+                              </span>
+                            )}
+                          </div>
                           <div className="font-semibold text-stone-200">{ord.customer_name}</div>
                           <div className="text-stone-400 flex items-center space-x-1 mt-0.5">
-                            <Mail className="w-3 h-3 text-stone-500" />
-                            <span>{ord.customer_email}</span>
+                            <Mail className="w-3 h-3 text-stone-500 shrink-0" />
+                            <span className="truncate">{ord.customer_email}</span>
                           </div>
                           <div className="text-stone-300 font-mono flex items-center space-x-1 mt-0.5">
-                            <Phone className="w-3 h-3 text-amber-400" />
+                            <Phone className="w-3 h-3 text-amber-400 shrink-0" />
                             <span>{ord.customer_phone || 'N/A'}</span>
                           </div>
+                          {ord.user_id && (
+                            <div className="text-[10px] text-stone-400 font-mono mt-1 pt-1 border-t border-white/5 truncate" title={ord.user_id}>
+                              ID: {ord.user_id}
+                            </div>
+                          )}
                         </div>
 
                         {/* Delivery Destination */}
                         <div className={`p-3 rounded-xl md:col-span-2 ${theme === 'alabaster' ? 'bg-stone-50' : 'bg-white/[0.02]'}`}>
-                          <span className="text-[10px] uppercase font-mono tracking-wider text-stone-400 block mb-1">
-                            Concierge Delivery Destination
-                          </span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] uppercase font-mono tracking-wider text-stone-400">
+                              Concierge Delivery Destination
+                            </span>
+                            {ord.updated_at && (
+                              <span className="text-[9px] font-mono text-stone-400">
+                                Synced: {new Date(ord.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-stone-300 flex items-start space-x-1">
                             <MapPin className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
                             <span>
                               {addr ? `${addr.address || ''}${addr.apartment ? `, ${addr.apartment}` : ''}, ${addr.city || ''}, ${addr.state || ''} — ${addr.postalCode || ''}, ${addr.country || 'India'}` : 'Direct Acquisition'}
                             </span>
                           </div>
+                          {Array.isArray(ord.status_history) && ord.status_history.length > 1 && (
+                            <div className="mt-2 pt-1.5 border-t border-white/5 flex flex-wrap items-center gap-1.5 text-[9px] font-mono text-stone-400">
+                              <span className="text-amber-400/80 uppercase">History:</span>
+                              {ord.status_history.map((h: any, hIdx: number) => (
+                                <span key={hIdx} className="bg-white/5 px-1.5 py-0.5 rounded border border-white/10">
+                                  {h.status} ({new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -3273,15 +3621,30 @@ export const AdminPortal: React.FC = () => {
               <div className="space-y-3 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="block text-[11px] uppercase tracking-wider text-stone-400 font-semibold">
-                    Card Imagery & Jaw-Dropping Transitions *
+                    Card Imagery & Portals
                   </label>
-                  <span className="text-[10px] font-mono text-amber-400">
-                    {categoryForm.images?.length || (categoryForm.image ? 1 : 0)} {(categoryForm.images?.length || (categoryForm.image ? 1 : 0)) === 1 ? 'slide' : 'slides'} configured
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-mono text-amber-400">
+                      {categoryForm.images?.length || (categoryForm.image ? 1 : 0)} {(categoryForm.images?.length || (categoryForm.image ? 1 : 0)) === 1 ? 'slide' : 'slides'} configured
+                    </span>
+                    {((categoryForm.images && categoryForm.images.length > 0) || categoryForm.image) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCategoryForm({ ...categoryForm, image: '', images: [] });
+                          setCategoryPreviewIndex(0);
+                        }}
+                        className="text-[10px] text-red-400 hover:text-red-300 flex items-center space-x-1 cursor-pointer pl-2 border-l border-white/15"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Clear All</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <p className="text-[11px] text-stone-400 font-light leading-relaxed">
-                  Add multiple photos to enable the cinematic crossfade dissolve and Ken Burns zoom effect on this silhouette's homepage card.
+                  Upload images from your device or paste links. Only visuals you configure here will be stored and displayed on the card.
                 </p>
 
                 {/* Slides Thumbnail Grid */}
@@ -3348,7 +3711,7 @@ export const AdminPortal: React.FC = () => {
                       type="url"
                       value={newCategoryImageUrl}
                       onChange={(e) => setNewCategoryImageUrl(e.target.value)}
-                      placeholder="Paste image URL(s) or Google Drive link..."
+                      placeholder="Paste image URL or Google Drive link..."
                       className={`flex-1 px-3.5 py-2.5 rounded-xl text-xs font-mono border focus:outline-none ${
                         theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                       }`}
@@ -3359,7 +3722,7 @@ export const AdminPortal: React.FC = () => {
                         const urls = newCategoryImageUrl
                           .split(/[\n,]+/)
                           .map((u) => u.trim())
-                          .filter((u) => u.length > 0)
+                          .filter((u) => u.length > 0 && !u.includes('images.unsplash.com'))
                           .map(convertGoogleDriveUrl);
                         if (urls.length > 0) {
                           const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
@@ -3375,69 +3738,53 @@ export const AdminPortal: React.FC = () => {
                       }}
                       className="px-3.5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-md cursor-pointer shrink-0"
                     >
-                      Add Slide
+                      Add URL
                     </button>
-                    <label className="flex items-center space-x-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0">
+                    <label className={`flex items-center space-x-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0 border ${
+                      isUploadingCategoryImage
+                        ? 'bg-amber-500/20 text-amber-200 border-amber-500/40 animate-pulse cursor-wait'
+                        : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    }`}>
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Upload Slides</span>
+                      <span>{isUploadingCategoryImage ? 'Uploading to Supabase...' : 'Upload Device Image'}</span>
                       <input
                         type="file"
                         accept="image/*"
                         multiple
+                        disabled={isUploadingCategoryImage}
                         className="hidden"
                         onChange={async (e) => {
                           const files = Array.from(e.target.files || []);
                           if (files.length > 0) {
-                            const optimizedList = await Promise.all(files.map(optimizeImageFile));
-                            const valid = optimizedList.filter(Boolean);
-                            if (valid.length > 0) {
-                              const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
-                              const updated = [...currentImgs, ...valid];
-                              setCategoryForm({
-                                ...categoryForm,
-                                image: updated[0] || valid[0],
-                                images: updated,
-                              });
-                              setCategoryPreviewIndex(updated.length - 1);
+                            setIsUploadingCategoryImage(true);
+                            showToast('Uploading visual to Supabase Storage...');
+                            try {
+                              const uploadResults = await Promise.all(
+                                files.map((f) => uploadToSupabaseStorage(f, 'categories'))
+                              );
+                              const valid = uploadResults.map((r) => r.url).filter(Boolean);
+                              if (valid.length > 0) {
+                                const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
+                                const updated = [...currentImgs, ...valid];
+                                setCategoryForm({
+                                  ...categoryForm,
+                                  image: updated[0] || valid[0],
+                                  images: updated,
+                                });
+                                setCategoryPreviewIndex(updated.length - 1);
+                                showToast(`Uploaded ${valid.length} image(s) for ${categoryForm.name || 'Category'}!`);
+                              }
+                            } catch (err: any) {
+                              console.error('Upload to Supabase failed:', err);
+                              showToast(`Upload failed: ${err.message}`);
+                            } finally {
+                              setIsUploadingCategoryImage(false);
                             }
                           }
                           e.target.value = '';
                         }}
                       />
                     </label>
-                  </div>
-
-                  {/* Quick Luxury Presets for Category Slides */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    <span className="text-[10px] uppercase font-mono tracking-wider text-stone-400 mr-1">
-                      Quick Presets:
-                    </span>
-                    {[
-                      { label: '🧥 Outerwear', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=1000&auto=format&fit=crop' },
-                      { label: '👗 Silk Kurti', url: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop' },
-                      { label: '💃 Evening Gown', url: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1000&auto=format&fit=crop' },
-                      { label: '👔 Blazer', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop' },
-                      { label: '🧶 Knitwear', url: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000&auto=format&fit=crop' },
-                      { label: '👜 Leather Bag', url: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=1000&auto=format&fit=crop' },
-                    ].map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => {
-                          const currentImgs = categoryForm.images && categoryForm.images.length > 0 ? [...categoryForm.images] : (categoryForm.image ? [categoryForm.image] : []);
-                          const updated = [...currentImgs, preset.url];
-                          setCategoryForm({
-                            ...categoryForm,
-                            image: updated[0] || preset.url,
-                            images: updated,
-                          });
-                          setCategoryPreviewIndex(updated.length - 1);
-                        }}
-                        className="px-2 py-0.5 rounded border border-white/10 bg-white/5 hover:bg-white/10 text-[10px] text-stone-300 cursor-pointer"
-                      >
-                        + {preset.label}
-                      </button>
-                    ))}
                   </div>
                 </div>
 

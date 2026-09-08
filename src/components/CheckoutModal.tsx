@@ -19,6 +19,7 @@ import {
   Loader2,
   AlertCircle,
   RotateCw,
+  ShieldCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -32,11 +33,10 @@ import type { DetectedAddress } from '../utils/geolocation';
 
 export const CheckoutModal: React.FC = () => {
   const { isCheckoutOpen, setIsCheckoutOpen, cartSubtotal, clearCart, cart, showToast } = useStore();
-  const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen } = useAuth();
+  const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen, savedAddress, updateCustomerAddress } = useAuth();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [isOrderPendingSync, setIsOrderPendingSync] = useState(false);
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
 
   // Geolocation & Auto-detection state
@@ -100,8 +100,8 @@ export const CheckoutModal: React.FC = () => {
       cardNumber: '4532 •••• •••• 8842',
       cardExpiry: '08/29',
       cardCvc: '•••',
-      cardHolder: user?.fullName ? user.fullName.toUpperCase() : 'CLIENT NAME',
-      upiId: 'client@okaxis',
+      cardHolder: user?.fullName ? user.fullName.toUpperCase() : 'CARDHOLDER NAME',
+      upiId: 'user@okaxis',
     };
   });
 
@@ -113,10 +113,32 @@ export const CheckoutModal: React.FC = () => {
         email: prev.email || user.email,
         phone: prev.phone || (user.phone ? user.phone.replace(/^\+91\s*/, '') : ''),
         firstName: prev.firstName || (user.fullName ? user.fullName.split(' ')[0] : ''),
-        cardHolder: prev.cardHolder === 'CLIENT NAME' && user.fullName ? user.fullName.toUpperCase() : prev.cardHolder,
+        cardHolder: prev.cardHolder === 'CARDHOLDER NAME' && user.fullName ? user.fullName.toUpperCase() : prev.cardHolder,
       }));
     }
   }, [user]);
+
+  // Automatically prefill saved shipping address from Supabase cloud profile
+  useEffect(() => {
+    if (savedAddress && savedAddress.address) {
+      setFormData((prev) => ({
+        ...prev,
+        address: savedAddress.address || prev.address,
+        apartment: savedAddress.apartment !== undefined ? savedAddress.apartment : prev.apartment,
+        city: savedAddress.city || prev.city,
+        state: savedAddress.state || prev.state,
+        postalCode: savedAddress.postalCode || prev.postalCode,
+        country: savedAddress.country || prev.country || 'India',
+      }));
+      setDetectedMetadata({
+        source: savedAddress.source || 'gps',
+        accuracy: savedAddress.accuracy,
+        summary: savedAddress.displayName || `${savedAddress.city}, ${savedAddress.state} · ${savedAddress.postalCode}`,
+      });
+      setLocationStatus('success');
+      setLocationMessage('Saved destination prefilled from your account.');
+    }
+  }, [savedAddress]);
 
   const [orderNumber, setOrderNumber] = useState('');
 
@@ -141,7 +163,7 @@ export const CheckoutModal: React.FC = () => {
         country: country || prev.country,
       }));
 
-      saveAddressToStorage({ address, apartment, city, state, postalCode, country, source, accuracy, displayName });
+      updateCustomerAddress({ address, apartment, city, state, postalCode, country, source, accuracy, displayName }).catch(() => {});
       setLocationStatus('success');
       setLocationMessage(
         source === 'gps'
@@ -153,7 +175,7 @@ export const CheckoutModal: React.FC = () => {
         accuracy,
         summary: displayName || `${city}, ${state} · ${postalCode}`,
       });
-      showToast('Delivery address auto-filled with high precision.');
+      showToast('Delivery address auto-filled & saved.');
     } else {
       setLocationStatus('error');
       setLocationMessage(res.error || 'Unable to pinpoint exact location. Please enter manually.');
@@ -181,14 +203,14 @@ export const CheckoutModal: React.FC = () => {
         country: country || prev.country,
       }));
 
-      saveAddressToStorage({ address, apartment, city, state, postalCode, country, source, displayName });
+      updateCustomerAddress({ address, apartment, city, state, postalCode, country, source, displayName }).catch(() => {});
       setLocationStatus('success');
       setLocationMessage('Approximate locality auto-filled via network.');
       setDetectedMetadata({
         source: 'ip',
         summary: displayName || `${city}, ${state} · ${postalCode}`,
       });
-      showToast('Approximate address auto-filled.');
+      showToast('Approximate address auto-filled & saved.');
     } else {
       setLocationStatus('error');
       setLocationMessage('Could not resolve network location.');
@@ -207,14 +229,14 @@ export const CheckoutModal: React.FC = () => {
       country: addr.country || 'India',
     }));
 
-    saveAddressToStorage(addr);
+    updateCustomerAddress(addr).catch(() => {});
     setLocationStatus('success');
     setLocationMessage('Pinned exact destination via interactive map.');
     setDetectedMetadata({
       source: 'gps',
       summary: addr.displayName || `${addr.address}, ${addr.city} (${addr.postalCode})`,
     });
-    showToast(`Pinned location & PIN code ${addr.postalCode || ''} applied.`);
+    showToast(`Pinned location & PIN code ${addr.postalCode || ''} applied & saved.`);
   };
 
   // Prefill authenticated user information whenever user logs in or changes
@@ -264,7 +286,8 @@ export const CheckoutModal: React.FC = () => {
     else if (step === 3) {
       // Guard: Ensure user is logged in
       if (!user) {
-        showToast('Client sign-in is required to record your order on the server.');
+        showToast('Sign-in is required to record your order on the server.');
+        setIsAccountDrawerOpen(true);
         return;
       }
 
@@ -286,7 +309,7 @@ export const CheckoutModal: React.FC = () => {
       const orderTotal = cartSubtotal + shippingCost;
 
       // Save order to cloud/local (user_id is automatically linked to user.id in AuthContext)
-      const saveRes = await saveOrder({
+      await saveOrder({
         order_number: newOrderNum,
         customer_name: `${formData.firstName} ${formData.lastName}`.trim() || user.fullName,
         customer_email: user.email || formData.email,
@@ -303,13 +326,31 @@ export const CheckoutModal: React.FC = () => {
         items: orderItems,
         subtotal: cartSubtotal,
         shipping_cost: shippingCost,
+        discount_amount: 0,
+        coupon_code: '',
         total_amount: orderTotal,
         payment_method: formData.paymentMethod,
         payment_status: 'paid',
         order_status: 'confirmed',
+        status_history: [
+          {
+            status: 'confirmed',
+            timestamp: new Date().toISOString(),
+            note: 'Order placed & confirmed during checkout.',
+            updatedBy: 'Customer Checkout',
+          },
+        ],
       });
 
-      setIsOrderPendingSync(Boolean(saveRes?.isPendingSync));
+      // Ensure address is permanently saved to customer profile
+      updateCustomerAddress({
+        address: formData.address,
+        apartment: formData.apartment,
+        city: formData.city,
+        state: formData.state,
+        postalCode: formData.postalCode,
+        country: formData.country,
+      }).catch(() => {});
 
       setStep(4);
       clearCart();
@@ -359,7 +400,7 @@ export const CheckoutModal: React.FC = () => {
             </span>
             <span className="text-xs text-stone-500">|</span>
             <span className="text-xs tracking-[0.2em] uppercase text-stone-400">
-              {user ? 'Distraction-Free Haute Checkout' : 'Client Authentication Gate'}
+              {user ? 'Distraction-Free Haute Checkout' : 'Customer Authentication Gate'}
             </span>
           </div>
 
@@ -393,46 +434,46 @@ export const CheckoutModal: React.FC = () => {
             </div>
 
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-amber-400 block mb-2 font-semibold">
-                Client Verification Mandatory
+              <span className="text-xs font-mono uppercase tracking-[0.25em] text-amber-400 block mb-2 font-semibold">
+                Sign In Required
               </span>
               <h2 className="text-2xl sm:text-3xl font-serif text-white tracking-wide">
-                Sign In to Complete Acquisition
+                Sign In to Complete Your Order
               </h2>
-              <p className="text-xs sm:text-sm text-stone-400 font-light mt-2.5 leading-relaxed max-w-md mx-auto">
-                In order to record your bespoke order in the ZARB cloud database, issue your registered invoice, and assign verified provenance, client sign-in is mandatory before placing an order.
+              <p className="text-sm text-stone-300 font-light mt-2.5 leading-relaxed max-w-md mx-auto">
+                Please sign in with your Google account to proceed with your order, receive digital receipts, and track your delivery in real time.
               </p>
             </div>
 
             {/* Value Guarantees */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left pt-2">
-              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
                 <div className="text-amber-400 text-xs font-mono font-semibold flex items-center space-x-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Cloud Vault</span>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Order History</span>
                 </div>
-                <p className="text-[11px] text-stone-400 font-light leading-snug">
-                  Order permanently saved in Supabase linked to your client ID.
+                <p className="text-xs text-stone-400 font-light leading-snug">
+                  Digital receipts and order records safely saved to your account.
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
                 <div className="text-emerald-400 text-xs font-mono font-semibold flex items-center space-x-1.5">
-                  <Truck className="w-3.5 h-3.5" />
+                  <Truck className="w-4 h-4" />
                   <span>Live Tracking</span>
                 </div>
-                <p className="text-[11px] text-stone-400 font-light leading-snug">
-                  Real-time white-glove dispatch & courier tracking updates.
+                <p className="text-xs text-stone-400 font-light leading-snug">
+                  Real-time delivery updates and courier tracking notifications.
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
                 <div className="text-blue-400 text-xs font-mono font-semibold flex items-center space-x-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Provenance</span>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Authentic Quality</span>
                 </div>
-                <p className="text-[11px] text-stone-400 font-light leading-snug">
-                  Authentic couture certificate registered under your name.
+                <p className="text-xs text-stone-400 font-light leading-snug">
+                  Official guarantee of authenticity included with every piece.
                 </p>
               </div>
             </div>
@@ -504,14 +545,14 @@ export const CheckoutModal: React.FC = () => {
                 <form onSubmit={handleNext} className="max-w-xl mx-auto space-y-6">
                   <div>
                     <h3 className="text-xl font-serif text-white tracking-[0.03em] mb-1">
-                      Client Contact Information
+                      Customer Contact Information
                     </h3>
                     <p className="text-xs text-stone-400">
-                      Authenticated client checkout. Invoices and real-time tracking will be permanently registered to your account.
+                      Authenticated customer checkout. Invoices and real-time tracking will be permanently registered to your account.
                     </p>
                   </div>
 
-                  {/* Authenticated Client Identity Banner */}
+                  {/* Authenticated Customer Identity Banner */}
                   <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
@@ -519,7 +560,7 @@ export const CheckoutModal: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 block font-semibold">
-                          Authenticated Client Profile
+                          Authenticated Customer Account
                         </span>
                         <span className="text-xs text-stone-200 font-medium">
                           {user.fullName} ({user.email})
@@ -544,7 +585,7 @@ export const CheckoutModal: React.FC = () => {
                         readOnly
                         value={formData.email}
                         className="w-full bg-white/[0.02] border border-white/10 rounded-xl px-4 py-3 text-sm text-stone-300 cursor-not-allowed focus:outline-none"
-                        placeholder="client@luxury.com"
+                        placeholder="customer@luxury.com"
                       />
                     </div>
 
@@ -848,7 +889,7 @@ export const CheckoutModal: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <Truck className="w-5 h-5 text-emerald-400" />
                   <div>
-                    <span className="text-xs font-medium text-white block uppercase tracking-[0.1em]">
+                    <span className="text-xs font-medium text-white block uppercase tracking-[0.1em] text-emerald-400">
                       Complimentary White-Glove Courier
                     </span>
                     <span className="text-[11px] text-stone-400">
@@ -1061,26 +1102,15 @@ export const CheckoutModal: React.FC = () => {
                 A formal provenance invoice and live concierge tracking dispatch link have been sent to <strong className="text-stone-200">{formData.email}</strong>.
               </p>
 
-              {/* Cloud Server Registration Badge */}
-              {isOrderPendingSync ? (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center space-y-1">
-                  <span className="text-[10px] uppercase font-mono tracking-wider text-amber-400 font-semibold block">
-                    ⚡ Preserved Locally — Auto-Syncing with Cloud Vault
-                  </span>
-                  <p className="text-[11px] text-stone-300">
-                    Your bespoke acquisition is safely preserved on this device and queued to sync with your client profile (<strong>{user?.email}</strong>) as connectivity is verified.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-1">
-                  <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-semibold block">
-                    ✓ Recorded to Cloud Server Vault
-                  </span>
-                  <p className="text-[11px] text-stone-300">
-                    This acquisition is permanently saved under your verified client profile (<strong>{user?.email}</strong>).
-                  </p>
-                </div>
-              )}
+              {/* Order Confirmation Badge */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-1">
+                <span className="text-xs uppercase font-mono tracking-wider text-emerald-400 font-semibold block">
+                  ✓ Order Confirmed & Recorded
+                </span>
+                <p className="text-xs text-stone-300">
+                  Your order is safely recorded under your account (<strong className="text-white">{user?.email}</strong>).
+                </p>
+              </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                 <button
