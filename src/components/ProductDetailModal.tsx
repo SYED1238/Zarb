@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
@@ -61,6 +61,27 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
+  // Scroll Container Refs
+  const outerScrollRef = useRef<HTMLDivElement>(null);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+  const modalCardRef = useRef<HTMLDivElement>(null);
+
+  const scrollToModalTop = (behavior: ScrollBehavior = 'smooth') => {
+    if (contentScrollRef.current) {
+      contentScrollRef.current.scrollTo({ top: 0, behavior });
+      contentScrollRef.current.scrollTop = 0;
+    }
+    if (outerScrollRef.current) {
+      outerScrollRef.current.scrollTo({ top: 0, behavior });
+      outerScrollRef.current.scrollTop = 0;
+    }
+    if (modalCardRef.current) {
+      modalCardRef.current.scrollTo({ top: 0, behavior });
+      modalCardRef.current.scrollTop = 0;
+    }
+    window.scrollTo({ top: 0, behavior });
+  };
+
   // Dedicated gallery photos for currently selected color, smoothly falling back to product.images
   const activeGalleryImages = useMemo(() => {
     if (!product) return [];
@@ -114,13 +135,23 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       setSelectedSize(product.sizes[0] || '');
       setSelectedColor(product.colors[0]?.name || '');
       setQuantity(1);
+
+      // Instantly & smoothly scroll modal container to top when switching products
+      scrollToModalTop('instant');
+      requestAnimationFrame(() => {
+        scrollToModalTop('instant');
+      });
+      setTimeout(() => {
+        scrollToModalTop('instant');
+      }, 40);
+
       // Lock background scroll
       document.body.style.overflow = 'hidden';
     }
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [product]);
+  }, [product?.id]);
 
   // Step-back history integration for product modal and fullscreen lightbox
   useModalBackHandler(!!product, onClose, `product-detail-${product?.id || 'active'}`);
@@ -199,7 +230,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto"
+      ref={outerScrollRef}
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto scroll-smooth"
       role="dialog"
       aria-modal="true"
       aria-label={product.name}
@@ -211,7 +243,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       />
 
       {/* Modal Container */}
-      <div id="pdp-modal-card" className="relative w-full max-w-6xl bg-[#0e0e11] border border-white/10 rounded-none sm:rounded-2xl z-10 my-auto shadow-2xl overflow-hidden animate-fade-in text-stone-200 min-h-screen sm:min-h-0 sm:max-h-[92vh] flex flex-col">
+      <div
+        ref={modalCardRef}
+        id="pdp-modal-card"
+        className="relative w-full max-w-6xl bg-[#0e0e11] border border-white/10 rounded-none sm:rounded-2xl z-10 my-auto shadow-2xl overflow-hidden animate-fade-in text-stone-200 min-h-screen sm:min-h-0 sm:max-h-[92vh] flex flex-col"
+      >
         {/* Close Button Header */}
         <div className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-30">
           <button
@@ -224,7 +260,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto p-4 sm:p-8 md:p-10 flex-1">
+        <div
+          ref={contentScrollRef}
+          className="overflow-y-auto scroll-smooth p-4 sm:p-8 md:p-10 flex-1"
+        >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
             {/* Left: Product Image Gallery (7 Cols) */}
             <div className="lg:col-span-7 flex flex-col-reverse md:flex-row gap-4">
@@ -864,7 +903,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               {relatedProducts.map((rel) => (
                 <div
                   key={rel.id}
-                  onClick={() => onSelectProduct(rel)}
+                  onClick={() => {
+                    scrollToModalTop('instant');
+                    onSelectProduct(rel);
+                    requestAnimationFrame(() => {
+                      scrollToModalTop('instant');
+                    });
+                    setTimeout(() => {
+                      scrollToModalTop('smooth');
+                    }, 20);
+                  }}
                   className="pdp-related-card group cursor-pointer"
                 >
                   <div className="aspect-[3/4] rounded-lg overflow-hidden bg-[#16161b] mb-2 border border-white/10">
