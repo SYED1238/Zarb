@@ -11,23 +11,17 @@ import {
   ArrowLeft,
   Sparkles,
   Banknote,
-  Navigation,
-  Compass,
-  MapPin,
   Loader2,
   AlertCircle,
-  RotateCw,
   ShieldCheck,
+  ShoppingBag,
+  ChevronDown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
-  detectUserLocation,
-  detectLocationByIP,
   getSavedAddress,
   saveAddressToStorage,
 } from '../utils/geolocation';
-import { MapPinPickerModal } from './MapPinPickerModal';
-import type { DetectedAddress } from '../utils/geolocation';
 import { createCashfreeOrderSession, launchCashfreeCheckout, verifyCashfreePayment } from '../services/cashfreeService';
 import { useShippingConfig, calculateShippingCost, getShippingLabel } from '../utils/shippingConfig';
 
@@ -37,8 +31,9 @@ export const CheckoutModal: React.FC = () => {
   const shippingConfig = useShippingConfig();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [maxVisitedStep, setMaxVisitedStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(true);
 
   // Cashfree Payment processing state
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -46,34 +41,73 @@ export const CheckoutModal: React.FC = () => {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [finalPaidAmount, setFinalPaidAmount] = useState<number>(0);
 
-  // Geolocation & Auto-detection state
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [locationStatus, setLocationStatus] = useState<'idle' | 'detecting' | 'success' | 'error'>('idle');
-  const [locationMessage, setLocationMessage] = useState('');
-  const [detectedMetadata, setDetectedMetadata] = useState<{
-    source: 'gps' | 'ip';
-    accuracy?: number;
-    summary?: string;
-  } | null>(() => {
-    const saved = getSavedAddress();
-    if (saved?.displayName) {
-      return {
-        source: saved.source || 'gps',
-        accuracy: saved.accuracy,
-        summary: saved.displayName,
-      };
+  // PIN Code lookup & auto-fill state
+  const [isCheckingPincode, setIsCheckingPincode] = useState(false);
+  const [pincodeStatus, setPincodeStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const goToStep = (newStep: 1 | 2 | 3 | 4) => {
+    setStep(newStep);
+    setMaxVisitedStep((prev) => Math.max(prev, newStep) as 1 | 2 | 3 | 4);
+  };
+
+  const canNavigateToStep = (targetStep: 1 | 2 | 3 | 4) => {
+    if (step === 4) return false;
+    if (isProcessingPayment) return false;
+    if (targetStep === 4) return false;
+    if (targetStep === step) return false;
+    if (targetStep < step) return true;
+    if (targetStep <= maxVisitedStep) return true;
+    return false;
+  };
+
+  const handleStepClick = (targetStep: 1 | 2 | 3 | 4) => {
+    if (!canNavigateToStep(targetStep)) return;
+
+    if (targetStep >= 3 && step < 3) {
+      const cleanPin = (formData.postalCode || '').trim().replace(/\D/g, '');
+      if (cleanPin.length !== 6) {
+        showToast('Please enter a valid 6-digit PIN code.');
+        setStep(2);
+        return;
+      }
+      saveAddressToStorage({
+        address: formData.address,
+        apartment: formData.apartment,
+        city: formData.city,
+        state: formData.state,
+        postalCode: cleanPin,
+        country: formData.country,
+      });
+      updateCustomerAddress({
+        address: formData.address,
+        apartment: formData.apartment,
+        city: formData.city,
+        state: formData.state,
+        postalCode: cleanPin,
+        country: formData.country,
+      }).catch(() => {});
     }
-    return null;
-  });
+
+    setStep(targetStep);
+  };
 
   useModalBackHandler(
     isCheckoutOpen,
     () => {
       setIsCheckoutOpen(false);
       setStep(1);
+      setMaxVisitedStep(1);
     },
     'checkout-modal'
   );
+
+  // Reset step tracking when checkout modal closes
+  useEffect(() => {
+    if (!isCheckoutOpen) {
+      setStep(1);
+      setMaxVisitedStep(1);
+    }
+  }, [isCheckoutOpen]);
 
   // Resume checkout if returning from Google OAuth redirect
   useEffect(() => {
@@ -92,11 +126,11 @@ export const CheckoutModal: React.FC = () => {
       phone: user?.phone || '',
       firstName: user?.fullName ? user.fullName.split(' ')[0] : '',
       lastName: user?.fullName ? user.fullName.split(' ').slice(1).join(' ') : '',
-      address: saved?.address || '42, Altamount Road, Cumballa Hill',
-      apartment: saved?.apartment || 'Penthouse 12B',
-      city: saved?.city || 'Mumbai',
-      state: saved?.state || 'Maharashtra',
-      postalCode: saved?.postalCode || '400026',
+      address: saved?.address || '',
+      apartment: saved?.apartment || '',
+      city: saved?.city || '',
+      state: saved?.state || '',
+      postalCode: saved?.postalCode || '',
       country: saved?.country || 'India',
       shippingMethod: 'express',
       paymentMethod: 'cashfree',
@@ -123,7 +157,7 @@ export const CheckoutModal: React.FC = () => {
 
   // Automatically prefill saved shipping address from Supabase cloud profile
   useEffect(() => {
-    if (savedAddress && savedAddress.address) {
+    if (savedAddress && (savedAddress.address || savedAddress.postalCode)) {
       setFormData((prev) => ({
         ...prev,
         address: savedAddress.address || prev.address,
@@ -133,113 +167,72 @@ export const CheckoutModal: React.FC = () => {
         postalCode: savedAddress.postalCode || prev.postalCode,
         country: savedAddress.country || prev.country || 'India',
       }));
-      setDetectedMetadata({
-        source: savedAddress.source || 'gps',
-        accuracy: savedAddress.accuracy,
-        summary: savedAddress.displayName || `${savedAddress.city}, ${savedAddress.state} · ${savedAddress.postalCode}`,
-      });
-      setLocationStatus('success');
-      setLocationMessage('Saved destination prefilled from your account.');
     }
   }, [savedAddress]);
 
   const [orderNumber, setOrderNumber] = useState('');
 
-  // Location detection triggers
-  const handleDetectLocation = async () => {
-    setIsDetectingLocation(true);
-    setLocationStatus('detecting');
-    setLocationMessage('Contacting GPS satellite & pinpointing address coordinates...');
-
-    const res = await detectUserLocation();
-    setIsDetectingLocation(false);
-
-    if (res.success && res.address) {
-      const { address, apartment, city, state, postalCode, country, source, accuracy, displayName } = res.address;
-      setFormData((prev) => ({
-        ...prev,
-        address: address || prev.address,
-        apartment: apartment !== undefined ? apartment : prev.apartment,
-        city: city || prev.city,
-        state: state || prev.state,
-        postalCode: postalCode || prev.postalCode,
-        country: country || prev.country,
-      }));
-
-      updateCustomerAddress({ address, apartment, city, state, postalCode, country, source, accuracy, displayName }).catch(() => {});
-      setLocationStatus('success');
-      setLocationMessage(
-        source === 'gps'
-          ? `High-accuracy GPS coordinates secured (${accuracy ? `±${accuracy}m` : 'live'}).`
-          : 'Approximate locality auto-filled via high-speed network.'
-      );
-      setDetectedMetadata({
-        source,
-        accuracy,
-        summary: displayName || `${city}, ${state} · ${postalCode}`,
-      });
-      showToast('Delivery address auto-filled & saved.');
-    } else {
-      setLocationStatus('error');
-      setLocationMessage(res.error || 'Unable to pinpoint exact location. Please enter manually.');
-      showToast(res.error || 'Location detection failed.');
+  // PIN Code verification & auto-fill (City & State)
+  const handleCheckPincode = async (overridePin?: string) => {
+    const pin = (overridePin !== undefined ? overridePin : formData.postalCode || '').trim().replace(/\D/g, '');
+    if (pin.length !== 6) {
+      setPincodeStatus({ type: 'error', message: 'Please enter a valid 6-digit PIN code.' });
+      return;
     }
-  };
 
-  const handleIpFallback = async () => {
-    setIsDetectingLocation(true);
-    setLocationStatus('detecting');
-    setLocationMessage('Resolving network location via IP...');
+    setIsCheckingPincode(true);
+    setPincodeStatus(null);
 
-    const res = await detectLocationByIP();
-    setIsDetectingLocation(false);
+    try {
+      const postOfficePromise = fetch(`https://api.postalpincode.in/pincode/${pin}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error('API error');
+          const data = await res.json();
+          if (Array.isArray(data) && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+            const po = data[0].PostOffice[0];
+            const city = po.District || po.Block || po.Circle || po.Name || '';
+            const state = po.State || '';
+            if (city || state) return { city, state };
+          }
+          throw new Error('Not found in PostOffice');
+        });
 
-    if (res.success && res.address) {
-      const { address, apartment, city, state, postalCode, country, source, displayName } = res.address;
-      setFormData((prev) => ({
-        ...prev,
-        address: address || prev.address,
-        apartment: apartment || prev.apartment,
-        city: city || prev.city,
-        state: state || prev.state,
-        postalCode: postalCode || prev.postalCode,
-        country: country || prev.country,
-      }));
+      const zippoPromise = fetch(`https://api.zippopotam.us/in/${pin}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error('API error');
+          const data = await res.json();
+          if (data?.places?.length > 0) {
+            const place = data.places[0];
+            const city = place['place name'] || '';
+            const state = place['state'] || '';
+            if (city || state) return { city, state };
+          }
+          throw new Error('Not found in Zippo');
+        });
 
-      updateCustomerAddress({ address, apartment, city, state, postalCode, country, source, displayName }).catch(() => {});
-      setLocationStatus('success');
-      setLocationMessage('Approximate locality auto-filled via network.');
-      setDetectedMetadata({
-        source: 'ip',
-        summary: displayName || `${city}, ${state} · ${postalCode}`,
+      const result = await Promise.any([postOfficePromise, zippoPromise]);
+
+      if (result) {
+        setFormData((prev) => ({
+          ...prev,
+          postalCode: pin,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+        }));
+        setPincodeStatus({
+          type: 'success',
+          message: `Verified: ${result.city ? `${result.city}, ` : ''}${result.state}`,
+        });
+        showToast(`PIN Code verified: ${result.city || result.state}`);
+      }
+    } catch {
+      setPincodeStatus({
+        type: 'error',
+        message: 'Could not auto-detect location. Please enter city and state below.',
       });
-      showToast('Approximate address auto-filled & saved.');
-    } else {
-      setLocationStatus('error');
-      setLocationMessage('Could not resolve network location.');
-      showToast('Network location lookup failed.');
+    } finally {
+      setIsCheckingPincode(false);
     }
-  };
-
-  const handleConfirmMapAddress = (addr: DetectedAddress) => {
-    setFormData((prev) => ({
-      ...prev,
-      address: addr.address || prev.address,
-      apartment: addr.apartment || prev.apartment,
-      city: addr.city || prev.city,
-      state: addr.state || prev.state,
-      postalCode: addr.postalCode || prev.postalCode,
-      country: addr.country || 'India',
-    }));
-
-    updateCustomerAddress(addr).catch(() => {});
-    setLocationStatus('success');
-    setLocationMessage('Pinned exact destination via interactive map.');
-    setDetectedMetadata({
-      source: 'gps',
-      summary: addr.displayName || `${addr.address}, ${addr.city} (${addr.postalCode})`,
-    });
-    showToast(`Pinned location & PIN code ${addr.postalCode || ''} applied & saved.`);
   };
 
   // Prefill authenticated user information whenever user logs in or changes
@@ -275,17 +268,30 @@ export const CheckoutModal: React.FC = () => {
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step === 1) setStep(2);
+    if (step === 1) goToStep(2);
     else if (step === 2) {
+      const cleanPin = (formData.postalCode || '').trim().replace(/\D/g, '');
+      if (cleanPin.length !== 6) {
+        showToast('Please enter a valid 6-digit PIN code.');
+        return;
+      }
       saveAddressToStorage({
         address: formData.address,
         apartment: formData.apartment,
         city: formData.city,
         state: formData.state,
-        postalCode: formData.postalCode,
+        postalCode: cleanPin,
         country: formData.country,
       });
-      setStep(3);
+      updateCustomerAddress({
+        address: formData.address,
+        apartment: formData.apartment,
+        city: formData.city,
+        state: formData.state,
+        postalCode: cleanPin,
+        country: formData.country,
+      }).catch(() => {});
+      goToStep(3);
     }
     else if (step === 3) {
       // Guard: Ensure user is logged in
@@ -382,7 +388,7 @@ export const CheckoutModal: React.FC = () => {
               setOrderNumber(sessionRes.order_number!);
               setFinalPaidAmount(sessionRes.total_amount || verifyRes.order?.total_amount || total);
               clearCart();
-              setStep(4);
+              goToStep(4);
               try {
                 confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#ffffff', '#d4af37', '#e2e8f0'] });
               } catch {}
@@ -472,7 +478,7 @@ export const CheckoutModal: React.FC = () => {
 
         setFinalPaidAmount(orderTotal);
         setIsProcessingPayment(false);
-        setStep(4);
+        goToStep(4);
         clearCart();
 
         try {
@@ -512,28 +518,35 @@ export const CheckoutModal: React.FC = () => {
 
       <div className="relative w-full max-w-4xl bg-[#0e0e11] border border-white/10 sm:rounded-2xl z-10 shadow-2xl overflow-hidden my-auto min-h-screen sm:min-h-0 flex flex-col text-stone-200 animate-fade-in">
         {/* Checkout Header */}
-        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-[#0a0a0c]">
-          <div className="flex items-center space-x-3">
-            <span className="font-brand text-base tracking-[0.25em] text-white">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 flex items-center justify-between bg-[#0a0a0c]">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            <span className="font-brand text-sm sm:text-base tracking-[0.25em] text-white shrink-0">
               ZARB
             </span>
-            <span className="text-xs text-stone-500">|</span>
-            <span className="text-xs tracking-[0.2em] uppercase text-stone-400">
-              {user ? 'Distraction-Free Haute Checkout' : 'Customer Authentication Gate'}
+            <span className="text-xs text-stone-600 shrink-0">|</span>
+            <span className="text-[11px] sm:text-xs tracking-[0.15em] sm:tracking-[0.2em] uppercase text-stone-400 truncate">
+              {user ? (
+                <>
+                  <span className="hidden sm:inline">Distraction-Free </span>Haute Checkout
+                </>
+              ) : (
+                'Authentication Gate'
+              )}
             </span>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-1 text-[11px] uppercase tracking-[0.15em] text-emerald-400">
-              <Lock className="w-3.5 h-3.5" />
-              <span>{user ? 'Encrypted' : 'Security Verification'}</span>
+          <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
+            <div className="flex items-center space-x-1 text-[10px] sm:text-[11px] uppercase tracking-[0.15em] text-emerald-400">
+              <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span>{user ? 'Encrypted' : 'Security'}</span>
             </div>
             {step !== 4 && (
               <button
                 onClick={() => setIsCheckoutOpen(false)}
-                className="p-1.5 text-stone-400 hover:text-white rounded-lg hover:bg-white/5 cursor-pointer"
+                className="p-1 sm:p-1.5 text-stone-400 hover:text-white rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
+                aria-label="Close Checkout"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             )}
           </div>
@@ -637,141 +650,214 @@ export const CheckoutModal: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* 4-Step Progress Indicator */}
-            <div className="px-6 py-3 bg-white/[0.02] border-b border-white/5">
-              <div className="flex items-center justify-between max-w-md mx-auto text-xs tracking-[0.15em] uppercase">
-                <span className={step >= 1 ? 'text-white font-medium' : 'text-stone-600'}>
-                  1. Contact
-                </span>
-                <span className="text-stone-700">&rarr;</span>
-                <span className={step >= 2 ? 'text-white font-medium' : 'text-stone-600'}>
-                  2. Delivery
-                </span>
-                <span className="text-stone-700">&rarr;</span>
-                <span className={step >= 3 ? 'text-white font-medium' : 'text-stone-600'}>
-                  3. Payment
-                </span>
-                <span className="text-stone-700">&rarr;</span>
-                <span className={step === 4 ? 'text-emerald-400 font-medium' : 'text-stone-600'}>
-                  4. Confirmation
-                </span>
-              </div>
+            {/* 4-Step Interactive Progress Indicator */}
+            <div className="px-2.5 sm:px-6 py-2.5 sm:py-3 bg-white/[0.02] border-b border-white/5 select-none overflow-x-auto no-scrollbar">
+              <nav aria-label="Checkout Steps" className="flex items-center justify-between max-w-md mx-auto text-[10px] sm:text-xs tracking-[0.08em] sm:tracking-[0.15em] uppercase whitespace-nowrap">
+                {[
+                  { id: 1 as const, name: 'Contact', mobileName: 'Contact' },
+                  { id: 2 as const, name: 'Delivery', mobileName: 'Delivery' },
+                  { id: 3 as const, name: 'Payment', mobileName: 'Payment' },
+                  { id: 4 as const, name: 'Confirmation', mobileName: 'Confirm' },
+                ].map((s, index) => {
+                  const isActive = step === s.id;
+                  const canClick = canNavigateToStep(s.id);
+
+                  return (
+                    <React.Fragment key={s.id}>
+                      {index > 0 && (
+                        <span
+                          className={`px-1 sm:px-1.5 text-[9px] sm:text-[11px] select-none transition-colors ${
+                            step >= s.id ? 'text-stone-400' : 'text-stone-700'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          &rarr;
+                        </span>
+                      )}
+
+                      {canClick ? (
+                        <button
+                          type="button"
+                          onClick={() => handleStepClick(s.id)}
+                          title={s.id < step ? `Click to edit ${s.name}` : `Return to ${s.name}`}
+                          aria-label={`${s.id}. ${s.name} - click to go to this step`}
+                          className="bg-transparent border-0 p-0 font-medium cursor-pointer transition-all duration-150 text-stone-300 hover:text-white hover:underline underline-offset-4 decoration-amber-400/80 focus:outline-none focus:text-white active:scale-95 uppercase whitespace-nowrap inline-flex items-center"
+                        >
+                          <span>{s.id}.&nbsp;</span>
+                          <span className="hidden sm:inline">{s.name}</span>
+                          <span className="sm:hidden">{s.mobileName}</span>
+                        </button>
+                      ) : (
+                        <span
+                          aria-current={isActive ? 'step' : undefined}
+                          className={`uppercase whitespace-nowrap inline-flex items-center transition-colors ${
+                            isActive
+                              ? s.id === 4
+                                ? 'text-emerald-400 font-semibold border-b-2 border-emerald-400/90 pb-0.5'
+                                : 'text-white font-semibold border-b-2 border-amber-400/90 pb-0.5'
+                              : 'text-stone-600 cursor-default'
+                          }`}
+                        >
+                          <span>{s.id}.&nbsp;</span>
+                          <span className="hidden sm:inline">{s.name}</span>
+                          <span className="sm:hidden">{s.mobileName}</span>
+                        </span>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </nav>
             </div>
 
             {/* Content Body */}
-            <div className="p-6 sm:p-8 flex-1 overflow-y-auto">
+            <div className="p-4 sm:p-8 flex-1 overflow-y-auto">
               {step === 1 && (
                 <form onSubmit={handleNext} className="max-w-xl mx-auto space-y-6">
                   <div>
                     <h3 className="text-xl font-serif text-white tracking-[0.03em] mb-1">
-                      Customer Contact Information
+                      Contact Information
                     </h3>
                     <p className="text-xs text-stone-400">
-                      Authenticated customer checkout. Invoices and real-time tracking will be permanently registered to your account.
+                      We'll send your order confirmation and tracking updates here.
                     </p>
-                  </div>
-
-                  {/* Authenticated Customer Identity Banner */}
-                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
-                        ✓
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 block font-semibold">
-                          Authenticated Customer Account
-                        </span>
-                        <span className="text-xs text-stone-200 font-medium">
-                          {user.fullName} ({user.email})
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono text-stone-400 bg-black/40 px-2 py-0.5 rounded border border-white/10 hidden sm:inline-block">
-                      Server Linked
-                    </span>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5 flex items-center justify-between">
-                        <span>Verified Account Email</span>
-                        <span className="text-[10px] font-mono text-emerald-400 lowercase">saved to server</span>
+                      <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
+                        Email Address
                       </label>
                       <input
                         type="email"
                         name="email"
                         required
-                        readOnly
                         value={formData.email}
-                        className="w-full bg-white/[0.02] border border-white/10 rounded-xl px-4 py-3 text-sm text-stone-300 cursor-not-allowed focus:outline-none"
-                        placeholder="customer@luxury.com"
+                        onChange={handleChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none placeholder:text-stone-500"
+                        placeholder="your@email.com"
                       />
                     </div>
 
-                <div>
-                  <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                    Mobile Phone (for delivery concierge)
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    {/* Separate Fixed Country Code Badge (+91) */}
-                    <div className="flex items-center space-x-1.5 bg-white/[0.08] border border-white/20 rounded-xl px-3.5 py-3 text-sm text-stone-200 font-mono select-none shrink-0 shadow-inner">
-                      <span className="text-base leading-none">🇮🇳</span>
-                      <span className="font-semibold text-white tracking-wider">+91</span>
+                    <div>
+                      <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
+                        Phone Number
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        {/* Country Code Badge (+91) */}
+                        <div className="flex items-center space-x-1.5 bg-white/[0.08] border border-white/20 rounded-xl px-3.5 py-3 text-sm text-stone-200 font-mono select-none shrink-0 shadow-inner">
+                          <span className="text-base leading-none">🇮🇳</span>
+                          <span className="font-semibold text-white tracking-wider">+91</span>
+                        </div>
+
+                        <input
+                          type="tel"
+                          name="phone"
+                          required
+                          value={formData.phone.replace(/^\+91\s*/, '')}
+                          onChange={(e) => {
+                            const cleanDigits = e.target.value.replace(/^\+91\s*/, '').replace(/[^\d\s-]/g, '');
+                            setFormData({ ...formData, phone: cleanDigits });
+                          }}
+                          className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none tracking-wider font-mono placeholder:text-stone-500"
+                          placeholder="Enter 10-digit mobile number"
+                          maxLength={15}
+                        />
+                      </div>
                     </div>
-
-                    <input
-                      type="tel"
-                      name="phone"
-                      required
-                      value={formData.phone.replace(/^\+91\s*/, '')}
-                      onChange={(e) => {
-                        // Strip any accidentally typed +91 and keep only digits/spaces
-                        const cleanDigits = e.target.value.replace(/^\+91\s*/, '').replace(/[^\d\s-]/g, '');
-                        setFormData({ ...formData, phone: cleanDigits });
-                      }}
-                      className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none tracking-wider font-mono placeholder:text-stone-500"
-                      placeholder="Enter 10-digit mobile number"
-                      maxLength={15}
-                    />
                   </div>
-                  <span className="text-[10px] text-stone-500 font-mono mt-1.5 block">
-                    Concierge dispatch SMS & tracking will be delivered to +91 {formData.phone.replace(/^\+91\s*/, '') || '••••• •••••'}
-                  </span>
-                </div>
-              </div>
 
-              <button
-                type="submit"
-                className="w-full bg-white hover:bg-stone-200 text-black py-4 rounded-xl text-xs tracking-[0.2em] uppercase font-medium flex items-center justify-center space-x-2 transition-colors cursor-pointer"
-              >
-                <span>CONTINUE TO DELIVERY DETAILS</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
-          )}
+                  <button
+                    type="submit"
+                    className="w-full bg-white hover:bg-stone-200 active:scale-[0.98] text-black py-3.5 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs tracking-[0.08em] sm:tracking-[0.15em] uppercase font-semibold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-xl shadow-black/30 group"
+                  >
+                    <span className="whitespace-nowrap">
+                      <span className="hidden sm:inline">CONTINUE TO DELIVERY DETAILS</span>
+                      <span className="sm:hidden">CONTINUE TO DELIVERY</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 shrink-0 text-black transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                </form>
+              )}
 
           {step === 2 && (
-            <form onSubmit={handleNext} className="max-w-xl mx-auto space-y-6">
+            <form onSubmit={handleNext} className="max-w-xl mx-auto space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-serif text-white tracking-[0.03em] mb-1">
-                    Delivery & Atelier Shipping
+                    Delivery Address
                   </h3>
                   <p className="text-xs text-stone-400">
-                    Complimentary white-glove packaging with handwritten provenance certificate.
+                    Please provide your shipping and delivery address.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="text-xs text-stone-400 hover:text-white flex items-center space-x-1"
+                  className="text-xs text-stone-400 hover:text-white flex items-center space-x-1 cursor-pointer transition-colors"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Back</span>
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* 1. Enter PIN Code with Check Button on Top */}
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-2">
+                <label className="block text-xs uppercase tracking-[0.15em] text-stone-300">
+                  PIN Code
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    name="postalCode"
+                    maxLength={6}
+                    value={formData.postalCode}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setFormData({ ...formData, postalCode: clean });
+                      if (pincodeStatus) setPincodeStatus(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCheckPincode();
+                      }
+                    }}
+                    placeholder="Enter 6-digit PIN code"
+                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none tracking-widest font-mono placeholder:tracking-normal placeholder:font-sans placeholder:text-stone-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleCheckPincode()}
+                    disabled={isCheckingPincode || formData.postalCode.replace(/\D/g, '').length !== 6}
+                    className="px-5 py-3 rounded-xl bg-white hover:bg-stone-200 text-black font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 active:scale-95 flex items-center space-x-1.5"
+                  >
+                    {isCheckingPincode ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Checking...</span>
+                      </>
+                    ) : (
+                      <span>Check</span>
+                    )}
+                  </button>
+                </div>
+
+                {pincodeStatus && (
+                  <div className={`pt-1 flex items-center space-x-1.5 text-xs font-mono ${
+                    pincodeStatus.type === 'success' ? 'text-emerald-400' : 'text-amber-400'
+                  }`}>
+                    {pincodeStatus.type === 'success' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                    <span>{pincodeStatus.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Recipient Name */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
                     First Name
@@ -779,7 +865,6 @@ export const CheckoutModal: React.FC = () => {
                   <input
                     type="text"
                     name="firstName"
-                    required
                     value={formData.firstName}
                     onChange={handleChange}
                     className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
@@ -792,7 +877,6 @@ export const CheckoutModal: React.FC = () => {
                   <input
                     type="text"
                     name="lastName"
-                    required
                     value={formData.lastName}
                     onChange={handleChange}
                     className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
@@ -800,146 +884,28 @@ export const CheckoutModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Haute Geolocation / Detect My Location Card */}
-              <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.08] via-black/40 to-white/[0.02] p-4 sm:p-5 backdrop-blur-md shadow-xl">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-                  <div className="flex items-start sm:items-center space-x-3.5">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all ${
-                      isDetectingLocation
-                        ? 'bg-amber-500 text-black animate-pulse shadow-[0_0_22px_rgba(245,158,11,0.5)]'
-                        : locationStatus === 'success'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-                        : locationStatus === 'error'
-                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                    }`}>
-                      {isDetectingLocation ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : locationStatus === 'success' ? (
-                        <CheckCircle2 className="w-5 h-5" />
-                      ) : locationStatus === 'error' ? (
-                        <AlertCircle className="w-5 h-5" />
-                      ) : (
-                        <Compass className="w-5 h-5" />
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                          Atelier Geolocation
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          {isDetectingLocation ? 'Pinging GPS...' : 'GPS LIVE'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-300 mt-0.5 leading-relaxed">
-                        {locationMessage || 'Pinpoint current coordinates to instantly autofill your luxury delivery destination.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => setIsMapPickerOpen(true)}
-                      className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 hover:text-amber-200 font-semibold text-xs uppercase tracking-wider flex items-center space-x-1.5 shadow-lg shadow-amber-500/10 transition-all cursor-pointer active:scale-95"
-                      title="Open interactive map to pin exact residence and get accurate PIN code"
-                    >
-                      <MapPin className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
-                      <span>Pin on Map</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleDetectLocation}
-                      disabled={isDetectingLocation}
-                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-semibold text-xs uppercase tracking-wider flex items-center space-x-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                    >
-                      {isDetectingLocation ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Locating...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Navigation className="w-3.5 h-3.5 fill-black" />
-                          <span>Detect GPS</span>
-                        </>
-                      )}
-                    </button>
-
-                    {(locationStatus === 'error' || locationStatus === 'idle') && (
-                      <button
-                        type="button"
-                        onClick={handleIpFallback}
-                        disabled={isDetectingLocation}
-                        className="px-3 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-stone-300 hover:text-white text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
-                        title="Auto-fill city & PIN code via approximate IP network lookup"
-                      >
-                        IP Autofill
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Detected Live Coordinates / Accuracy Pill */}
-                {detectedMetadata && (
-                  <div className="mt-3.5 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-stone-300">
-                    <div className="flex items-center space-x-2 min-w-0">
-                      <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span className="truncate max-w-[280px] sm:max-w-md text-stone-200 font-medium">
-                        {detectedMetadata.summary}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      {detectedMetadata.accuracy && (
-                        <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                          ±{detectedMetadata.accuracy}m GPS lock
-                        </span>
-                      )}
-                      <span className="text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase">
-                        Via {detectedMetadata.source.toUpperCase()}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsMapPickerOpen(true)}
-                        className="text-amber-400 hover:text-amber-300 flex items-center space-x-1 pl-1 cursor-pointer underline underline-offset-2"
-                        title="Adjust pinpoint location & PIN code on interactive map"
-                      >
-                        <MapPin className="w-3 h-3" />
-                        <span>Adjust on Map</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleDetectLocation}
-                        className="text-stone-400 hover:text-amber-300 flex items-center space-x-1 pl-1 cursor-pointer"
-                        title="Re-run GPS detection"
-                      >
-                        <RotateCw className="w-3 h-3" />
-                        <span>Re-detect</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+              {/* 3. Address fields - fully editable, no '(optional)' labels */}
+              <div>
+                <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
+                  Flat, House No., Building, Apartment
+                </label>
+                <input
+                  type="text"
+                  name="apartment"
+                  value={formData.apartment}
+                  onChange={handleChange}
+                  placeholder="e.g. Penthouse 12B, Villa 4, Tower 2"
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none placeholder:text-stone-600"
+                />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs uppercase tracking-[0.15em] text-stone-300">
-                    Street Address
-                  </label>
-                  {detectedMetadata && (
-                    <span className="text-[10px] font-mono text-amber-400/80 flex items-center space-x-1">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      <span>Auto-filled</span>
-                    </span>
-                  )}
-                </div>
+                <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
+                  Street Address, Area, Landmark
+                </label>
                 <input
                   type="text"
                   name="address"
-                  required
                   value={formData.address}
                   onChange={handleChange}
                   placeholder="e.g. 42, Altamount Road, Cumballa Hill"
@@ -947,21 +913,8 @@ export const CheckoutModal: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                  Apartment, Suite, Floor (optional)
-                </label>
-                <input
-                  type="text"
-                  name="apartment"
-                  value={formData.apartment}
-                  onChange={handleChange}
-                  placeholder="e.g. Penthouse 12B, Villa 4"
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none placeholder:text-stone-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
+              {/* 4. City & State (pre-filled by PIN check, fully editable) */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
                     City
@@ -969,10 +922,10 @@ export const CheckoutModal: React.FC = () => {
                   <input
                     type="text"
                     name="city"
-                    required
                     value={formData.city}
                     onChange={handleChange}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
+                    placeholder="City / District"
+                    className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -982,23 +935,10 @@ export const CheckoutModal: React.FC = () => {
                   <input
                     type="text"
                     name="state"
-                    required
                     value={formData.state}
                     onChange={handleChange}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                    PIN Code
-                  </label>
-                  <input
-                    type="text"
-                    name="postalCode"
-                    required
-                    value={formData.postalCode}
-                    onChange={handleChange}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
+                    placeholder="State"
+                    className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none"
                   />
                 </div>
               </div>
@@ -1023,10 +963,10 @@ export const CheckoutModal: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full bg-white hover:bg-stone-200 text-black py-4 rounded-xl text-xs tracking-[0.2em] uppercase font-medium flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+                className="w-full bg-white hover:bg-stone-200 active:scale-[0.98] text-black py-3.5 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs tracking-[0.08em] sm:tracking-[0.15em] uppercase font-semibold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-xl shadow-black/30 group"
               >
-                <span>PROCEED TO PAYMENT</span>
-                <ArrowRight className="w-4 h-4" />
+                <span className="whitespace-nowrap">PROCEED TO PAYMENT</span>
+                <ArrowRight className="w-4 h-4 shrink-0 text-black transition-transform group-hover:translate-x-0.5" />
               </button>
             </form>
           )}
@@ -1046,11 +986,124 @@ export const CheckoutModal: React.FC = () => {
                   type="button"
                   onClick={() => setStep(2)}
                   disabled={isProcessingPayment}
-                  className="text-xs text-stone-400 hover:text-white flex items-center space-x-1 disabled:opacity-50"
+                  className="text-xs text-stone-400 hover:text-white flex items-center space-x-1 disabled:opacity-50 cursor-pointer transition-colors"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Back</span>
                 </button>
+              </div>
+
+              {/* Product Review Card - Customer can review products, quantities, variants & address before paying */}
+              <div className="rounded-2xl bg-white/[0.03] border border-white/10 overflow-hidden transition-all shadow-lg shadow-black/20">
+                <button
+                  type="button"
+                  onClick={() => setIsReviewOpen(!isReviewOpen)}
+                  className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer text-left select-none"
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs uppercase tracking-[0.15em] font-medium text-white">
+                          Review Items ({cart.reduce((s, i) => s + i.quantity, 0)})
+                        </span>
+                        <span className="text-[10px] font-mono text-stone-400 hidden sm:inline">
+                          Tap to {isReviewOpen ? 'collapse' : 'view'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-400 truncate max-w-[220px] sm:max-w-xs">
+                        {cart.map((it) => it.name).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0 pl-2">
+                    <span className="text-xs font-mono font-medium text-stone-200">
+                      {formatPrice(cartSubtotal)}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-stone-400 transition-transform duration-200 ${
+                        isReviewOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {isReviewOpen && (
+                  <div className="px-4 pb-4 pt-1 border-t border-white/5 space-y-3 animate-fade-in">
+                    {/* Item list */}
+                    <div className="max-h-56 overflow-y-auto space-y-3 pr-1 divide-y divide-white/5">
+                      {cart.map((item, idx) => (
+                        <div
+                          key={`${item.id || item.productId}-${item.size}-${item.color}-${idx}`}
+                          className={`flex items-center justify-between gap-3 ${idx > 0 ? 'pt-3' : ''}`}
+                        >
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-12 h-14 sm:w-14 sm:h-16 rounded-lg object-cover bg-stone-900 border border-white/10 shrink-0"
+                            />
+                            <div className="min-w-0 space-y-1">
+                              <h4 className="text-xs sm:text-sm font-serif text-white truncate font-medium">
+                                {item.name}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-stone-400">
+                                {item.size && (
+                                  <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">
+                                    Size: {item.size}
+                                  </span>
+                                )}
+                                {item.color && (
+                                  <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">
+                                    {item.color}
+                                  </span>
+                                )}
+                                <span className="text-stone-500">
+                                  Qty: {item.quantity}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-xs sm:text-sm font-mono font-medium text-stone-200 block">
+                              {formatPrice(item.price * item.quantity)}
+                            </span>
+                            {item.quantity > 1 && (
+                              <span className="text-[10px] font-mono text-stone-500 block">
+                                {formatPrice(item.price)} each
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Shipping destination summary snapshot */}
+                    <div className="pt-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-stone-400">
+                      <div className="flex items-center space-x-1.5 min-w-0 truncate">
+                        <Truck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">
+                          Shipping to:{' '}
+                          <strong className="text-stone-300 font-normal">
+                            {formData.city || formData.state ? `${formData.city ? `${formData.city}, ` : ''}${formData.state}` : 'Selected destination'}
+                            {formData.postalCode ? ` (${formData.postalCode})` : ''}
+                          </strong>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStep(2)}
+                        className="text-amber-400 hover:text-amber-300 hover:underline cursor-pointer text-[10px] uppercase tracking-wider shrink-0 pl-2 font-medium"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Payment Methods Selection */}
@@ -1095,13 +1148,15 @@ export const CheckoutModal: React.FC = () => {
                   </div>
 
                   {/* Payment Badges Strip */}
-                  <div className="mt-3.5 pt-3 border-t border-white/5 flex flex-wrap items-center gap-2 text-[11px] font-mono text-stone-400">
-                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">UPI Apps</span>
-                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">Visa / Mastercard / RuPay</span>
-                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">50+ NetBanking</span>
-                    <span className="text-[10px] text-stone-500 ml-auto flex items-center space-x-1">
+                  <div className="mt-3.5 pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-mono text-stone-400">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">UPI Apps</span>
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">Cards / RuPay</span>
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">NetBanking</span>
+                    </div>
+                    <span className="text-[10px] text-stone-500 flex items-center space-x-1 shrink-0 pt-0.5">
                       <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                      <span>Powered by Cashfree</span>
+                      <span>Cashfree</span>
                     </span>
                   </div>
                 </div>
@@ -1179,24 +1234,31 @@ export const CheckoutModal: React.FC = () => {
               <button
                 type="submit"
                 disabled={isProcessingPayment}
-                className="w-full bg-white hover:bg-stone-200 text-black py-4 rounded-xl text-xs tracking-[0.2em] uppercase font-medium flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full bg-white hover:bg-stone-200 active:scale-[0.98] text-black py-3.5 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs tracking-[0.08em] sm:tracking-[0.15em] uppercase font-semibold flex items-center justify-center transition-all cursor-pointer shadow-xl shadow-black/30 disabled:opacity-60 disabled:cursor-not-allowed group"
               >
                 {isProcessingPayment ? (
-                  <>
-                    <Loader2 className="w-4 h-4 text-black animate-spin" />
-                    <span>{paymentStatusText || 'CONNECTING TO CASHFREE...'}</span>
-                  </>
+                  <div className="flex items-center justify-center space-x-2">
+                    <Loader2 className="w-4 h-4 text-black animate-spin shrink-0" />
+                    <span className="whitespace-nowrap">{paymentStatusText || 'CONNECTING TO CASHFREE...'}</span>
+                  </div>
                 ) : formData.paymentMethod === 'cod' ? (
-                  <>
-                    <Banknote className="w-4 h-4 text-black" />
-                    <span>CONFIRM & PLACE CONCIERGE COD ORDER</span>
-                  </>
+                  <div className="flex items-center justify-center space-x-2">
+                    <Banknote className="w-4 h-4 shrink-0 text-black" />
+                    <span className="whitespace-nowrap">
+                      <span className="hidden sm:inline">CONFIRM & PLACE CONCIERGE COD ORDER</span>
+                      <span className="sm:hidden">CONFIRM COD ORDER ({formatPrice(total)})</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 shrink-0 text-black transition-transform group-hover:translate-x-0.5" />
+                  </div>
                 ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4 text-black" />
-                    <span>PROCEED TO CASHFREE SECURE PAYMENT</span>
-                    <ArrowRight className="w-4 h-4 text-black" />
-                  </>
+                  <div className="flex items-center justify-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-black" />
+                    <span className="whitespace-nowrap">
+                      <span className="hidden sm:inline">PROCEED TO CASHFREE SECURE PAYMENT</span>
+                      <span className="sm:hidden">PAY {formatPrice(total)} SECURELY</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 shrink-0 text-black transition-transform group-hover:translate-x-0.5" />
+                  </div>
                 )}
               </button>
             </form>
@@ -1279,15 +1341,6 @@ export const CheckoutModal: React.FC = () => {
       </>
     )}
       </div>
-
-      {/* Interactive Map Pin Picker Modal */}
-      <MapPinPickerModal
-        isOpen={isMapPickerOpen}
-        onClose={() => setIsMapPickerOpen(false)}
-        onConfirmAddress={handleConfirmMapAddress}
-        initialPostalCode={formData.postalCode}
-        theme="noir"
-      />
     </div>
   );
 };
