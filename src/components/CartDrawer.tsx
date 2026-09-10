@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import { X, Trash2, Plus, Minus, ArrowRight, ShieldCheck, ShoppingBag } from 'lucide-react';
 import { getMediaUrl } from '../utils/media';
+import { useShippingConfig, calculateShippingCost, getShippingLabel } from '../utils/shippingConfig';
 
 export const CartDrawer: React.FC = () => {
   const { user } = useAuth();
@@ -14,10 +15,10 @@ export const CartDrawer: React.FC = () => {
     removeFromCart,
     updateQuantity,
     cartSubtotal,
-    freeShippingThreshold,
-    amountToFreeShipping,
     setIsCheckoutOpen,
   } = useStore();
+
+  const shippingConfig = useShippingConfig();
 
   useModalBackHandler(isCartOpen, () => setIsCartOpen(false), 'cart-drawer');
 
@@ -45,13 +46,27 @@ export const CartDrawer: React.FC = () => {
   };
 
   const discountAmount = Math.round((cartSubtotal * discountPercent) / 100);
-  const shippingFee = cartSubtotal >= freeShippingThreshold || cartSubtotal === 0 ? 0 : 490;
+  const shippingFee = calculateShippingCost(cartSubtotal, shippingConfig);
+  const shippingLabel = getShippingLabel(cartSubtotal, shippingConfig);
   const finalTotal = cartSubtotal - discountAmount + shippingFee;
 
-  const progressPercent = Math.min(
-    100,
-    Math.round((cartSubtotal / freeShippingThreshold) * 100)
-  );
+  // Compute dynamic progress to free delivery
+  let progressPercent = 100;
+  let dynamicAmountToFree = 0;
+  let freeTargetThreshold = 0;
+
+  if (shippingConfig.mode === 'flat' && shippingConfig.freeAbove > 0) {
+    freeTargetThreshold = shippingConfig.freeAbove;
+    dynamicAmountToFree = Math.max(0, shippingConfig.freeAbove - cartSubtotal);
+    progressPercent = Math.min(100, Math.round((cartSubtotal / shippingConfig.freeAbove) * 100));
+  } else if (shippingConfig.mode === 'tiered') {
+    const freeTier = shippingConfig.tiers.find(t => t.cost === 0 && t.minOrderAmount > 0);
+    if (freeTier) {
+      freeTargetThreshold = freeTier.minOrderAmount;
+      dynamicAmountToFree = Math.max(0, freeTier.minOrderAmount - cartSubtotal);
+      progressPercent = Math.min(100, Math.round((cartSubtotal / freeTier.minOrderAmount) * 100));
+    }
+  }
 
   const formatPrice = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -105,13 +120,23 @@ export const CartDrawer: React.FC = () => {
         {/* Dynamic Free Shipping Progress Bar */}
         <div className="bg-white/[0.03] px-6 py-3.5 border-b border-white/10">
           <div className="flex items-center justify-between text-xs tracking-[0.08em] mb-2">
-            {amountToFreeShipping > 0 ? (
-              <span className="text-stone-300">
-                You're <strong className="text-white font-medium">{formatPrice(amountToFreeShipping)}</strong> away from <span className="text-emerald-400">FREE SHIPPING</span>.
-              </span>
-            ) : (
+            {shippingConfig.mode === 'free' ? (
               <span className="text-emerald-400 font-medium flex items-center space-x-1">
-                <span>✓ Complimentary Worldwide White-Glove Shipping Unlocked</span>
+                <span>✓ {shippingConfig.freeShippingMessage || 'Complimentary Worldwide White-Glove Shipping on all orders'}</span>
+              </span>
+            ) : freeTargetThreshold > 0 ? (
+              dynamicAmountToFree > 0 ? (
+                <span className="text-stone-300">
+                  You're <strong className="text-white font-medium">{formatPrice(dynamicAmountToFree)}</strong> away from <span className="text-emerald-400">FREE SHIPPING</span>.
+                </span>
+              ) : (
+                <span className="text-emerald-400 font-medium flex items-center space-x-1">
+                  <span>✓ Complimentary Worldwide White-Glove Shipping Unlocked</span>
+                </span>
+              )
+            ) : (
+              <span className="text-stone-300">
+                Delivery: <strong className="text-white font-medium">{shippingLabel}</strong>
               </span>
             )}
             <span className="font-mono text-[11px] text-stone-400">{progressPercent}%</span>
@@ -247,9 +272,9 @@ export const CartDrawer: React.FC = () => {
                   <span>-{formatPrice(discountAmount)}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span>Shipping</span>
-                <span>
+              <div className="flex justify-between items-center">
+                <span className="truncate pr-2">Shipping ({shippingLabel})</span>
+                <span className="shrink-0">
                   {shippingFee === 0 ? (
                     <span className="text-emerald-400 uppercase tracking-wider text-[11px] font-medium">Free Complimentary</span>
                   ) : (

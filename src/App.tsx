@@ -21,6 +21,7 @@ import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { AuthProvider } from './context/AuthContext';
+import { PaymentReturnPage } from './components/PaymentReturnPage';
 import type { Product, GenderType } from './types/product';
 
 // Scroll restoration component: ensures navigating to any route begins at top
@@ -157,6 +158,9 @@ const StoreFront: React.FC = () => {
           path="/shop/:gender"
           element={<CategoryPage onQuickView={(p) => setActiveProduct(p)} />}
         />
+
+        {/* Cashfree Payment Return Route */}
+        <Route path="/payment-return" element={<PaymentReturnPage />} />
 
         {/* Concealed Admin Route */}
         <Route path="/admin" element={<AdminPortal />} />

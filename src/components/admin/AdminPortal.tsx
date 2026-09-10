@@ -40,7 +40,11 @@ import {
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Truck,
+  Save,
+  CheckCircle2,
+  Info,
 } from 'lucide-react';
 import {
   isSupabaseConfigured,
@@ -55,6 +59,15 @@ import {
 } from '../../utils/imageUpload';
 import { getMediaUrl, isR2Url } from '../../utils/media';
 import { emailService } from '../../services/emailService';
+import { initiateCashfreeRefund } from '../../services/cashfreeService';
+import {
+  loadShippingConfig,
+  fetchShippingConfig,
+  saveShippingConfig,
+  DEFAULT_SHIPPING_CONFIG,
+  type ShippingConfig,
+  type ShippingTier,
+} from '../../utils/shippingConfig';
 
 const MASTER_PASSCODE = 'atelier2026';
 export const AUTHORIZED_ADMIN_EMAIL = 'syedhamza1238@gmail.com';
@@ -230,7 +243,7 @@ export const AdminPortal: React.FC = () => {
   }, [rememberDevice]);
 
   // Active Management Tab
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'reviews' | 'pricing' | 'backup'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'reviews' | 'pricing' | 'backup' | 'shipping'>('products');
 
   // Orders State & Handlers
   const [orders, setOrders] = useState<any[]>(() => {
@@ -384,6 +397,45 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
+  const handleInitiateRefund = async (order: any) => {
+    if (!order.cashfree_order_id) {
+      showToast('This order does not have an active Cashfree Order ID.');
+      return;
+    }
+
+    const maxRefund = Number(order.total_amount) || 0;
+    const amountStr = window.prompt(
+      `Enter refund amount for Order ${order.order_number} (Max: ₹${maxRefund}):`,
+      String(maxRefund)
+    );
+    if (!amountStr) return;
+
+    const refundAmount = Number(amountStr);
+    if (isNaN(refundAmount) || refundAmount <= 0 || refundAmount > maxRefund) {
+      showToast('Invalid refund amount entered.');
+      return;
+    }
+
+    const refundNote = window.prompt('Reason for refund (optional):', 'Client return / concierge refund') || 'Client return';
+
+    showToast(`Contacting Cashfree to process refund of ₹${refundAmount}...`);
+
+    const res = await initiateCashfreeRefund({
+      orderId: order.cashfree_order_id,
+      refundAmount,
+      refundNote,
+      callerEmail: adminUser?.email || AUTHORIZED_ADMIN_EMAIL,
+    });
+
+    if (res.success) {
+      showToast(`Refund of ₹${refundAmount} processed successfully via Cashfree.`);
+      await handleUpdateOrderStatus(order.order_number, 'refunded');
+      fetchOrders();
+    } else {
+      showToast(`Refund failed: ${res.error || 'Gateway error'}`);
+    }
+  };
+
   // Reviews State
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewRatingFilter, setReviewRatingFilter] = useState<'all' | '5' | '4' | '3' | '2' | '1'>('all');
@@ -457,6 +509,51 @@ export const AdminPortal: React.FC = () => {
       return true;
     });
   }, [allReviewsList, reviewRatingFilter, reviewSearch]);
+
+  // ── Shipping Configuration State ──────────────────────────────────────────
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig>(() => loadShippingConfig());
+  const [shippingSaved, setShippingSaved] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'shipping') {
+      fetchShippingConfig().then(cfg => {
+        setShippingConfig(cfg);
+      });
+    }
+  }, [activeTab]);
+
+  const handleSaveShipping = async () => {
+    setShippingSaved(true);
+    const res = await saveShippingConfig(shippingConfig);
+    if (res.success) {
+      showToast('Shipping configuration saved & synced to Supabase cloud!');
+    } else {
+      showToast(`Saved locally (Cloud warning: ${res.error})`);
+    }
+    setTimeout(() => setShippingSaved(false), 2500);
+  };
+
+  const handleAddTier = () => {
+    const newTier: ShippingTier = {
+      id: `tier_${Date.now()}`,
+      label: 'New Tier',
+      minOrderAmount: 0,
+      cost: 99,
+      estimatedDays: '3-5 business days',
+    };
+    setShippingConfig(prev => ({ ...prev, tiers: [...prev.tiers, newTier] }));
+  };
+
+  const handleUpdateTier = (id: string, field: keyof ShippingTier, value: string | number) => {
+    setShippingConfig(prev => ({
+      ...prev,
+      tiers: prev.tiers.map(t => t.id === id ? { ...t, [field]: field === 'cost' || field === 'minOrderAmount' ? Number(value) : value } : t),
+    }));
+  };
+
+  const handleDeleteTier = (id: string) => {
+    setShippingConfig(prev => ({ ...prev, tiers: prev.tiers.filter(t => t.id !== id) }));
+  };
 
   // Product Filtering & Search
   const [productSearch, setProductSearch] = useState('');
@@ -1578,6 +1675,19 @@ export const AdminPortal: React.FC = () => {
             <Database className="w-4 h-4" />
             <span>Backup & Reset</span>
           </button>
+
+          {/* Tab 7: Shipping Management */}
+          <button
+            onClick={() => setActiveTab('shipping')}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-sans tracking-[0.15em] uppercase transition-all cursor-pointer ${
+              activeTab === 'shipping'
+                ? (theme === 'alabaster' ? 'bg-[#121214] text-white shadow-md' : 'bg-white text-black font-semibold shadow-lg')
+                : (theme === 'alabaster' ? 'text-stone-600 hover:text-black hover:bg-stone-100' : 'text-stone-400 hover:text-white hover:bg-white/5')
+            }`}
+          >
+            <Truck className="w-4 h-4 text-sky-400" />
+            <span>Shipping Costs</span>
+          </button>
         </section>
 
         {/* =================================================================== */}
@@ -2253,14 +2363,41 @@ export const AdminPortal: React.FC = () => {
                         </div>
 
                         {/* Status Changer & Badges */}
-                        <div className="flex items-center space-x-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className={`text-[10px] font-mono uppercase px-2.5 py-1 rounded-full border ${
                             ord.payment_status === 'paid'
                               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              : ord.payment_status === 'pending'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              : ord.payment_status === 'refunded'
+                              ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                           }`}>
-                            Payment: {ord.payment_method?.toUpperCase()} · {ord.payment_status?.toUpperCase() || 'PAID'}
+                            Payment: {ord.payment_method?.toUpperCase()} · {ord.payment_status?.toUpperCase() || 'PENDING'}
                           </span>
+
+                          {ord.cashfree_order_id && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20" title={`Cashfree Order ID: ${ord.cashfree_order_id}`}>
+                              CF: {ord.cashfree_order_id.length > 22 ? `${ord.cashfree_order_id.slice(0, 10)}...${ord.cashfree_order_id.slice(-8)}` : ord.cashfree_order_id}
+                            </span>
+                          )}
+
+                          {ord.cashfree_payment_id && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`Cashfree Payment ID: ${ord.cashfree_payment_id}`}>
+                              Txn: {ord.cashfree_payment_id}
+                            </span>
+                          )}
+
+                          {ord.cashfree_order_id && ord.payment_status === 'paid' && ord.order_status !== 'refunded' && (
+                            <button
+                              type="button"
+                              onClick={() => handleInitiateRefund(ord)}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase tracking-wider bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
+                              title="Initiate official Cashfree refund"
+                            >
+                              Refund
+                            </button>
+                          )}
 
                           <select
                             value={ord.order_status || 'processing'}
@@ -2272,6 +2409,8 @@ export const AdminPortal: React.FC = () => {
                                 ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                                 : ord.order_status === 'cancelled'
                                 ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                : ord.order_status === 'refunded'
+                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                                 : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                             }`}
                           >
@@ -2840,6 +2979,323 @@ export const AdminPortal: React.FC = () => {
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Reset to Default</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB 7: SHIPPING COST MANAGEMENT                                     */}
+        {/* =================================================================== */}
+        {activeTab === 'shipping' && (
+          <div className="space-y-6 max-w-3xl mx-auto animate-fade-in">
+
+            {/* Header */}
+            <div className={`p-6 rounded-2xl border ${
+              theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#121216] border-white/10'
+            }`}>
+              <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-serif">Shipping Cost Management</h3>
+                    <p className={`text-xs mt-0.5 ${
+                      theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                    }`}>Configure delivery charges for customer checkout</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleSaveShipping}
+                  className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs tracking-wider uppercase font-semibold shadow-md transition-all cursor-pointer ${
+                    shippingSaved
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-sky-500 hover:bg-sky-400 text-white'
+                  }`}
+                >
+                  {shippingSaved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                  <span>{shippingSaved ? 'Saved!' : 'Save Config'}</span>
+                </button>
+              </div>
+
+              {/* Shipping Mode Selector */}
+              <div className="space-y-3 mb-6">
+                <label className={`text-[10px] font-mono tracking-[0.2em] uppercase block ${
+                  theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                }`}>Shipping Mode</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['free', 'flat', 'tiered'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setShippingConfig(prev => ({ ...prev, mode }))}
+                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                        shippingConfig.mode === mode
+                          ? 'border-sky-500 bg-sky-500/10 text-sky-400'
+                          : (theme === 'alabaster' ? 'border-stone-200 text-stone-600 hover:border-stone-400' : 'border-white/10 text-stone-400 hover:border-white/30')
+                      }`}
+                    >
+                      <div className="text-lg mb-1">
+                        {mode === 'free' ? '🎁' : mode === 'flat' ? '📦' : '📊'}
+                      </div>
+                      <div className="text-xs font-semibold uppercase tracking-wider">
+                        {mode === 'free' ? 'Always Free' : mode === 'flat' ? 'Flat Rate' : 'Tiered'}
+                      </div>
+                      <div className={`text-[10px] mt-1 ${
+                        theme === 'alabaster' ? 'text-stone-400' : 'text-stone-500'
+                      }`}>
+                        {mode === 'free' ? 'No charges ever' : mode === 'flat' ? 'One fixed rate' : 'Amount-based'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── FREE MODE ──────────────────────────────────── */}
+              {shippingConfig.mode === 'free' && (
+                <div className={`p-4 rounded-xl border ${
+                  theme === 'alabaster' ? 'bg-emerald-50 border-emerald-200' : 'bg-emerald-500/5 border-emerald-500/20'
+                }`}>
+                  <div className="flex items-center space-x-2 mb-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-sm font-medium text-emerald-400">Free Shipping for All Orders</span>
+                  </div>
+                  <label className={`text-[10px] font-mono tracking-wider uppercase block mb-1 ${
+                    theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                  }`}>Customer-facing message</label>
+                  <input
+                    type="text"
+                    value={shippingConfig.freeShippingMessage}
+                    onChange={e => setShippingConfig(prev => ({ ...prev, freeShippingMessage: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none ${
+                      theme === 'alabaster'
+                        ? 'bg-white border-stone-200 text-stone-900'
+                        : 'bg-black/30 border-white/10 text-white'
+                    }`}
+                    placeholder="e.g. Complimentary White-Glove Delivery on all orders"
+                  />
+                </div>
+              )}
+
+              {/* ── FLAT RATE MODE ─────────────────────────────── */}
+              {shippingConfig.mode === 'flat' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={`text-[10px] font-mono tracking-wider uppercase block mb-1 ${
+                        theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                      }`}>Flat Shipping Cost (₹)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={shippingConfig.flatRate}
+                        onChange={e => setShippingConfig(prev => ({ ...prev, flatRate: Number(e.target.value) }))}
+                        className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none ${
+                          theme === 'alabaster'
+                            ? 'bg-white border-stone-200 text-stone-900'
+                            : 'bg-black/30 border-white/10 text-white'
+                        }`}
+                        placeholder="e.g. 99"
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-[10px] font-mono tracking-wider uppercase block mb-1 ${
+                        theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                      }`}>Free Above Cart Amount (₹, 0 = never)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={shippingConfig.freeAbove}
+                        onChange={e => setShippingConfig(prev => ({ ...prev, freeAbove: Number(e.target.value) }))}
+                        className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none ${
+                          theme === 'alabaster'
+                            ? 'bg-white border-stone-200 text-stone-900'
+                            : 'bg-black/30 border-white/10 text-white'
+                        }`}
+                        placeholder="e.g. 2000 (free if cart ≥ ₹2000)"
+                      />
+                    </div>
+                  </div>
+                  {shippingConfig.freeAbove > 0 && (
+                    <div className={`flex items-start space-x-2 p-3 rounded-lg text-xs ${
+                      theme === 'alabaster' ? 'bg-sky-50 text-sky-700' : 'bg-sky-500/10 text-sky-400'
+                    }`}>
+                      <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>Customers with cart ≥ ₹{shippingConfig.freeAbove.toLocaleString('en-IN')} will get free shipping. Others pay ₹{shippingConfig.flatRate}.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── TIERED MODE ────────────────────────────────── */}
+              {shippingConfig.mode === 'tiered' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className={`text-[10px] font-mono tracking-wider uppercase ${
+                      theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                    }`}>Shipping Tiers</label>
+                    <button
+                      onClick={handleAddTier}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs hover:bg-sky-500/20 cursor-pointer transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Tier</span>
+                    </button>
+                  </div>
+
+                  <div className={`flex items-start space-x-2 p-3 rounded-lg text-xs ${
+                    theme === 'alabaster' ? 'bg-amber-50 text-amber-700' : 'bg-amber-500/10 text-amber-400'
+                  }`}>
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span>The tier with the highest <strong>Min Order Amount</strong> that is still ≤ cart value will be applied. Set Min = 0 for the default/lowest tier.</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {shippingConfig.tiers.map((tier, idx) => (
+                      <div key={tier.id} className={`p-4 rounded-xl border ${
+                        theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-white/[0.03] border-white/10'
+                      }`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className={`text-[10px] font-mono tracking-widest uppercase ${
+                            theme === 'alabaster' ? 'text-stone-400' : 'text-stone-500'
+                          }`}>Tier {idx + 1}</span>
+                          <button
+                            onClick={() => handleDeleteTier(tier.id)}
+                            className="w-6 h-6 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/20 cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={`text-[10px] font-mono uppercase block mb-1 ${
+                              theme === 'alabaster' ? 'text-stone-400' : 'text-stone-500'
+                            }`}>Label</label>
+                            <input
+                              type="text"
+                              value={tier.label}
+                              onChange={e => handleUpdateTier(tier.id, 'label', e.target.value)}
+                              className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none ${
+                                theme === 'alabaster'
+                                  ? 'bg-white border-stone-200 text-stone-900'
+                                  : 'bg-black/30 border-white/10 text-white'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`text-[10px] font-mono uppercase block mb-1 ${
+                              theme === 'alabaster' ? 'text-stone-400' : 'text-stone-500'
+                            }`}>Estimated Delivery</label>
+                            <input
+                              type="text"
+                              value={tier.estimatedDays}
+                              onChange={e => handleUpdateTier(tier.id, 'estimatedDays', e.target.value)}
+                              className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none ${
+                                theme === 'alabaster'
+                                  ? 'bg-white border-stone-200 text-stone-900'
+                                  : 'bg-black/30 border-white/10 text-white'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`text-[10px] font-mono uppercase block mb-1 ${
+                              theme === 'alabaster' ? 'text-stone-400' : 'text-stone-500'
+                            }`}>Min Order Amount (₹)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={tier.minOrderAmount}
+                              onChange={e => handleUpdateTier(tier.id, 'minOrderAmount', e.target.value)}
+                              className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none ${
+                                theme === 'alabaster'
+                                  ? 'bg-white border-stone-200 text-stone-900'
+                                  : 'bg-black/30 border-white/10 text-white'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`text-[10px] font-mono uppercase block mb-1 ${
+                              theme === 'alabaster' ? 'text-stone-400' : 'text-stone-500'
+                            }`}>Shipping Cost (₹, 0 = free)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={tier.cost}
+                              onChange={e => handleUpdateTier(tier.id, 'cost', e.target.value)}
+                              className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none ${
+                                theme === 'alabaster'
+                                  ? 'bg-white border-stone-200 text-stone-900'
+                                  : 'bg-black/30 border-white/10 text-white'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Live Preview Panel */}
+            <div className={`p-6 rounded-2xl border ${
+              theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#121216] border-white/10'
+            }`}>
+              <div className="flex items-center space-x-2 mb-4">
+                <Eye className="w-4 h-4 text-amber-400" />
+                <h4 className="text-sm font-serif">Live Preview — Checkout Display</h4>
+              </div>
+
+              <div className="space-y-2">
+                {[299, 999, 1999, 4999].map(amount => {
+                  const shippingCost = (() => {
+                    switch (shippingConfig.mode) {
+                      case 'free': return 0;
+                      case 'flat':
+                        if (shippingConfig.freeAbove > 0 && amount >= shippingConfig.freeAbove) return 0;
+                        return shippingConfig.flatRate;
+                      case 'tiered': {
+                        const sorted = [...shippingConfig.tiers].sort((a, b) => b.minOrderAmount - a.minOrderAmount);
+                        for (const t of sorted) {
+                          if (amount >= t.minOrderAmount) return t.cost;
+                        }
+                        return shippingConfig.tiers[0]?.cost ?? 0;
+                      }
+                      default: return 0;
+                    }
+                  })();
+                  return (
+                    <div key={amount} className={`flex items-center justify-between p-3 rounded-lg ${
+                      theme === 'alabaster' ? 'bg-stone-50' : 'bg-white/[0.03]'
+                    }`}>
+                      <span className={`text-xs ${
+                        theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                      }`}>
+                        Cart subtotal: <strong className={theme === 'alabaster' ? 'text-black' : 'text-white'}>₹{amount.toLocaleString('en-IN')}</strong>
+                      </span>
+                      <span className={`text-xs font-semibold ${
+                        shippingCost === 0 ? 'text-emerald-400' : (theme === 'alabaster' ? 'text-stone-900' : 'text-white')
+                      }`}>
+                        {shippingCost === 0 ? '✓ FREE' : `₹${shippingCost} shipping`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    setShippingConfig({ ...DEFAULT_SHIPPING_CONFIG });
+                    showToast('Reset to default (free shipping). Click Save to apply.');
+                  }}
+                  className={`text-xs flex items-center space-x-1.5 transition-colors cursor-pointer ${
+                    theme === 'alabaster' ? 'text-stone-400 hover:text-stone-700' : 'text-stone-500 hover:text-stone-300'
+                  }`}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset to defaults</span>
                 </button>
               </div>
             </div>

@@ -6,12 +6,10 @@ import {
   X,
   CheckCircle2,
   Lock,
-  CreditCard,
   Truck,
   ArrowRight,
   ArrowLeft,
   Sparkles,
-  QrCode,
   Banknote,
   Navigation,
   Compass,
@@ -30,14 +28,22 @@ import {
 } from '../utils/geolocation';
 import { MapPinPickerModal } from './MapPinPickerModal';
 import type { DetectedAddress } from '../utils/geolocation';
+import { createCashfreeOrderSession, launchCashfreeCheckout, verifyCashfreePayment } from '../services/cashfreeService';
+import { useShippingConfig, calculateShippingCost, getShippingLabel } from '../utils/shippingConfig';
 
 export const CheckoutModal: React.FC = () => {
   const { isCheckoutOpen, setIsCheckoutOpen, cartSubtotal, clearCart, cart, showToast } = useStore();
   const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen, savedAddress, updateCustomerAddress } = useAuth();
+  const shippingConfig = useShippingConfig();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
+
+  // Cashfree Payment processing state
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentStatusText, setPaymentStatusText] = useState('');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Geolocation & Auto-detection state
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -96,12 +102,12 @@ export const CheckoutModal: React.FC = () => {
       postalCode: saved?.postalCode || '400026',
       country: saved?.country || 'India',
       shippingMethod: 'express',
-      paymentMethod: 'card',
-      cardNumber: '4532 •••• •••• 8842',
-      cardExpiry: '08/29',
-      cardCvc: '•••',
+      paymentMethod: 'cashfree',
+      cardNumber: '',
+      cardExpiry: '',
+      cardCvc: '',
       cardHolder: user?.fullName ? user.fullName.toUpperCase() : 'CARDHOLDER NAME',
-      upiId: 'user@okaxis',
+      upiId: '',
     };
   });
 
@@ -291,80 +297,188 @@ export const CheckoutModal: React.FC = () => {
         return;
       }
 
-      // Complete Order & Persist to Supabase + Local Cache
-      const newOrderNum = `AN-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
-      setOrderNumber(newOrderNum);
+      if (cart.length === 0) {
+        showToast('Your bag is currently empty.');
+        return;
+      }
 
-      const orderItems = cart.map((it) => ({
-        id: it.productId,
-        name: it.name,
-        price: it.price,
-        quantity: it.quantity,
-        size: it.size,
-        color: it.color,
-        image: it.image,
-      }));
+      // A. Cashfree Hosted Payment Gateway (UPI, Cards, NetBanking)
+      if (formData.paymentMethod === 'cashfree' || formData.paymentMethod === 'card' || formData.paymentMethod === 'upi') {
+        setIsProcessingPayment(true);
+        setPaymentStatusText('Securing 256-bit payment session with Cashfree...');
+        setPaymentError(null);
 
-      const shippingCost = formData.shippingMethod === 'express' ? 0 : 0;
-      const orderTotal = cartSubtotal + shippingCost;
+        try {
+          const currentShippingCost = calculateShippingCost(cartSubtotal, shippingConfig);
+          const sessionRes = await createCashfreeOrderSession({
+            items: cart,
+            customer: {
+              name: `${formData.firstName} ${formData.lastName}`.trim() || user.fullName,
+              email: user.email || formData.email,
+              phone: formData.phone,
+              userId: user.id,
+            },
+            shippingAddress: {
+              address: formData.address,
+              apartment: formData.apartment,
+              city: formData.city,
+              state: formData.state,
+              postalCode: formData.postalCode,
+              country: formData.country,
+              shippingMethod: formData.shippingMethod,
+            },
+            shippingCost: currentShippingCost,
+          });
 
-      // Save order to cloud/local (user_id is automatically linked to user.id in AuthContext)
-      await saveOrder({
-        order_number: newOrderNum,
-        customer_name: `${formData.firstName} ${formData.lastName}`.trim() || user.fullName,
-        customer_email: user.email || formData.email,
-        customer_phone: formData.phone,
-        shipping_address: {
+          if (!sessionRes.success || !sessionRes.payment_session_id) {
+            setIsProcessingPayment(false);
+            const err = sessionRes.error || 'Failed to initialize Cashfree payment session.';
+            setPaymentError(err);
+            showToast(err);
+            return;
+          }
+
+          setPaymentStatusText('Launching Cashfree hosted checkout...');
+
+          // Update saved delivery address in customer profile
+          updateCustomerAddress({
+            address: formData.address,
+            apartment: formData.apartment,
+            city: formData.city,
+            state: formData.state,
+            postalCode: formData.postalCode,
+            country: formData.country,
+          }).catch(() => {});
+
+          const launchRes = await launchCashfreeCheckout({
+            paymentSessionId: sessionRes.payment_session_id,
+            environment: sessionRes.environment,
+            redirectTarget: '_modal',
+          });
+
+          // User closed/cancelled the modal without paying
+          if (launchRes.cancelled) {
+            setIsProcessingPayment(false);
+            setPaymentStatusText('');
+            showToast('Payment cancelled. Your bag is still saved — try again when ready.');
+            return;
+          }
+
+          if (launchRes.error) {
+            setIsProcessingPayment(false);
+            setPaymentError(launchRes.error);
+            showToast(launchRes.error);
+            return;
+          }
+
+          // Payment modal closed — verify with server
+          setPaymentStatusText('Verifying payment with Cashfree...');
+          try {
+            const verifyRes = await verifyCashfreePayment(sessionRes.order_id!);
+            if (verifyRes.verified && (verifyRes.payment_status === 'SUCCESS' || verifyRes.payment_status === 'paid')) {
+              setIsProcessingPayment(false);
+              setOrderNumber(sessionRes.order_number!);
+              clearCart();
+              setStep(4);
+              try {
+                confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#ffffff', '#d4af37', '#e2e8f0'] });
+              } catch {}
+            } else {
+              setIsProcessingPayment(false);
+              const status = verifyRes.payment_status || 'UNKNOWN';
+              setPaymentError(`Payment status: ${status}. If amount was debited, contact support.`);
+              showToast(`Payment not confirmed (Status: ${status}). Please retry or contact support.`);
+            }
+          } catch {
+            // If verification fails, redirect to return page as fallback
+            setIsProcessingPayment(false);
+            window.location.href = `https://zarb.shop/payment-return?order_id=${sessionRes.order_id}`;
+          }
+          return;
+        } catch (err: any) {
+          setIsProcessingPayment(false);
+          const msg = err?.message || 'Payment initiation failed. Please try again.';
+          setPaymentError(msg);
+          showToast(msg);
+          return;
+        }
+      }
+
+      // B. Concierge Cash on Delivery (COD)
+      if (formData.paymentMethod === 'cod') {
+        setIsProcessingPayment(true);
+        setPaymentStatusText('Recording Concierge COD order...');
+
+        const newOrderNum = `AN-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+        setOrderNumber(newOrderNum);
+
+        const orderItems = cart.map((it) => ({
+          id: it.productId,
+          name: it.name,
+          price: it.price,
+          quantity: it.quantity,
+          size: it.size,
+          color: it.color,
+          image: it.image,
+        }));
+
+        const shippingCost = calculateShippingCost(cartSubtotal);
+        const orderTotal = cartSubtotal + shippingCost;
+
+        await saveOrder({
+          order_number: newOrderNum,
+          customer_name: `${formData.firstName} ${formData.lastName}`.trim() || user.fullName,
+          customer_email: user.email || formData.email,
+          customer_phone: formData.phone,
+          shipping_address: {
+            address: formData.address,
+            apartment: formData.apartment,
+            city: formData.city,
+            state: formData.state,
+            postalCode: formData.postalCode,
+            country: formData.country,
+            shippingMethod: formData.shippingMethod,
+          },
+          items: orderItems,
+          subtotal: cartSubtotal,
+          shipping_cost: shippingCost,
+          discount_amount: 0,
+          coupon_code: '',
+          total_amount: orderTotal,
+          payment_method: 'Concierge COD',
+          payment_status: 'pending',
+          order_status: 'confirmed',
+          status_history: [
+            {
+              status: 'confirmed',
+              timestamp: new Date().toISOString(),
+              note: 'Order placed via Concierge Cash on Delivery.',
+              updatedBy: 'Customer Checkout',
+            },
+          ],
+        });
+
+        updateCustomerAddress({
           address: formData.address,
           apartment: formData.apartment,
           city: formData.city,
           state: formData.state,
           postalCode: formData.postalCode,
           country: formData.country,
-          shippingMethod: formData.shippingMethod,
-        },
-        items: orderItems,
-        subtotal: cartSubtotal,
-        shipping_cost: shippingCost,
-        discount_amount: 0,
-        coupon_code: '',
-        total_amount: orderTotal,
-        payment_method: formData.paymentMethod,
-        payment_status: 'paid',
-        order_status: 'confirmed',
-        status_history: [
-          {
-            status: 'confirmed',
-            timestamp: new Date().toISOString(),
-            note: 'Order placed & confirmed during checkout.',
-            updatedBy: 'Customer Checkout',
-          },
-        ],
-      });
+        }).catch(() => {});
 
-      // Ensure address is permanently saved to customer profile
-      updateCustomerAddress({
-        address: formData.address,
-        apartment: formData.apartment,
-        city: formData.city,
-        state: formData.state,
-        postalCode: formData.postalCode,
-        country: formData.country,
-      }).catch(() => {});
+        setIsProcessingPayment(false);
+        setStep(4);
+        clearCart();
 
-      setStep(4);
-      clearCart();
-
-      // Trigger Confetti
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#ffffff', '#d4af37', '#e2e8f0'],
-        });
-      } catch {
-        // graceful fallback
+        try {
+          confetti({
+            particleCount: 80,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#ffffff', '#d4af37', '#e2e8f0'],
+          });
+        } catch {}
       }
     }
   };
@@ -377,7 +491,8 @@ export const CheckoutModal: React.FC = () => {
     }).format(amount);
   };
 
-  const shippingCost = formData.shippingMethod === 'express' ? 0 : 0;
+  const shippingCost = calculateShippingCost(cartSubtotal, shippingConfig);
+  const shippingLabel = getShippingLabel(cartSubtotal, shippingConfig);
   const total = cartSubtotal + shippingCost;
 
   return (
@@ -890,14 +1005,16 @@ export const CheckoutModal: React.FC = () => {
                   <Truck className="w-5 h-5 text-emerald-400" />
                   <div>
                     <span className="text-xs font-medium text-white block uppercase tracking-[0.1em] text-emerald-400">
-                      Complimentary White-Glove Courier
+                      Delivery
                     </span>
                     <span className="text-[11px] text-stone-400">
-                      Estimated Delivery: 2–4 Business Days
+                      {shippingLabel}
                     </span>
                   </div>
                 </div>
-                <span className="text-xs font-semibold uppercase text-emerald-400">FREE</span>
+                <span className="text-xs font-semibold uppercase text-emerald-400">
+                  {shippingCost === 0 ? 'FREE' : `₹${shippingCost.toLocaleString('en-IN')}`}
+                </span>
               </div>
 
               <button
@@ -915,151 +1032,168 @@ export const CheckoutModal: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-serif text-white tracking-[0.03em] mb-1">
-                    Select Payment Gateway
+                    Select Payment Method
                   </h3>
                   <p className="text-xs text-stone-400">
-                    All transactions are 256-bit encrypted with PCI-DSS compliant protocols.
+                    256-bit encrypted bank checkout via Cashfree Payment Gateway (PCI-DSS Level 1 certified).
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="text-xs text-stone-400 hover:text-white flex items-center space-x-1"
+                  disabled={isProcessingPayment}
+                  className="text-xs text-stone-400 hover:text-white flex items-center space-x-1 disabled:opacity-50"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Back</span>
                 </button>
               </div>
 
-              {/* Payment Methods */}
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, paymentMethod: 'card' })}
-                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                    formData.paymentMethod === 'card'
-                      ? 'border-white bg-white/10 text-white font-medium'
-                      : 'border-white/10 text-stone-400 hover:text-white'
+              {/* Payment Methods Selection */}
+              <div className="space-y-3">
+                {/* 1. Cashfree Payment Gateway (Online) */}
+                <div
+                  onClick={() => !isProcessingPayment && setFormData({ ...formData, paymentMethod: 'cashfree' })}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
+                    formData.paymentMethod === 'cashfree' || formData.paymentMethod === 'card' || formData.paymentMethod === 'upi'
+                      ? 'border-amber-400/80 bg-gradient-to-br from-white/[0.07] to-white/[0.02] shadow-lg shadow-black/40'
+                      : 'border-white/10 hover:border-white/25 bg-white/[0.02]'
                   }`}
                 >
-                  <CreditCard className="w-5 h-5 mx-auto mb-1" />
-                  <span className="text-xs tracking-[0.1em] uppercase">Credit Card</span>
-                </button>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-semibold text-white tracking-wide">
+                            Instant Online Payment
+                          </span>
+                          <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            Recommended
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-400 leading-relaxed">
+                          Pay instantly via Google Pay, PhonePe, Paytm, BHIM, Credit/Debit Cards, or NetBanking.
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-1 ${
+                      formData.paymentMethod === 'cashfree' || formData.paymentMethod === 'card' || formData.paymentMethod === 'upi'
+                        ? 'border-amber-400 bg-amber-400 text-black'
+                        : 'border-white/30'
+                    }`}>
+                      {(formData.paymentMethod === 'cashfree' || formData.paymentMethod === 'card' || formData.paymentMethod === 'upi') && (
+                        <div className="w-2 h-2 rounded-full bg-black" />
+                      )}
+                    </div>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, paymentMethod: 'upi' })}
-                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                    formData.paymentMethod === 'upi'
-                      ? 'border-white bg-white/10 text-white font-medium'
-                      : 'border-white/10 text-stone-400 hover:text-white'
-                  }`}
-                >
-                  <QrCode className="w-5 h-5 mx-auto mb-1" />
-                  <span className="text-xs tracking-[0.1em] uppercase">Instant UPI</span>
-                </button>
+                  {/* Payment Badges Strip */}
+                  <div className="mt-3.5 pt-3 border-t border-white/5 flex flex-wrap items-center gap-2 text-[11px] font-mono text-stone-400">
+                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">UPI Apps</span>
+                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">Visa / Mastercard / RuPay</span>
+                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-stone-300">50+ NetBanking</span>
+                    <span className="text-[10px] text-stone-500 ml-auto flex items-center space-x-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                      <span>Powered by Cashfree</span>
+                    </span>
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, paymentMethod: 'cod' })}
-                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                {/* 2. Concierge Cash on Delivery */}
+                <div
+                  onClick={() => !isProcessingPayment && setFormData({ ...formData, paymentMethod: 'cod' })}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                     formData.paymentMethod === 'cod'
-                      ? 'border-white bg-white/10 text-white font-medium'
-                      : 'border-white/10 text-stone-400 hover:text-white'
+                      ? 'border-amber-400/80 bg-gradient-to-br from-white/[0.07] to-white/[0.02] shadow-lg shadow-black/40'
+                      : 'border-white/10 hover:border-white/25 bg-white/[0.02]'
                   }`}
                 >
-                  <Banknote className="w-5 h-5 mx-auto mb-1" />
-                  <span className="text-xs tracking-[0.1em] uppercase">Concierge COD</span>
-                </button>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-stone-300 shrink-0 mt-0.5">
+                        <Banknote className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-sm font-semibold text-white tracking-wide block">
+                          Concierge Cash on Delivery
+                        </span>
+                        <p className="text-xs text-stone-400 leading-relaxed">
+                          White-glove concierge delivery with cash or mobile card terminal payment on signature.
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-1 ${
+                      formData.paymentMethod === 'cod'
+                        ? 'border-amber-400 bg-amber-400 text-black'
+                        : 'border-white/30'
+                    }`}>
+                      {formData.paymentMethod === 'cod' && (
+                        <div className="w-2 h-2 rounded-full bg-black" />
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Card Inputs */}
-              {formData.paymentMethod === 'card' && (
-                <div className="space-y-4 p-4 rounded-xl border border-white/10 bg-white/[0.02]">
+              {/* Error Notice if payment fails */}
+              {paymentError && (
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-start space-x-2.5 text-xs animate-fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
                   <div>
-                    <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                      Card Number
-                    </label>
-                    <input
-                      type="text"
-                      name="cardNumber"
-                      required
-                      value={formData.cardNumber}
-                      onChange={handleChange}
-                      className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-white/40 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                        Expiry Date
-                      </label>
-                      <input
-                        type="text"
-                        name="cardExpiry"
-                        required
-                        value={formData.cardExpiry}
-                        onChange={handleChange}
-                        className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-white/40 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                        Security CVC
-                      </label>
-                      <input
-                        type="text"
-                        name="cardCvc"
-                        required
-                        value={formData.cardCvc}
-                        onChange={handleChange}
-                        className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-white/40 focus:outline-none"
-                      />
-                    </div>
+                    <span className="font-semibold block text-rose-200">Payment Notice:</span>
+                    <span>{paymentError}</span>
                   </div>
                 </div>
               )}
 
-              {/* UPI Inputs */}
-              {formData.paymentMethod === 'upi' && (
-                <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02] space-y-3">
-                  <label className="block text-xs uppercase tracking-[0.15em] text-stone-300 mb-1.5">
-                    UPI Virtual Payment Address (VPA)
-                  </label>
-                  <input
-                    type="text"
-                    name="upiId"
-                    value={formData.upiId}
-                    onChange={handleChange}
-                    placeholder="yourname@okhdfcbank"
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-white/40 focus:outline-none"
-                  />
-                  <p className="text-[11px] text-stone-400">
-                    Supports Google Pay, PhonePe, Paytm, and BHIM.
-                  </p>
+              {/* Summary of Total & Shipping Breakdown */}
+              <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-2 text-xs font-sans">
+                <div className="flex justify-between text-stone-400">
+                  <span>Bag Subtotal ({cart.reduce((s, i) => s + i.quantity, 0)} {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? 'item' : 'items'})</span>
+                  <span className="text-stone-200 font-mono">{formatPrice(cartSubtotal)}</span>
                 </div>
-              )}
-
-              {/* COD Notice */}
-              {formData.paymentMethod === 'cod' && (
-                <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02] text-xs text-stone-400 leading-relaxed">
-                  White-glove concierge delivery with cash or mobile card terminal payment on signature.
+                <div className="flex justify-between items-center text-stone-400">
+                  <span className="truncate pr-2">Delivery ({shippingLabel})</span>
+                  <span className="shrink-0 font-mono">
+                    {shippingCost === 0 ? (
+                      <span className="text-emerald-400 uppercase tracking-wider text-[11px] font-medium font-sans">Complimentary</span>
+                    ) : (
+                      formatPrice(shippingCost)
+                    )}
+                  </span>
                 </div>
-              )}
-
-              {/* Summary of Total */}
-              <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex justify-between items-center text-sm font-sans">
-                <span className="uppercase tracking-[0.15em] text-stone-400">Amount Due</span>
-                <span className="text-xl font-medium text-white">{formatPrice(total)}</span>
+                <div className="pt-2 border-t border-white/10 flex justify-between items-center text-sm">
+                  <span className="uppercase tracking-[0.15em] text-white font-medium">Amount Due</span>
+                  <span className="text-xl font-medium text-amber-400 font-mono">{formatPrice(total)}</span>
+                </div>
               </div>
 
+              {/* Submit CTA */}
               <button
                 type="submit"
-                className="w-full bg-white hover:bg-stone-200 text-black py-4 rounded-xl text-xs tracking-[0.2em] uppercase font-medium flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-2xl"
+                disabled={isProcessingPayment}
+                className="w-full bg-white hover:bg-stone-200 text-black py-4 rounded-xl text-xs tracking-[0.2em] uppercase font-medium flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Sparkles className="w-4 h-4 text-black" />
-                <span>CONFIRM & PLACE ATELIER ORDER</span>
+                {isProcessingPayment ? (
+                  <>
+                    <Loader2 className="w-4 h-4 text-black animate-spin" />
+                    <span>{paymentStatusText || 'CONNECTING TO CASHFREE...'}</span>
+                  </>
+                ) : formData.paymentMethod === 'cod' ? (
+                  <>
+                    <Banknote className="w-4 h-4 text-black" />
+                    <span>CONFIRM & PLACE CONCIERGE COD ORDER</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4 text-black" />
+                    <span>PROCEED TO CASHFREE SECURE PAYMENT</span>
+                    <ArrowRight className="w-4 h-4 text-black" />
+                  </>
+                )}
               </button>
             </form>
           )}

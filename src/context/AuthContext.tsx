@@ -72,6 +72,13 @@ export interface OrderRecord {
   payment_method: string;
   payment_status: string;
   order_status: 'confirmed' | 'processing' | 'dispatched' | 'delivered' | 'cancelled' | 'refunded';
+  cashfree_order_id?: string;
+  cashfree_payment_id?: string;
+  cashfree_payment_session_id?: string;
+  payment_verified_at?: string;
+  inventory_deducted?: boolean;
+  refund_status?: 'none' | 'pending' | 'partial' | 'refunded';
+  refund_amount?: number;
   status_history?: OrderStatusHistoryItem[];
   sync_status?: 'synced' | 'pending_sync';
   sync_error?: string;
@@ -554,6 +561,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             payment_method: fullOrder.payment_method,
             payment_status: fullOrder.payment_status,
             order_status: fullOrder.order_status,
+            cashfree_order_id: fullOrder.cashfree_order_id || null,
+            cashfree_payment_id: fullOrder.cashfree_payment_id || null,
+            cashfree_payment_session_id: fullOrder.cashfree_payment_session_id || null,
+            payment_verified_at: fullOrder.payment_verified_at || null,
+            inventory_deducted: fullOrder.inventory_deducted || false,
+            refund_status: fullOrder.refund_status || 'none',
+            refund_amount: fullOrder.refund_amount || 0,
             updated_at: fullOrder.updated_at,
           };
 
