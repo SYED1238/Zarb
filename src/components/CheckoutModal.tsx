@@ -68,14 +68,10 @@ export const CheckoutModal: React.FC = () => {
   useModalBackHandler(
     isCheckoutOpen,
     () => {
-      if (step > 1 && step < 4) {
-        setStep((prev) => (prev - 1) as any);
-      } else {
-        setIsCheckoutOpen(false);
-        setStep(1);
-      }
+      setIsCheckoutOpen(false);
+      setStep(1);
     },
-    `checkout-modal-step-${step}`
+    'checkout-modal'
   );
 
   // Resume checkout if returning from Google OAuth redirect
@@ -92,7 +88,7 @@ export const CheckoutModal: React.FC = () => {
     const saved = getSavedAddress();
     return {
       email: user?.email || '',
-      phone: '',
+      phone: user?.phone || '',
       firstName: user?.fullName ? user.fullName.split(' ')[0] : '',
       lastName: user?.fullName ? user.fullName.split(' ').slice(1).join(' ') : '',
       address: saved?.address || '42, Altamount Road, Cumballa Hill',
@@ -252,6 +248,7 @@ export const CheckoutModal: React.FC = () => {
       setFormData((prev) => ({
         ...prev,
         email: user.email || prev.email,
+        phone: prev.phone || user.phone || '',
         firstName: prev.firstName || parts[0] || '',
         lastName: prev.lastName || parts.slice(1).join(' ') || '',
         cardHolder: prev.cardHolder || user.fullName.toUpperCase(),
@@ -725,8 +722,8 @@ export const CheckoutModal: React.FC = () => {
                         const cleanDigits = e.target.value.replace(/^\+91\s*/, '').replace(/[^\d\s-]/g, '');
                         setFormData({ ...formData, phone: cleanDigits });
                       }}
-                      className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none tracking-wider font-mono placeholder:text-stone-600"
-                      placeholder="98200 12345"
+                      className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-white/40 focus:outline-none tracking-wider font-mono placeholder:text-stone-500"
+                      placeholder="Enter 10-digit mobile number"
                       maxLength={15}
                     />
                   </div>
