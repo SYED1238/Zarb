@@ -44,6 +44,7 @@ export const CheckoutModal: React.FC = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentStatusText, setPaymentStatusText] = useState('');
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [finalPaidAmount, setFinalPaidAmount] = useState<number>(0);
 
   // Geolocation & Auto-detection state
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -335,6 +336,10 @@ export const CheckoutModal: React.FC = () => {
             return;
           }
 
+          if (sessionRes.total_amount) {
+            setFinalPaidAmount(sessionRes.total_amount);
+          }
+
           setPaymentStatusText('Launching Cashfree hosted checkout...');
 
           // Update saved delivery address in customer profile
@@ -375,6 +380,7 @@ export const CheckoutModal: React.FC = () => {
             if (verifyRes.verified && (verifyRes.payment_status === 'SUCCESS' || verifyRes.payment_status === 'paid')) {
               setIsProcessingPayment(false);
               setOrderNumber(sessionRes.order_number!);
+              setFinalPaidAmount(sessionRes.total_amount || verifyRes.order?.total_amount || total);
               clearCart();
               setStep(4);
               try {
@@ -464,6 +470,7 @@ export const CheckoutModal: React.FC = () => {
           country: formData.country,
         }).catch(() => {});
 
+        setFinalPaidAmount(orderTotal);
         setIsProcessingPayment(false);
         setStep(4);
         clearCart();
@@ -1225,7 +1232,7 @@ export const CheckoutModal: React.FC = () => {
                 </div>
                 <div className="flex justify-between pt-1">
                   <span className="text-stone-400 uppercase tracking-wider">Total Paid</span>
-                  <span className="text-white font-medium">{formatPrice(total)}</span>
+                  <span className="text-white font-medium">{formatPrice(finalPaidAmount || total)}</span>
                 </div>
               </div>
 
