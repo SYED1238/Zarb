@@ -137,7 +137,7 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
                   : 'bg-gradient-to-r from-white/[0.15] to-white/[0.08] hover:from-white/[0.22] hover:to-white/[0.12] text-white border border-white/30 backdrop-blur-xl shadow-[0_8px_32px_rgba(255,255,255,0.06),0_2px_12px_rgba(0,0,0,0.4)] ring-1 ring-white/15'
               }`}
             >
-              <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="flex items-center space-x-3.5 min-w-0 flex-1 mr-2">
                 <div
                   className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
                     isAlabaster
@@ -147,18 +147,24 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
                 >
                   <Compass className="w-5 h-5 transition-transform duration-300 group-hover:rotate-45" />
                 </div>
-                <div className="min-w-0">
-                  <span className="block text-sm sm:text-base font-medium tracking-wide">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
+                  <span className="text-sm sm:text-base font-medium tracking-wide shrink-0">
                     Continue in Browser
                   </span>
-                  <span className="text-[10px] font-mono tracking-wider uppercase text-amber-500 font-semibold">
-                    Recommended Experience
+                  <span
+                    className={`inline-flex items-center text-[9px] sm:text-[9.5px] font-mono tracking-[0.18em] uppercase font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                      isAlabaster
+                        ? 'text-emerald-800 bg-emerald-700/10 border-emerald-700/25'
+                        : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+                    }`}
+                  >
+                    RECOMMENDED
                   </span>
                 </div>
               </div>
 
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ml-2 border transition-all ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border transition-all ${
                   isAlabaster
                     ? 'bg-stone-900/5 border-stone-900/15 text-stone-800 group-hover:translate-x-0.5'
                     : 'bg-white/10 border-white/20 text-white group-hover:translate-x-0.5'
