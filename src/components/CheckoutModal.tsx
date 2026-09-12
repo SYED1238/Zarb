@@ -26,7 +26,8 @@ import { createCashfreeOrderSession, launchCashfreeCheckout, verifyCashfreePayme
 import { useShippingConfig, calculateShippingCost, getShippingLabel } from '../utils/shippingConfig';
 
 export const CheckoutModal: React.FC = () => {
-  const { isCheckoutOpen, setIsCheckoutOpen, cartSubtotal, clearCart, cart, showToast } = useStore();
+  const { isCheckoutOpen, setIsCheckoutOpen, cartSubtotal, clearCart, cart, showToast, theme } = useStore();
+  const isAlabaster = theme === 'alabaster';
   const { user, saveOrder, signInWithGoogle, setIsAccountDrawerOpen, savedAddress, updateCustomerAddress } = useAuth();
   const shippingConfig = useShippingConfig();
 
@@ -516,15 +517,25 @@ export const CheckoutModal: React.FC = () => {
         onClick={() => step !== 4 && setIsCheckoutOpen(false)}
       />
 
-      <div className="relative w-full max-w-4xl bg-[#0e0e11] border border-white/10 sm:rounded-2xl z-10 shadow-2xl overflow-hidden my-auto min-h-screen sm:min-h-0 flex flex-col text-stone-200 animate-fade-in">
+      <div className={`relative w-full max-w-4xl sm:rounded-2xl z-10 shadow-2xl overflow-hidden my-auto min-h-screen sm:min-h-0 flex flex-col animate-fade-in ${
+        isAlabaster
+          ? 'bg-[#faf9f5] border border-stone-300/80 text-stone-900 shadow-stone-900/15'
+          : 'bg-[#0e0e11] border border-white/10 text-stone-200'
+      }`}>
         {/* Checkout Header */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 flex items-center justify-between bg-[#0a0a0c]">
+        <div className={`px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center justify-between ${
+          isAlabaster ? 'bg-[#f4f2eb] border-stone-300/80' : 'bg-[#0a0a0c] border-white/10'
+        }`}>
           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-            <span className="font-brand text-sm sm:text-base tracking-[0.25em] text-white shrink-0">
+            <span className={`font-brand text-sm sm:text-base tracking-[0.25em] shrink-0 ${
+              isAlabaster ? 'text-stone-950 font-bold' : 'text-white'
+            }`}>
               ZARB
             </span>
-            <span className="text-xs text-stone-600 shrink-0">|</span>
-            <span className="text-[11px] sm:text-xs tracking-[0.15em] sm:tracking-[0.2em] uppercase text-stone-400 truncate">
+            <span className={`text-xs shrink-0 ${isAlabaster ? 'text-stone-400' : 'text-stone-600'}`}>|</span>
+            <span className={`text-[11px] sm:text-xs tracking-[0.15em] sm:tracking-[0.2em] uppercase truncate ${
+              isAlabaster ? 'text-stone-600' : 'text-stone-400'
+            }`}>
               {user ? (
                 <>
                   <span className="hidden sm:inline">Distraction-Free </span>Haute Checkout
@@ -536,14 +547,20 @@ export const CheckoutModal: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
-            <div className="flex items-center space-x-1 text-[10px] sm:text-[11px] uppercase tracking-[0.15em] text-emerald-400">
+            <div className={`flex items-center space-x-1 text-[10px] sm:text-[11px] uppercase tracking-[0.15em] ${
+              isAlabaster ? 'text-emerald-700' : 'text-emerald-400'
+            }`}>
               <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span>{user ? 'Encrypted' : 'Security'}</span>
             </div>
             {step !== 4 && (
               <button
                 onClick={() => setIsCheckoutOpen(false)}
-                className="p-1 sm:p-1.5 text-stone-400 hover:text-white rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
+                className={`p-1 sm:p-1.5 rounded-lg cursor-pointer transition-colors ${
+                  isAlabaster
+                    ? 'text-stone-500 hover:text-black hover:bg-stone-200/60'
+                    : 'text-stone-400 hover:text-white hover:bg-white/5'
+                }`}
                 aria-label="Close Checkout"
               >
                 <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -651,7 +668,9 @@ export const CheckoutModal: React.FC = () => {
         ) : (
           <>
             {/* 4-Step Interactive Progress Indicator */}
-            <div className="px-2.5 sm:px-6 py-2.5 sm:py-3 bg-white/[0.02] border-b border-white/5 select-none overflow-x-auto no-scrollbar">
+            <div className={`px-2.5 sm:px-6 py-2.5 sm:py-3 border-b select-none overflow-x-auto no-scrollbar ${
+              isAlabaster ? 'bg-[#f4f2eb]/70 border-stone-300/80' : 'bg-white/[0.02] border-white/5'
+            }`}>
               <nav aria-label="Checkout Steps" className="flex items-center justify-between max-w-md mx-auto text-[10px] sm:text-xs tracking-[0.08em] sm:tracking-[0.15em] uppercase whitespace-nowrap">
                 {[
                   { id: 1 as const, name: 'Contact', mobileName: 'Contact' },
@@ -667,7 +686,9 @@ export const CheckoutModal: React.FC = () => {
                       {index > 0 && (
                         <span
                           className={`px-1 sm:px-1.5 text-[9px] sm:text-[11px] select-none transition-colors ${
-                            step >= s.id ? 'text-stone-400' : 'text-stone-700'
+                            step >= s.id
+                              ? isAlabaster ? 'text-stone-500' : 'text-stone-400'
+                              : isAlabaster ? 'text-stone-300' : 'text-stone-700'
                           }`}
                           aria-hidden="true"
                         >
@@ -681,7 +702,11 @@ export const CheckoutModal: React.FC = () => {
                           onClick={() => handleStepClick(s.id)}
                           title={s.id < step ? `Click to edit ${s.name}` : `Return to ${s.name}`}
                           aria-label={`${s.id}. ${s.name} - click to go to this step`}
-                          className="bg-transparent border-0 p-0 font-medium cursor-pointer transition-all duration-150 text-stone-300 hover:text-white hover:underline underline-offset-4 decoration-amber-400/80 focus:outline-none focus:text-white active:scale-95 uppercase whitespace-nowrap inline-flex items-center"
+                          className={`bg-transparent border-0 p-0 font-medium cursor-pointer transition-all duration-150 uppercase whitespace-nowrap inline-flex items-center ${
+                            isAlabaster
+                              ? 'text-stone-600 hover:text-black hover:underline underline-offset-4 decoration-amber-600 focus:text-black'
+                              : 'text-stone-300 hover:text-white hover:underline underline-offset-4 decoration-amber-400/80 focus:text-white'
+                          }`}
                         >
                           <span>{s.id}.&nbsp;</span>
                           <span className="hidden sm:inline">{s.name}</span>
@@ -693,9 +718,15 @@ export const CheckoutModal: React.FC = () => {
                           className={`uppercase whitespace-nowrap inline-flex items-center transition-colors ${
                             isActive
                               ? s.id === 4
-                                ? 'text-emerald-400 font-semibold border-b-2 border-emerald-400/90 pb-0.5'
-                                : 'text-white font-semibold border-b-2 border-amber-400/90 pb-0.5'
-                              : 'text-stone-600 cursor-default'
+                                ? isAlabaster
+                                  ? 'text-emerald-700 font-semibold border-b-2 border-emerald-600 pb-0.5'
+                                  : 'text-emerald-400 font-semibold border-b-2 border-emerald-400/90 pb-0.5'
+                                : isAlabaster
+                                  ? 'text-stone-950 font-semibold border-b-2 border-amber-600 pb-0.5'
+                                  : 'text-white font-semibold border-b-2 border-amber-400/90 pb-0.5'
+                              : isAlabaster
+                                ? 'text-stone-400 cursor-default'
+                                : 'text-stone-600 cursor-default'
                           }`}
                         >
                           <span>{s.id}.&nbsp;</span>
@@ -744,9 +775,13 @@ export const CheckoutModal: React.FC = () => {
                       </label>
                       <div className="flex items-center space-x-2">
                         {/* Country Code Badge (+91) */}
-                        <div className="flex items-center space-x-1.5 bg-white/[0.08] border border-white/20 rounded-xl px-3.5 py-3 text-sm text-stone-200 font-mono select-none shrink-0 shadow-inner">
+                        <div className={`flex items-center space-x-1.5 rounded-xl px-3.5 py-3 text-sm font-mono select-none shrink-0 shadow-inner ${
+                          isAlabaster
+                            ? 'bg-white border border-stone-300 text-stone-900'
+                            : 'bg-white/[0.08] border border-white/20 text-stone-200'
+                        }`}>
                           <span className="text-base leading-none">🇮🇳</span>
-                          <span className="font-semibold text-white tracking-wider">+91</span>
+                          <span className={`font-semibold tracking-wider ${isAlabaster ? 'text-stone-900' : 'text-white'}`}>+91</span>
                         </div>
 
                         <input
@@ -994,11 +1029,17 @@ export const CheckoutModal: React.FC = () => {
               </div>
 
               {/* Product Review Card - Customer can review products, quantities, variants & address before paying */}
-              <div className="rounded-2xl bg-white/[0.03] border border-white/10 overflow-hidden transition-all shadow-lg shadow-black/20">
+              <div className={`rounded-2xl border overflow-hidden transition-all shadow-lg ${
+                isAlabaster
+                  ? 'bg-white border-stone-200 shadow-stone-900/5'
+                  : 'bg-white/[0.03] border-white/10 shadow-black/20'
+              }`}>
                 <button
                   type="button"
                   onClick={() => setIsReviewOpen(!isReviewOpen)}
-                  className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer text-left select-none"
+                  className={`w-full px-4 py-3.5 flex items-center justify-between transition-colors cursor-pointer text-left select-none ${
+                    isAlabaster ? 'hover:bg-stone-50' : 'hover:bg-white/[0.02]'
+                  }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">

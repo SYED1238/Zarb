@@ -153,13 +153,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'women'; // default fallback if already selected
   });
 
-  const [hasSelectedGender, setHasSelectedGender] = useState<boolean>(() => {
-    return !!localStorage.getItem('atelier_gender_preference');
-  });
+  const [hasSelectedGender, setHasSelectedGender] = useState<boolean>(true);
 
-  const [showEntryScreen, setShowEntryScreen] = useState<boolean>(() => {
-    return !localStorage.getItem('atelier_gender_preference');
-  });
+  const [showEntryScreen, setShowEntryScreen] = useState<boolean>(false);
 
   const [isProductsLoading, setIsProductsLoading] = useState<boolean>(true);
 
@@ -431,7 +427,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const resetEntryScreen = () => {
-    setShowEntryScreen(true);
+    setShowEntryScreen(false);
   };
 
   // Cart state

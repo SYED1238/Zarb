@@ -23,7 +23,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
     isSearchOpen,
     theme,
     toggleTheme,
-    showEntryScreen,
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<'home' | 'catalog' | 'search' | 'wishlist' | 'bag' | 'theme' | 'account'>('home');
@@ -146,8 +145,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
       isHighlight: isAlabaster,
     },
   ];
-
-  if (showEntryScreen) return null;
 
   return (
     <nav

@@ -10,7 +10,7 @@ interface MobileDrawerProps {
 }
 
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onNavigateCategory }) => {
-  const { gender, setGender, wishlist, cartCount, setIsSearchOpen, setIsWishlistOpen, setIsCartOpen, resetEntryScreen } = useStore();
+  const { gender, setGender, wishlist, cartCount, setIsSearchOpen, setIsWishlistOpen, setIsCartOpen } = useStore();
 
   if (!isOpen) return null;
 
@@ -138,16 +138,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onN
           >
             <ShoppingBag className="w-4 h-4" />
             <span>Shopping Bag ({cartCount})</span>
-          </button>
-
-          <button
-            onClick={() => {
-              onClose();
-              resetEntryScreen();
-            }}
-            className="w-full py-2 text-[11px] tracking-[0.2em] uppercase text-stone-400 hover:text-stone-200 text-center transition-colors block"
-          >
-            Re-enter Cinematic Intro
           </button>
         </div>
       </div>

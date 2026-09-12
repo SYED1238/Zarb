@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './context/StoreContext';
-import { EntryScreen } from './components/EntryScreen';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { CategorySection } from './components/CategorySection';
@@ -78,9 +77,6 @@ const StoreFront: React.FC = () => {
   const {
     gender,
     theme,
-    showEntryScreen,
-    setShowEntryScreen,
-    setGender,
     activeProduct,
     setActiveProduct,
   } = useStore();
@@ -98,11 +94,6 @@ const StoreFront: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate]);
-
-  const handleEntrySelect = (genderChoice: 'men' | 'women') => {
-    setGender(genderChoice);
-    setShowEntryScreen(false);
-  };
 
   const handleSearchSelectCategory = (cat: string) => {
     const slugMap: Record<string, string> = {
@@ -134,9 +125,6 @@ const StoreFront: React.FC = () => {
   return (
     <div className={`relative min-h-screen transition-colors duration-500 ${theme === 'alabaster' ? 'bg-[#f6f5f0] text-[#141416]' : 'bg-[#09090b] text-[#f5f5f3]'}`}>
       <ScrollToTop />
-
-      {/* 1. Cinematic Entry Screen (Gender Selection) */}
-      {showEntryScreen && <EntryScreen onEnter={handleEntrySelect} />}
 
       {/* Main Store Header */}
       <Header />

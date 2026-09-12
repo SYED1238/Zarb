@@ -731,13 +731,38 @@ html.theme-alabaster [role="dialog"] .divide-white\/10> :not([hidden])~ :not([hi
   border-color: rgba(20, 20, 24, 0.08) !important;
 }
 
-/* Modal Internal Highlight / Frosted Boxes */
+/* Modal Internal Highlight / Frosted Boxes & Badges in Alabaster */
 html.theme-alabaster [role="dialog"] .bg-white\/\[0\.02\],
 html.theme-alabaster [role="dialog"] .bg-white\/\[0\.03\],
 html.theme-alabaster [role="dialog"] .bg-white\/\[0\.04\],
 html.theme-alabaster [role="dialog"] .bg-white\/\[0\.05\] {
   background-color: #ffffff !important;
   border-color: rgba(20, 20, 24, 0.08) !important;
+}
+
+html.theme-alabaster [role="dialog"] .bg-white\/\[0\.08\] {
+  background-color: #f5f5f4 !important;
+  border-color: rgba(20, 20, 24, 0.14) !important;
+  color: #121214 !important;
+}
+
+html.theme-alabaster [role="dialog"] .bg-white\/5 {
+  background-color: #f5f5f4 !important;
+  border-color: rgba(20, 20, 24, 0.1) !important;
+  color: #292524 !important;
+}
+
+html.theme-alabaster [role="dialog"] .border-amber-400\/80 {
+  border-color: #d97706 !important;
+  background-color: #fffbeb !important;
+}
+
+html.theme-alabaster [role="dialog"] .border-white\/30 {
+  border-color: rgba(20, 20, 24, 0.25) !important;
+}
+
+html.theme-alabaster [role="dialog"] .bg-stone-900 {
+  background-color: #e7e5e4 !important;
 }
 
 /* Search Overlay Specifics in Alabaster */
@@ -754,16 +779,37 @@ html.theme-alabaster .bg-black\/95 input::placeholder {
   color: #716e67 !important;
 }
 
-/* Luxury dark grounding anchor for footer in Alabaster */
+/* Footer styling in Alabaster mode (Haute Couture warm ivory harmony) */
 html.theme-alabaster footer:not(#entry-screen-footer),
 html.theme-alabaster #global-footer {
-  background-color: #111114 !important;
-  color: #a1a1aa !important;
+  background-color: #ece8df !important;
+  color: #4b4843 !important;
+  border-top-color: rgba(20, 20, 24, 0.12) !important;
 }
 
 html.theme-alabaster footer:not(#entry-screen-footer) .text-white,
 html.theme-alabaster #global-footer .text-white {
-  color: #ffffff !important;
+  color: #121214 !important;
+}
+
+html.theme-alabaster footer:not(#entry-screen-footer) .text-stone-400,
+html.theme-alabaster #global-footer .text-stone-400 {
+  color: #57534e !important;
+}
+
+html.theme-alabaster footer:not(#entry-screen-footer) .text-stone-300,
+html.theme-alabaster #global-footer .text-stone-300 {
+  color: #27272a !important;
+}
+
+html.theme-alabaster footer:not(#entry-screen-footer) a:hover {
+  color: #000000 !important;
+}
+
+html.theme-alabaster footer:not(#entry-screen-footer) .border-white\/10,
+html.theme-alabaster footer:not(#entry-screen-footer) .border-white\/15,
+html.theme-alabaster footer:not(#entry-screen-footer) .border-white\/20 {
+  border-color: rgba(20, 20, 24, 0.12) !important;
 }
 
 /* ========================================================== */
@@ -1369,6 +1415,21 @@ html.theme-alabaster .liquid-droplet:hover {
 
 .animate-slide-progress {
   animation: slideProgressBar 5.5s linear forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Accessibility */
