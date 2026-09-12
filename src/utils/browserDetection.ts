@@ -2,9 +2,22 @@
  * Browser Detection Utilities for ZARB
  * Reliable, lightweight detection of in-app webviews (specifically Instagram)
  * without dependencies, preventing false positives on normal Chrome, Safari, Firefox, etc.
+ *
+ * NOTE: As per requirements, user choice is NEVER persisted in localStorage/sessionStorage/cookies.
+ * Every new visit/entry inside Instagram's in-app browser triggers the choice prompt afresh.
  */
 
 export const BROWSER_PREFERENCE_STORAGE_KEY = 'zarb_browser_preference';
+
+// Clean up any legacy persisted preference that may have been stored in prior versions
+if (typeof window !== 'undefined') {
+  try {
+    sessionStorage.removeItem(BROWSER_PREFERENCE_STORAGE_KEY);
+    localStorage.removeItem(BROWSER_PREFERENCE_STORAGE_KEY);
+  } catch {
+    // safe fallback
+  }
+}
 
 /**
  * Checks if the current visitor is browsing via Instagram's in-app webview.
@@ -27,9 +40,7 @@ export function isInstagramInAppBrowser(customUserAgent?: string): boolean {
   // Instagram app embeds 'Instagram' into its User-Agent string across iOS & Android:
   // e.g. "Mozilla/5.0 (iPhone; ... Instagram 280.0.0.17.112 ...)"
   // e.g. "Mozilla/5.0 (Linux; Android 13; ... Instagram 280.0.0.17.112 Android ...)"
-  const isInstagramUa = /instagram/i.test(ua);
-
-  return isInstagramUa;
+  return /instagram/i.test(ua);
 }
 
 /**
@@ -49,39 +60,13 @@ export function isIosDevice(customUserAgent?: string): boolean {
 }
 
 /**
- * Reads the stored browser preference from sessionStorage or localStorage
- */
-export function getBrowserPreference(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return sessionStorage.getItem(BROWSER_PREFERENCE_STORAGE_KEY) ||
-           localStorage.getItem(BROWSER_PREFERENCE_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Persists the user's browser choice so they are not repeatedly prompted
- */
-export function setBrowserPreference(preference: 'instagram' | 'browser'): void {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.setItem(BROWSER_PREFERENCE_STORAGE_KEY, preference);
-    localStorage.setItem(BROWSER_PREFERENCE_STORAGE_KEY, preference);
-  } catch {
-    // Graceful fallback if storage is restricted or disabled
-  }
-}
-
-/**
  * Evaluates whether the Instagram choice prompt should be displayed:
- * Must be in Instagram's in-app browser AND must not have previously chosen to continue in Instagram.
+ * Always returns true for Instagram visitors on initial entry.
+ * Independent browsers (Chrome, Safari, Firefox, Edge, etc.) return false.
+ * Persistent storage is explicitly NOT used to suppress this prompt.
  */
 export function shouldShowInstagramChoice(): boolean {
-  if (!isInstagramInAppBrowser()) return false;
-  const pref = getBrowserPreference();
-  return pref !== 'instagram';
+  return isInstagramInAppBrowser();
 }
 
 /**
@@ -104,9 +89,6 @@ export function openInExternalBrowser(url?: string): {
   if (!targetUrl || typeof window === 'undefined') {
     return { success: false, isAndroid, isIos, targetUrl: '' };
   }
-
-  // Persist preference that the user requested the independent browser
-  setBrowserPreference('browser');
 
   if (isAndroid) {
     // Standard Android Intent URI: Launches default browser handler for HTTPS without locking to a single package

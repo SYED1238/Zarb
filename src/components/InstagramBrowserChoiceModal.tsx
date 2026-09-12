@@ -4,7 +4,6 @@ import { useStore } from '../context/StoreContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import {
   shouldShowInstagramChoice,
-  setBrowserPreference,
   openInExternalBrowser,
   isIosDevice,
 } from '../utils/browserDetection';
@@ -29,9 +28,8 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
   // Connect Android hardware / browser back-navigation to closing this modal
   useModalBackHandler(isOpen, () => handleContinueInInstagram(), 'instagram-browser-choice-modal');
 
-  // Dismiss and persist preference to continue inside Instagram
+  // Dismiss for current page session without saving to persistent storage
   const handleContinueInInstagram = () => {
-    setBrowserPreference('instagram');
     setIsOpen(false);
   };
 
