@@ -24,6 +24,8 @@ export interface ShippingConfig {
   freeAbove: number;                 // cart amount above which shipping is free (for 'flat' mode)
   tiers: ShippingTier[];             // used when mode === 'tiered'
   freeShippingMessage: string;       // shown to customers in checkout
+  returnDays: number;                // return window in calendar days (e.g. 7, 14, 30; 0 = final sale)
+  returnPolicyNote: string;          // customer-facing policy copy
   updatedAt: string;
 }
 
@@ -51,6 +53,8 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
     },
   ],
   freeShippingMessage: 'Complimentary White-Glove Delivery on all orders',
+  returnDays: 30,
+  returnPolicyNote: 'Prepaid complimentary returns and exchanges within 30 calendar days of delivery.',
   updatedAt: new Date().toISOString(),
 };
 

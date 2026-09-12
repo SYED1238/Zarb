@@ -16,6 +16,9 @@ export const SizeGuideModal: React.FC = () => {
     { size: '48 (M)', chestCm: '96 - 100', waistCm: '82 - 86', hipCm: '98 - 102', chestIn: '38 - 40', waistIn: '32 - 34', hipIn: '38.5 - 40' },
     { size: '50 (L)', chestCm: '100 - 104', waistCm: '86 - 90', hipCm: '102 - 106', chestIn: '40 - 42', waistIn: '34 - 36', hipIn: '40 - 42' },
     { size: '52 (XL)', chestCm: '104 - 108', waistCm: '90 - 94', hipCm: '106 - 110', chestIn: '42 - 44', waistIn: '36 - 38', hipIn: '42 - 44' },
+    { size: '54 (XXL)', chestCm: '108 - 114', waistCm: '94 - 100', hipCm: '110 - 116', chestIn: '44 - 46', waistIn: '38 - 40', hipIn: '44 - 46' },
+    { size: '56 (XXXL)', chestCm: '114 - 120', waistCm: '100 - 106', hipCm: '116 - 122', chestIn: '46 - 48', waistIn: '40 - 42', hipIn: '46 - 48' },
+    { size: '58 (XXXXL)', chestCm: '120 - 128', waistCm: '106 - 114', hipCm: '122 - 130', chestIn: '48 - 51', waistIn: '42 - 45', hipIn: '48 - 51' },
   ];
 
   const womenSizes = [
@@ -23,6 +26,10 @@ export const SizeGuideModal: React.FC = () => {
     { size: '36 (S)', bustCm: '84 - 88', waistCm: '66 - 70', hipCm: '92 - 96', bustIn: '33 - 34.5', waistIn: '26 - 27.5', hipIn: '36 - 38' },
     { size: '38 (M)', bustCm: '88 - 92', waistCm: '70 - 74', hipCm: '96 - 100', bustIn: '34.5 - 36', waistIn: '27.5 - 29', hipIn: '38 - 39.5' },
     { size: '40 (L)', bustCm: '92 - 96', waistCm: '74 - 78', hipCm: '100 - 104', bustIn: '36 - 38', waistIn: '29 - 31', hipIn: '39.5 - 41' },
+    { size: '42 (XL)', bustCm: '96 - 102', waistCm: '78 - 84', hipCm: '104 - 110', bustIn: '38 - 40', waistIn: '31 - 33', hipIn: '41 - 43.5' },
+    { size: '44 (XXL)', bustCm: '102 - 108', waistCm: '84 - 90', hipCm: '110 - 116', bustIn: '40 - 42.5', waistIn: '33 - 35.5', hipIn: '43.5 - 46' },
+    { size: '46 (XXXL)', bustCm: '108 - 116', waistCm: '90 - 98', hipCm: '116 - 124', bustIn: '42.5 - 45.5', waistIn: '35.5 - 38.5', hipIn: '46 - 49' },
+    { size: '48 (XXXXL)', bustCm: '116 - 124', waistCm: '98 - 106', hipCm: '124 - 132', bustIn: '45.5 - 49', waistIn: '38.5 - 42', hipIn: '49 - 52' },
   ];
 
   const rows = gender === 'men' ? menSizes : womenSizes;

@@ -4,6 +4,7 @@ import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import { getMediaUrl } from '../utils/media';
+import { useShippingConfig } from '../utils/shippingConfig';
 import {
   X,
   Star,
@@ -52,6 +53,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   } = useStore();
 
   const { user } = useAuth();
+  const shippingConfig = useShippingConfig();
+  const effectiveReturnDays = product?.returnDays !== undefined ? product.returnDays : (shippingConfig.returnDays ?? 30);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -537,8 +540,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <span>Free Shipping &gt; ₹10k</span>
                   </div>
                   <div className="flex flex-col items-center border-x border-white/10 px-2">
-                    <RotateCcw className="w-4 h-4 mb-1 text-stone-300" />
-                    <span>30-Day Returns</span>
+                    <RotateCcw className={`w-4 h-4 mb-1 ${effectiveReturnDays === 0 ? 'text-amber-400' : 'text-stone-300'}`} />
+                    <span>{effectiveReturnDays === 0 ? 'Final Sale' : `${effectiveReturnDays}-Day Returns`}</span>
                   </div>
                   <div className="flex flex-col items-center">
                     <ShieldCheck className="w-4 h-4 mb-1 text-stone-300" />
@@ -615,7 +618,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <div className="pdp-accordion-content pb-4 text-xs text-stone-400 leading-relaxed space-y-1.5 animate-fade-in">
                         <p>Complimentary express courier shipping on orders over ₹10,000.</p>
                         <p>Standard delivery: 2–4 business days within India in luxury gift packaging.</p>
-                        <p>Prepaid complimentary returns and exchanges within 30 calendar days of delivery.</p>
+                        {effectiveReturnDays === 0 ? (
+                          <p className="text-amber-300/90 font-medium">This artisanal piece is a final sale and not eligible for return or exchange.</p>
+                        ) : (
+                          <p>{shippingConfig.returnPolicyNote || `Prepaid complimentary returns and exchanges within ${effectiveReturnDays} calendar days of delivery.`}</p>
+                        )}
                       </div>
                     )}
                   </div>

@@ -88,11 +88,40 @@ const LUXURY_COLOR_PRESETS = [
   { name: 'Dusty Rose', hex: '#c59b97' },
 ];
 
+interface SizeCategoryDef {
+  id: 'all' | 'alpha' | 'suit' | 'waist' | 'special';
+  label: string;
+  sizes: string[];
+}
+
+const SIZE_CATEGORIES: SizeCategoryDef[] = [
+  {
+    id: 'alpha',
+    label: 'Standard (XS - 5XL)',
+    sizes: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL', '5XL'],
+  },
+  {
+    id: 'suit',
+    label: 'European / Suit (EU)',
+    sizes: ['44 (XS)', '46 (S)', '48 (M)', '50 (L)', '52 (XL)', '54 (XXL)', '56 (XXXL)', '58 (XXXXL)'],
+  },
+  {
+    id: 'waist',
+    label: 'Waist (Trousers)',
+    sizes: ['26', '28', '30', '32', '34', '36', '38', '40', '42', '44'],
+  },
+  {
+    id: 'special',
+    label: 'Universal / Bespoke',
+    sizes: ['One Size', 'Free Size', 'Custom Fit', 'Made-to-Measure', 'Petite', 'Plus Size'],
+  },
+];
+
 const STANDARD_SIZES = [
-  'XS', 'S', 'M', 'L', 'XL', 'XXL',
-  '46 (S)', '48 (M)', '50 (L)', '52 (XL)', '54 (XXL)',
-  '28', '30', '32', '34', '36',
-  'One Size'
+  'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL', '5XL',
+  '44 (XS)', '46 (S)', '48 (M)', '50 (L)', '52 (XL)', '54 (XXL)', '56 (XXXL)', '58 (XXXXL)',
+  '26', '28', '30', '32', '34', '36', '38', '40', '42', '44',
+  'One Size', 'Free Size', 'Custom Fit', 'Made-to-Measure'
 ];
 
 export const AdminPortal: React.FC = () => {
@@ -588,6 +617,7 @@ export const AdminPortal: React.FC = () => {
     materials: string;
     fit: string;
     season: string;
+    returnDays?: number;
   }>({
     name: '',
     slug: '',
@@ -609,7 +639,13 @@ export const AdminPortal: React.FC = () => {
     materials: '100% Pure Mulberry Silk & Hand-Spun Wool',
     fit: 'Tailored Silhouette',
     season: 'Autumn / Winter 2026',
+    returnDays: undefined,
   });
+
+  // Size Management in Product Drawer
+  const [customSizeInput, setCustomSizeInput] = useState('');
+  const [sizeCategoryTab, setSizeCategoryTab] = useState<'all' | 'alpha' | 'suit' | 'waist' | 'special' | 'custom'>('all');
+  const [customSizesList, setCustomSizesList] = useState<string[]>(['XXXL', 'XXXXL', '5XL', 'Custom Fit']);
 
   // Product Image input URL temporary
   const [newImageUrl, setNewImageUrl] = useState('');
@@ -813,7 +849,10 @@ export const AdminPortal: React.FC = () => {
       materials: 'Pure Mulberry Silk & Italian Wool',
       fit: 'Relaxed Architectural Silhouette',
       season: 'Autumn / Winter 2026',
+      returnDays: undefined,
     });
+    setCustomSizeInput('');
+    setSizeCategoryTab('all');
     setNewImageUrl('');
     setActiveColorImageIndex(null);
     setNewColorImageUrl('');
@@ -850,7 +889,15 @@ export const AdminPortal: React.FC = () => {
       materials: p.materials || '',
       fit: p.fit || '',
       season: p.season || 'Autumn / Winter 2026',
+      returnDays: p.returnDays,
     });
+    setCustomSizeInput('');
+    setSizeCategoryTab('all');
+    // Ensure any sizes on the product not in STANDARD_SIZES appear in customSizesList
+    const extra = p.sizes.filter(s => !STANDARD_SIZES.includes(s));
+    if (extra.length > 0) {
+      setCustomSizesList(prev => Array.from(new Set([...prev, ...extra])));
+    }
     setNewImageUrl('');
     setActiveColorImageIndex(null);
     setNewColorImageUrl('');
@@ -864,6 +911,7 @@ export const AdminPortal: React.FC = () => {
       name: `${p.name} (Copy)`,
       slug: `${p.slug}-copy-${Date.now().toString().slice(-3)}`,
       sku: `${p.sku}-CP`,
+      returnDays: p.returnDays,
     };
     addProduct(duplicated);
   };
@@ -911,6 +959,7 @@ export const AdminPortal: React.FC = () => {
       materials: productForm.materials.trim(),
       fit: productForm.fit.trim(),
       season: productForm.season.trim(),
+      returnDays: productForm.returnDays !== undefined && productForm.returnDays !== null ? Number(productForm.returnDays) : undefined,
     };
 
     setIsSavingProduct(true);
@@ -1686,7 +1735,7 @@ export const AdminPortal: React.FC = () => {
             }`}
           >
             <Truck className="w-4 h-4 text-sky-400" />
-            <span>Shipping Costs</span>
+            <span>Shipping & Returns</span>
           </button>
         </section>
 
@@ -3288,7 +3337,7 @@ export const AdminPortal: React.FC = () => {
                 <button
                   onClick={() => {
                     setShippingConfig({ ...DEFAULT_SHIPPING_CONFIG });
-                    showToast('Reset to default (free shipping). Click Save to apply.');
+                    showToast('Reset to default (free shipping & 30-day returns). Click Save to apply.');
                   }}
                   className={`text-xs flex items-center space-x-1.5 transition-colors cursor-pointer ${
                     theme === 'alabaster' ? 'text-stone-400 hover:text-stone-700' : 'text-stone-500 hover:text-stone-300'
@@ -3297,6 +3346,188 @@ export const AdminPortal: React.FC = () => {
                   <RotateCcw className="w-3 h-3" />
                   <span>Reset to defaults</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Returns & Exchange Policy Management Card */}
+            <div className={`p-6 rounded-2xl border ${
+              theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#121216] border-white/10'
+            }`}>
+              <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-serif">Customer Returns & Exchange Window</h3>
+                    <p className={`text-xs mt-0.5 ${
+                      theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                    }`}>Configure how many days customers have to request returns & exchanges</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveShipping}
+                  className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs tracking-wider uppercase font-semibold shadow-md transition-all cursor-pointer ${
+                    shippingSaved
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-amber-500 hover:bg-amber-400 text-black'
+                  }`}
+                >
+                  {shippingSaved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                  <span>{shippingSaved ? 'Saved!' : 'Save Return Policy'}</span>
+                </button>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="space-y-3 mb-6">
+                <label className={`text-[10px] font-mono tracking-[0.2em] uppercase block ${
+                  theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                }`}>Select Standard Return Window</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                  {[
+                    { days: 7, label: '7 Days', desc: 'Fast Return' },
+                    { days: 10, label: '10 Days', desc: 'Short Window' },
+                    { days: 14, label: '14 Days', desc: 'Fortnight' },
+                    { days: 15, label: '15 Days', desc: 'Mid Window' },
+                    { days: 30, label: '30 Days', desc: 'Standard Luxury' },
+                    { days: 0, label: '0 Days', desc: 'Final Sale (None)' },
+                  ].map(preset => {
+                    const isSelected = (shippingConfig.returnDays ?? 30) === preset.days;
+                    return (
+                      <button
+                        key={preset.days}
+                        type="button"
+                        onClick={() => setShippingConfig(prev => ({ ...prev, returnDays: preset.days }))}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? (theme === 'alabaster' ? 'border-amber-500 bg-amber-50 shadow-sm' : 'border-amber-400 bg-amber-500/10 shadow-sm')
+                            : (theme === 'alabaster' ? 'border-stone-200 hover:border-stone-300 bg-stone-50/50' : 'border-white/10 hover:border-white/20 bg-white/[0.02]')
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-semibold ${
+                            isSelected ? (theme === 'alabaster' ? 'text-amber-800' : 'text-amber-400') : (theme === 'alabaster' ? 'text-stone-800' : 'text-stone-200')
+                          }`}>
+                            {preset.label}
+                          </span>
+                          {isSelected && <span className="w-2 h-2 rounded-full bg-amber-400" />}
+                        </div>
+                        <span className={`text-[10px] block mt-0.5 ${
+                          isSelected ? (theme === 'alabaster' ? 'text-amber-700' : 'text-amber-300/80') : (theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400')
+                        }`}>{preset.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Return Days Input */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className={`text-[10px] font-mono tracking-[0.2em] uppercase block mb-1.5 ${
+                    theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                  }`}>Return Window Duration (Days)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={shippingConfig.returnDays ?? 30}
+                      onChange={e => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setShippingConfig(prev => ({ ...prev, returnDays: val }));
+                      }}
+                      className={`w-full px-4 py-2.5 rounded-xl border text-sm font-mono focus:outline-none ${
+                        theme === 'alabaster'
+                          ? 'bg-stone-50 border-stone-300 text-black'
+                          : 'bg-black/40 border-white/15 text-white'
+                      }`}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-stone-400 pointer-events-none">
+                      Days
+                    </span>
+                  </div>
+                  <p className={`text-[11px] mt-1.5 ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                    Enter <strong className="text-amber-400">0</strong> to mark all store pieces as Final Sale (no returns accepted).
+                  </p>
+                </div>
+
+                <div>
+                  <label className={`text-[10px] font-mono tracking-[0.2em] uppercase block mb-1.5 ${
+                    theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                  }`}>Current Policy Status</label>
+                  <div className={`p-3 rounded-xl border flex items-center space-x-3 ${
+                    (shippingConfig.returnDays ?? 30) > 0
+                      ? (theme === 'alabaster' ? 'bg-emerald-50 border-emerald-200' : 'bg-emerald-500/10 border-emerald-500/30')
+                      : (theme === 'alabaster' ? 'bg-amber-50 border-amber-200' : 'bg-amber-500/10 border-amber-500/30')
+                  }`}>
+                    <ShieldCheck className={`w-5 h-5 shrink-0 ${
+                      (shippingConfig.returnDays ?? 30) > 0 ? 'text-emerald-400' : 'text-amber-400'
+                    }`} />
+                    <div>
+                      <p className={`text-xs font-semibold ${
+                        (shippingConfig.returnDays ?? 30) > 0 ? 'text-emerald-400' : 'text-amber-400'
+                      }`}>
+                        {(shippingConfig.returnDays ?? 30) > 0
+                          ? `${shippingConfig.returnDays ?? 30}-Day Return Guarantee Active`
+                          : 'Final Sale Mode Active (No Returns)'}
+                      </p>
+                      <p className="text-[10px] text-stone-400 mt-0.5">
+                        {(shippingConfig.returnDays ?? 30) > 0
+                          ? 'Badges will show hassle-free return window on product pages.'
+                          : 'Customers will be notified that all purchases are final.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Policy Editorial Note */}
+              <div className="space-y-2 mb-6">
+                <label className={`text-[10px] font-mono tracking-[0.2em] uppercase block ${
+                  theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
+                }`}>Return Policy Editorial Copy (Customer Facing)</label>
+                <textarea
+                  rows={3}
+                  value={shippingConfig.returnPolicyNote ?? DEFAULT_SHIPPING_CONFIG.returnPolicyNote}
+                  onChange={e => setShippingConfig(prev => ({ ...prev, returnPolicyNote: e.target.value }))}
+                  placeholder="Enter details about courier pickup, tag conditions, packaging requirements..."
+                  className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
+                    theme === 'alabaster' ? 'bg-stone-50 border-stone-300 text-black' : 'bg-black/40 border-white/15 text-white'
+                  }`}
+                />
+                <p className={`text-[11px] ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                  Displayed inside the collapsible Shipping & Returns accordion on product view modals.
+                </p>
+              </div>
+
+              {/* Live Preview of Customer Experience */}
+              <div className={`p-4 rounded-xl border ${
+                theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-white/[0.02] border-white/10'
+              }`}>
+                <span className="text-[10px] font-mono tracking-[0.2em] text-amber-400 uppercase block mb-2">
+                  Customer Storefront Live Preview
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
+                    (shippingConfig.returnDays ?? 30) > 0
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }`}>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>
+                      {(shippingConfig.returnDays ?? 30) > 0
+                        ? `${shippingConfig.returnDays ?? 30}-Day Returns`
+                        : 'Final Sale'}
+                    </span>
+                  </div>
+                  <span className="text-xs text-stone-400">
+                    {(shippingConfig.returnDays ?? 30) > 0
+                      ? `${shippingConfig.returnDays ?? 30}-day complimentary return & exchange window across India`
+                      : 'This piece is final sale and cannot be returned or exchanged.'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -3937,36 +4168,185 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Sizes */}
+              {/* Sizes & Size Management */}
               <div className="space-y-4">
-                <span className="text-xs uppercase tracking-wider font-semibold text-stone-400 block border-b border-white/10 pb-2">
-                  5. Available Sizes
-                </span>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                  <span className="text-xs uppercase tracking-wider font-semibold text-stone-400">
+                    5. Available Sizes & Size Management ({productForm.sizes.length} selected)
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const std = ['S', 'M', 'L', 'XL'];
+                        setProductForm(prev => ({ ...prev, sizes: Array.from(new Set([...prev.sizes, ...std])) }));
+                      }}
+                      className="px-2 py-1 rounded-lg text-[10px] uppercase font-mono bg-white/5 hover:bg-white/10 text-stone-300 border border-white/10 cursor-pointer"
+                    >
+                      + S to XL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const inclusive = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL'];
+                        setProductForm(prev => ({ ...prev, sizes: Array.from(new Set([...prev.sizes, ...inclusive])) }));
+                      }}
+                      className="px-2 py-1 rounded-lg text-[10px] uppercase font-mono bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer"
+                    >
+                      + XS to XXXXL (4XL)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProductForm(prev => ({ ...prev, sizes: [] }))}
+                      className="px-2 py-1 rounded-lg text-[10px] uppercase font-mono text-stone-400 hover:text-red-400 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {STANDARD_SIZES.map((sz) => {
-                    const isSelected = productForm.sizes.includes(sz);
-                    return (
-                      <button
+                {/* Selected Sizes Chips Bar */}
+                {productForm.sizes.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/[0.04]">
+                    <span className="text-[10px] font-mono tracking-wider text-amber-400 uppercase mr-1">
+                      Active Sizes:
+                    </span>
+                    {productForm.sizes.map((sz) => (
+                      <span
                         key={sz}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setProductForm({ ...productForm, sizes: productForm.sizes.filter(s => s !== sz) });
-                          } else {
-                            setProductForm({ ...productForm, sizes: [...productForm.sizes, sz] });
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-amber-500 text-black font-semibold'
-                            : 'bg-white/5 text-stone-400 border border-white/10 hover:bg-white/10'
-                        }`}
+                        className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-amber-500 text-black font-semibold text-xs font-mono"
                       >
-                        {sz}
-                      </button>
-                    );
-                  })}
+                        <span>{sz}</span>
+                        <button
+                          type="button"
+                          onClick={() => setProductForm(prev => ({ ...prev, sizes: prev.sizes.filter(s => s !== sz) }))}
+                          className="hover:text-red-900 cursor-pointer ml-1 text-sm leading-none"
+                          title={`Remove ${sz}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-stone-400 italic">
+                    No sizes selected yet. If left empty, it will default to &ldquo;One Size&rdquo;.
+                  </p>
+                )}
+
+                {/* Add Custom Size Input (e.g. XXXXL, 5XL, 38R, Made-to-Measure) */}
+                <div className={`p-3 rounded-xl border flex flex-col sm:flex-row items-stretch sm:items-center gap-2 ${
+                  theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-white/[0.03] border-white/10'
+                }`}>
+                  <input
+                    type="text"
+                    value={customSizeInput}
+                    onChange={(e) => setCustomSizeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const trimmed = customSizeInput.trim().toUpperCase();
+                        if (trimmed) {
+                          if (!productForm.sizes.includes(trimmed)) {
+                            setProductForm(prev => ({ ...prev, sizes: [...prev.sizes, trimmed] }));
+                          }
+                          if (!customSizesList.includes(trimmed)) {
+                            setCustomSizesList(prev => [...prev, trimmed]);
+                          }
+                          setCustomSizeInput('');
+                          showToast(`Size "${trimmed}" added!`);
+                        }
+                      }
+                    }}
+                    placeholder="Type custom size (e.g. XXXXL, 4XL, 5XL, 38R, Made-to-Measure)..."
+                    className={`flex-1 px-3 py-2 rounded-lg text-xs font-mono border focus:outline-none ${
+                      theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = customSizeInput.trim().toUpperCase();
+                      if (trimmed) {
+                        if (!productForm.sizes.includes(trimmed)) {
+                          setProductForm(prev => ({ ...prev, sizes: [...prev.sizes, trimmed] }));
+                        }
+                        if (!customSizesList.includes(trimmed)) {
+                          setCustomSizesList(prev => [...prev, trimmed]);
+                        }
+                        setCustomSizeInput('');
+                        showToast(`Size "${trimmed}" added!`);
+                      }
+                    }}
+                    disabled={!customSizeInput.trim()}
+                    className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase disabled:opacity-40 cursor-pointer shrink-0"
+                  >
+                    + Add Size
+                  </button>
+                </div>
+
+                {/* Category Filter Tabs */}
+                <div className="flex flex-wrap gap-1 border-b border-white/10 pb-2">
+                  {[
+                    { id: 'all', label: 'All Sizing' },
+                    { id: 'alpha', label: 'Standard (XS - 5XL)' },
+                    { id: 'suit', label: 'European / Suit' },
+                    { id: 'waist', label: 'Waist (26-44)' },
+                    { id: 'special', label: 'Universal / Bespoke' },
+                    { id: 'custom', label: `Custom (${customSizesList.length})` },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSizeCategoryTab(tab.id as any)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-sans tracking-wider uppercase transition-all cursor-pointer ${
+                        sizeCategoryTab === tab.id
+                          ? 'bg-white/15 text-amber-400 font-semibold'
+                          : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Size Selection Grid */}
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                  {(() => {
+                    let pool: string[] = [];
+                    if (sizeCategoryTab === 'all') {
+                      pool = Array.from(new Set([...STANDARD_SIZES, ...customSizesList]));
+                    } else if (sizeCategoryTab === 'custom') {
+                      pool = customSizesList;
+                    } else {
+                      const matched = SIZE_CATEGORIES.find(c => c.id === sizeCategoryTab);
+                      pool = matched ? matched.sizes : [];
+                    }
+
+                    return pool.map((sz) => {
+                      const isSelected = productForm.sizes.includes(sz);
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setProductForm(prev => ({ ...prev, sizes: prev.sizes.filter(s => s !== sz) }));
+                            } else {
+                              setProductForm(prev => ({ ...prev, sizes: [...prev.sizes, sz] }));
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-500 text-black font-semibold ring-2 ring-amber-400/40 shadow-sm'
+                              : 'bg-white/5 text-stone-400 border border-white/10 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          {isSelected && '✓ '}{sz}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
@@ -4020,6 +4400,56 @@ export const AdminPortal: React.FC = () => {
                           theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                         }`}
                       />
+                    </div>
+                  </div>
+
+                  {/* Per-piece Return Policy Window Override */}
+                  <div className={`p-4 rounded-xl border mt-3 ${
+                    theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-white/[0.02] border-white/10'
+                  }`}>
+                    <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Return Policy Window (Per-Piece Policy)</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-400/80 lowercase">
+                        store default: {shippingConfig.returnDays ?? 30} days
+                      </span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <select
+                          value={productForm.returnDays === undefined ? 'default' : String(productForm.returnDays)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'default') {
+                              setProductForm(prev => ({ ...prev, returnDays: undefined }));
+                            } else {
+                              setProductForm(prev => ({ ...prev, returnDays: parseInt(val) }));
+                            }
+                          }}
+                          className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                            theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                          }`}
+                        >
+                          <option value="default">Use Global Store Policy ({shippingConfig.returnDays ?? 30} Days)</option>
+                          <option value="7">7 Days Return</option>
+                          <option value="10">10 Days Return</option>
+                          <option value="14">14 Days Return</option>
+                          <option value="15">15 Days Return</option>
+                          <option value="30">30 Days Return</option>
+                          <option value="0">0 Days — Final Sale (Non-Returnable)</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center text-[11px] text-stone-400">
+                        {productForm.returnDays === undefined ? (
+                          <span>Inheriting global return policy ({shippingConfig.returnDays ?? 30} days).</span>
+                        ) : productForm.returnDays === 0 ? (
+                          <span className="text-amber-400">Marked as Final Sale (no returns or exchanges allowed).</span>
+                        ) : (
+                          <span className="text-emerald-400">Custom {productForm.returnDays}-day return window for this piece.</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

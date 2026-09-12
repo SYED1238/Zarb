@@ -29,6 +29,9 @@ export function mapSupabaseToProduct(d: any): Product {
     materials: d.materials || '',
     fit: d.fit || '',
     season: d.season || '',
+    returnDays: d.return_days !== undefined && d.return_days !== null
+      ? Number(d.return_days)
+      : (d.returnDays !== undefined && d.returnDays !== null ? Number(d.returnDays) : undefined),
   };
 }
 
@@ -55,6 +58,7 @@ export function mapProductToSupabase(p: Product) {
     materials: p.materials || '',
     fit: p.fit || '',
     season: p.season || '',
+    return_days: p.returnDays !== undefined ? p.returnDays : null,
     updated_at: new Date().toISOString(),
   };
 }

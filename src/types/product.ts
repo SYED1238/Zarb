@@ -30,6 +30,7 @@ export interface Product {
   materials?: string;
   fit?: string;
   season?: string;
+  returnDays?: number; // Return window in days (undefined = follows store policy, 0 = final sale)
 }
 
 export interface CartItem {
