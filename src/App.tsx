@@ -8,6 +8,7 @@ import { ProductGrid } from './components/ProductGrid';
 import { CategoryPage } from './components/CategoryPage';
 import { AdminPortal } from './components/admin/AdminPortal';
 import { ProductDetailModal } from './components/ProductDetailModal';
+import { InstagramBrowserChoiceModal } from './components/InstagramBrowserChoiceModal';
 import { SizeGuideModal } from './components/SizeGuideModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
@@ -165,6 +166,7 @@ const StoreFront: React.FC = () => {
       <MobileBottomNav />
 
       {/* Interactive Overlays & Modals */}
+      <InstagramBrowserChoiceModal />
       <ProductDetailModal
         product={activeProduct}
         onClose={() => setActiveProduct(null)}
