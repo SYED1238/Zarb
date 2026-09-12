@@ -36,31 +36,32 @@ export function mapSupabaseToProduct(d: any): Product {
 }
 
 export function mapProductToSupabase(p: Product) {
-  return {
+  const payload: Record<string, any> = {
     id: p.id,
     name: p.name,
     slug: p.slug,
     gender: p.gender,
     category: p.category,
-    description: p.description,
-    price: p.price,
-    compare_at_price: p.compareAtPrice || null,
-    images: p.images || [],
-    colors: p.colors || [],
-    sizes: p.sizes || [],
-    stock: p.stock ?? 0,
+    description: p.description || '',
+    price: Number(p.price),
+    compare_at_price: p.compareAtPrice ? Number(p.compareAtPrice) : null,
+    images: Array.isArray(p.images) ? p.images : [],
+    colors: Array.isArray(p.colors) ? p.colors : [],
+    sizes: Array.isArray(p.sizes) ? p.sizes : [],
+    stock: p.stock !== undefined ? Math.max(0, Number(p.stock)) : 0,
     sku: p.sku || '',
-    rating: p.rating || 5.0,
-    reviews: p.reviews || 1,
+    rating: p.rating ? Number(p.rating) : 5.0,
+    reviews: p.reviews ? Number(p.reviews) : 1,
     featured: Boolean(p.featured),
     new_arrival: Boolean(p.newArrival),
     best_seller: Boolean(p.bestSeller),
     materials: p.materials || '',
     fit: p.fit || '',
     season: p.season || '',
-    return_days: p.returnDays !== undefined ? p.returnDays : null,
     updated_at: new Date().toISOString(),
   };
+
+  return payload;
 }
 
 interface StoreContextType {
@@ -190,7 +191,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          const mapped = data.map(mapSupabaseToProduct);
+          const existingLocalProducts: Product[] = [];
+          try {
+            const saved = localStorage.getItem('atelier_products_v2');
+            if (saved) existingLocalProducts.push(...JSON.parse(saved));
+          } catch {}
+
+          const mapped = data.map(row => {
+            const prod = mapSupabaseToProduct(row);
+            const local = existingLocalProducts.find(lp => lp.id === prod.id);
+            if (local && local.returnDays !== undefined && prod.returnDays === undefined) {
+              prod.returnDays = local.returnDays;
+            }
+            return prod;
+          });
+
           setProducts(mapped);
           localStorage.setItem('atelier_products_v2', JSON.stringify(mapped));
           if (mapped.length === 0) {
@@ -610,68 +625,160 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ? productData.id
       : `prod-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     
-    const newProduct: Product = {
+    let newProduct: Product = {
       ...productData,
       id,
       rating: productData.rating || 5.0,
       reviews: productData.reviews || 1,
     };
-    
-    setProducts(prev => [newProduct, ...prev.filter(p => p.id !== id)]);
-    localStorage.removeItem('atelier_inventory_erased');
-    showToast(`Created piece "${newProduct.name}"`);
 
     // Auto-sync to Supabase Cloud if connected
     if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase
-          .from('products')
-          .upsert(mapProductToSupabase(newProduct), { onConflict: 'id' });
-        
-        if (error) {
-          console.warn('Supabase product cloud sync warning:', error.message);
-          showToast(`Cloud sync alert: ${error.message}`);
-        } else {
-          console.log(`Successfully synced "${newProduct.name}" to Supabase database.`);
+      const payload = mapProductToSupabase(newProduct);
+      let { data, error } = await supabase
+        .from('products')
+        .upsert(payload, { onConflict: 'id' })
+        .select();
+
+      // Gracefully retry if an unmapped column triggered PGRST204 schema cache error
+      if (error && error.code === 'PGRST204') {
+        const colMatch = error.message.match(/Could not find the '([^']+)' column/i);
+        if (colMatch && colMatch[1]) {
+          console.warn(`Stripping unknown column "${colMatch[1]}" and retrying add...`);
+          delete payload[colMatch[1]];
+          const retry = await supabase
+            .from('products')
+            .upsert(payload, { onConflict: 'id' })
+            .select();
+          data = retry.data;
+          error = retry.error;
         }
-      } catch (err: any) {
-        console.error('Supabase add error:', err);
+      }
+
+      if (error) {
+        console.error('Supabase add error:', error);
+        throw new Error(`Database error adding piece: ${error.message}`);
+      }
+
+      if (data && data.length > 0) {
+        const dbProduct = mapSupabaseToProduct(data[0]);
+        newProduct = {
+          ...newProduct,
+          ...dbProduct,
+          returnDays: newProduct.returnDays !== undefined ? newProduct.returnDays : dbProduct.returnDays,
+        };
       }
     }
+    
+    setProducts(prev => {
+      const next = [newProduct, ...prev.filter(p => p.id !== id)];
+      try {
+        localStorage.setItem('atelier_products_v2', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to sync products to localStorage:', e);
+      }
+      return next;
+    });
+    localStorage.removeItem('atelier_inventory_erased');
+    showToast(`Created piece "${newProduct.name}"`);
 
     return newProduct;
   };
 
   const updateProduct = async (updatedProduct: Product): Promise<void> => {
-    setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
-    if (activeProduct && activeProduct.id === updatedProduct.id) {
-      setActiveProduct(updatedProduct);
-    }
-    showToast(`Updated "${updatedProduct.name}"`);
+    let finalProduct: Product = { ...updatedProduct };
 
     // Auto-sync update to Supabase Cloud
     if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase
-          .from('products')
-          .upsert(mapProductToSupabase(updatedProduct), { onConflict: 'id' });
-        
-        if (error) {
-          console.warn('Supabase product update sync warning:', error.message);
-          showToast(`Cloud update alert: ${error.message}`);
+      const payload = mapProductToSupabase(updatedProduct);
+
+      // Perform explicit UPDATE targeting the exact product ID
+      let { data, error } = await supabase
+        .from('products')
+        .update(payload)
+        .eq('id', updatedProduct.id)
+        .select();
+
+      // Gracefully retry if an unmapped column triggered PGRST204 schema cache error
+      if (error && error.code === 'PGRST204') {
+        const colMatch = error.message.match(/Could not find the '([^']+)' column/i);
+        if (colMatch && colMatch[1]) {
+          console.warn(`Stripping unknown column "${colMatch[1]}" and retrying update...`);
+          delete payload[colMatch[1]];
+          const retry = await supabase
+            .from('products')
+            .update(payload)
+            .eq('id', updatedProduct.id)
+            .select();
+          data = retry.data;
+          error = retry.error;
         }
-      } catch (err: any) {
-        console.error('Supabase update error:', err);
+      }
+
+      // If the row didn't exist yet, fallback to upsert
+      if (!error && (!data || data.length === 0)) {
+        const upsertRes = await supabase
+          .from('products')
+          .upsert(payload, { onConflict: 'id' })
+          .select();
+        data = upsertRes.data;
+        error = upsertRes.error;
+      }
+
+      if (error) {
+        console.error('Supabase product update error:', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      // Merge verified database data with local-only metadata (e.g. returnDays)
+      if (data && data.length > 0) {
+        const dbProduct = mapSupabaseToProduct(data[0]);
+        finalProduct = {
+          ...finalProduct,
+          ...dbProduct,
+          returnDays: finalProduct.returnDays !== undefined ? finalProduct.returnDays : dbProduct.returnDays,
+        };
       }
     }
+
+    setProducts(prev => {
+      const next = prev.map(p => (p.id === finalProduct.id ? finalProduct : p));
+      try {
+        localStorage.setItem('atelier_products_v2', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to sync products to localStorage:', e);
+      }
+      return next;
+    });
+
+    if (activeProduct && activeProduct.id === finalProduct.id) {
+      setActiveProduct(finalProduct);
+    }
+
+    showToast(`Updated "${finalProduct.name}"`);
   };
 
   const deleteProduct = async (id: string): Promise<void> => {
     const target = products.find(p => p.id === id);
+
+    // Auto-sync delete to Supabase Cloud
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) {
+        console.error('Supabase delete error:', error);
+        throw new Error(`Database error deleting piece: ${error.message}`);
+      }
+    }
+
     setProducts(prev => {
       const next = prev.filter(p => p.id !== id);
       if (next.length === 0) {
         localStorage.setItem('atelier_inventory_erased', 'true');
+      }
+      try {
+        localStorage.setItem('atelier_products_v2', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to sync products to localStorage:', e);
       }
       return next;
     });
@@ -681,19 +788,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setActiveProduct(null);
     }
     showToast(`Deleted "${target ? target.name : 'Piece'}"`);
-
-    // Auto-sync delete to Supabase Cloud
-    if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase.from('products').delete().eq('id', id);
-        if (error) {
-          console.warn('Supabase product delete sync warning:', error.message);
-          showToast(`Cloud delete alert: ${error.message}`);
-        }
-      } catch (err: any) {
-        console.error('Supabase delete error:', err);
-      }
-    }
   };
 
   // Permanently erase entire inventory from database and local storage

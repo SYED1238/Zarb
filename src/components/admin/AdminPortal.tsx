@@ -905,7 +905,7 @@ export const AdminPortal: React.FC = () => {
   };
 
   // Duplicate Product
-  const handleDuplicateProduct = (p: Product) => {
+  const handleDuplicateProduct = async (p: Product) => {
     const duplicated: Omit<Product, 'id'> = {
       ...p,
       name: `${p.name} (Copy)`,
@@ -913,7 +913,12 @@ export const AdminPortal: React.FC = () => {
       sku: `${p.sku}-CP`,
       returnDays: p.returnDays,
     };
-    addProduct(duplicated);
+    try {
+      await addProduct(duplicated);
+    } catch (err: any) {
+      console.error('Failed to duplicate product', err);
+      showToast(`Duplication failed: ${err.message || 'Database error'}`);
+    }
   };
 
   // Save Product Form
@@ -972,6 +977,7 @@ export const AdminPortal: React.FC = () => {
       setIsProductModalOpen(false);
     } catch (err: any) {
       console.error('Failed to save product', err);
+      showToast(`Save failed: ${err.message || 'Database error'}`);
     } finally {
       setIsSavingProduct(false);
     }
@@ -1070,6 +1076,7 @@ export const AdminPortal: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Delete execution error:', err);
+      showToast(`Delete failed: ${err.message || 'Database error'}`);
     }
 
     setDeleteConfirmTarget(null);
@@ -1093,7 +1100,7 @@ export const AdminPortal: React.FC = () => {
     });
   };
 
-  const handleSaveBulkRow = (p: Product) => {
+  const handleSaveBulkRow = async (p: Product) => {
     const edit = bulkEdits[p.id];
     if (!edit) return;
     const updated: Product = {
@@ -1102,12 +1109,17 @@ export const AdminPortal: React.FC = () => {
       compareAtPrice: edit.compareAtPrice,
       stock: edit.stock,
     };
-    updateProduct(updated);
-    setBulkEdits(prev => {
-      const next = { ...prev };
-      delete next[p.id];
-      return next;
-    });
+    try {
+      await updateProduct(updated);
+      setBulkEdits(prev => {
+        const next = { ...prev };
+        delete next[p.id];
+        return next;
+      });
+    } catch (err: any) {
+      console.error('Failed to save bulk row', err);
+      showToast(`Save failed: ${err.message || 'Database error'}`);
+    }
   };
 
   // Export File Download
