@@ -66,10 +66,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
-  // Hover-zoom state for desktop magnifier effect
-  const [isHoverZoomed, setIsHoverZoomed] = useState(false);
-  const [hoverOrigin, setHoverOrigin] = useState({ x: 50, y: 50 });
-  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  // Dedicated Ref for Main Image Desktop Magnifier
+  const mainImageRef = useRef<HTMLImageElement>(null);
+
+  // Reset magnifier zoom on image/color switch
+  useEffect(() => {
+    if (mainImageRef.current) {
+      mainImageRef.current.style.transform = 'scale(1)';
+      mainImageRef.current.style.transformOrigin = 'center center';
+    }
+  }, [activeImageIndex, selectedColor]);
 
   // Scroll Container Refs
   const outerScrollRef = useRef<HTMLDivElement>(null);
@@ -330,40 +336,45 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
               {/* Main Image Stage */}
               <div
-                className={`relative aspect-[2/3] flex-1 rounded-xl overflow-hidden border transition-colors group/stage ${
+                className={`relative aspect-[2/3] flex-1 rounded-xl overflow-hidden border transition-colors group/stage cursor-zoom-in ${
                   isAlabaster ? 'bg-stone-100 border-stone-200' : 'bg-[#16161b] border-white/10'
                 }`}
-                onMouseMove={(e) => {
-                  if (isTouchDevice) return;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = ((e.clientX - rect.left) / rect.width) * 100;
-                  const y = ((e.clientY - rect.top) / rect.height) * 100;
-                  setHoverOrigin({ x, y });
-                  setIsHoverZoomed(true);
+                onMouseEnter={(e) => {
+                  if ('pointerType' in e && (e as unknown as React.PointerEvent).pointerType === 'touch') return;
+                  if (!mainImageRef.current) return;
+                  mainImageRef.current.style.transition = 'transform 0.2s ease-out';
+                  mainImageRef.current.style.transform = 'scale(2)';
                 }}
-                onMouseLeave={() => setIsHoverZoomed(false)}
+                onMouseMove={(e) => {
+                  if ('pointerType' in e && (e as unknown as React.PointerEvent).pointerType === 'touch') return;
+                  if (!mainImageRef.current) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  if (rect.width <= 0 || rect.height <= 0) return;
+                  const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+                  const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+                  mainImageRef.current.style.transition = 'none';
+                  mainImageRef.current.style.transformOrigin = `${x}% ${y}%`;
+                  mainImageRef.current.style.transform = 'scale(2)';
+                }}
+                onMouseLeave={() => {
+                  if (!mainImageRef.current) return;
+                  mainImageRef.current.style.transition = 'transform 0.25s ease-out, transform-origin 0.25s ease-out';
+                  mainImageRef.current.style.transform = 'scale(1)';
+                  mainImageRef.current.style.transformOrigin = 'center center';
+                }}
               >
                 <img
+                  ref={mainImageRef}
                   key={`${selectedColor}-${activeImageIndex}`}
                   src={getMediaUrl(activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0])}
                   alt={`${product.name} - ${selectedColor}`}
                   onClick={() => setIsFullscreenOpen(true)}
                   decoding="async"
-                  className="w-full h-full object-contain sm:object-contain object-top cursor-zoom-in animate-fade-in"
-                  style={
-                    isHoverZoomed && !isTouchDevice
-                      ? {
-                          transformOrigin: `${hoverOrigin.x}% ${hoverOrigin.y}%`,
-                          transform: 'scale(2)',
-                          transition: 'transform 0.2s ease-out',
-                          objectFit: 'cover',
-                        }
-                      : {
-                          transformOrigin: 'center center',
-                          transform: 'scale(1)',
-                          transition: 'transform 0.3s ease-out',
-                        }
-                  }
+                  className="w-full h-full object-contain sm:object-contain object-top cursor-zoom-in select-none will-change-transform"
+                  style={{
+                    transformOrigin: 'center center',
+                    transform: 'scale(1)',
+                  }}
                 />
 
                 {/* Season Watermark at bottom-left */}
