@@ -11,14 +11,20 @@ import {
   ShieldCheck,
   Sparkles,
   MapPin,
-  Navigation,
   Loader2,
+  Plus,
+  Edit3,
+  Trash2,
+  Check,
+  Home,
+  Briefcase,
+  Building,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import {
-  detectUserLocation,
-  type DetectedAddress,
+  type CustomerAddress,
 } from '../utils/geolocation';
-import { MapPinPickerModal } from './MapPinPickerModal';
 import { getMediaUrl } from '../utils/media';
 
 export const AccountDrawer: React.FC = () => {
@@ -32,8 +38,11 @@ export const AccountDrawer: React.FC = () => {
     isLoadingOrders,
     pendingSyncCount,
     triggerPendingSync,
-    savedAddress,
-    updateCustomerAddress,
+    savedAddresses,
+    addCustomerAddress,
+    updateCustomerAddressItem,
+    deleteCustomerAddress,
+    setDefaultAddress,
   } = useAuth();
 
   const { theme, showToast } = useStore();
@@ -47,27 +56,199 @@ export const AccountDrawer: React.FC = () => {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isShockwaveActive, setIsShockwaveActive] = useState(false);
 
-  // Saved Delivery Address State
-  const [isDetectingAddress, setIsDetectingAddress] = useState(false);
+  // Multi-Address Management State
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [addressForm, setAddressForm] = useState({
+    label: 'Home',
+    recipientName: '',
+    phone: '',
+    address: '',
+    apartment: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: 'India',
+    isDefault: false,
+  });
+  const [isLookingUpPincode, setIsLookingUpPincode] = useState(false);
+  const [pincodeStatus, setPincodeStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
 
-  const handleDetectSavedAddress = async () => {
-    setIsDetectingAddress(true);
-    const res = await detectUserLocation();
-    setIsDetectingAddress(false);
+  useModalBackHandler(isAddressModalOpen, () => setIsAddressModalOpen(false), 'account-address-modal');
 
-    if (res.success && res.address) {
-      await updateCustomerAddress(res.address);
-      showToast('Delivery address pinpointed & saved to your profile.');
-    } else {
-      showToast(res.error || 'Failed to detect location.');
+  const handleOpenAddAddress = () => {
+    setEditingAddressId(null);
+    setAddressForm({
+      label: 'Home',
+      recipientName: user?.fullName || '',
+      phone: user?.phone ? user.phone.replace(/^\+91\s*/, '') : '',
+      address: '',
+      apartment: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: 'India',
+      isDefault: savedAddresses.length === 0,
+    });
+    setPincodeStatus(null);
+    setIsAddressModalOpen(true);
+  };
+
+  const handleOpenEditAddress = (addr: CustomerAddress) => {
+    setEditingAddressId(addr.id);
+    setAddressForm({
+      label: addr.label || 'Home',
+      recipientName: addr.recipientName || user?.fullName || '',
+      phone: addr.phone || (user?.phone ? user.phone.replace(/^\+91\s*/, '') : ''),
+      address: addr.address || '',
+      apartment: addr.apartment || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      postalCode: addr.postalCode || '',
+      country: addr.country || 'India',
+      isDefault: !!addr.isDefault,
+    });
+    setPincodeStatus(
+      addr.postalCode && addr.city
+        ? { type: 'success', message: `Verified: ${addr.city ? `${addr.city}, ` : ''}${addr.state}` }
+        : null
+    );
+    setIsAddressModalOpen(true);
+  };
+
+  const handleLookupPincodeForForm = async (overridePin?: string) => {
+    const pin = (overridePin !== undefined ? overridePin : addressForm.postalCode || '').trim().replace(/\D/g, '');
+    if (pin.length !== 6) {
+      setPincodeStatus({ type: 'error', message: 'Please enter a valid 6-digit PIN code.' });
+      return;
+    }
+    setIsLookingUpPincode(true);
+    setPincodeStatus(null);
+    try {
+      const postOfficePromise = fetch(`https://api.postalpincode.in/pincode/${pin}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error('API error');
+          const data = await res.json();
+          if (Array.isArray(data) && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+            const po = data[0].PostOffice[0];
+            const city = po.District || po.Block || po.Circle || po.Name || '';
+            const state = po.State || '';
+            if (city || state) return { city, state };
+          }
+          throw new Error('Not found in PostOffice');
+        });
+
+      const zippoPromise = fetch(`https://api.zippopotam.us/in/${pin}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error('API error');
+          const data = await res.json();
+          if (data?.places?.length > 0) {
+            const place = data.places[0];
+            const city = place['place name'] || '';
+            const state = place['state'] || '';
+            if (city || state) return { city, state };
+          }
+          throw new Error('Not found in Zippo');
+        });
+
+      const result = await Promise.any([postOfficePromise, zippoPromise]);
+      if (result) {
+        setAddressForm((prev) => ({
+          ...prev,
+          postalCode: pin,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+        }));
+        setPincodeStatus({
+          type: 'success',
+          message: `Verified: ${result.city ? `${result.city}, ` : ''}${result.state}`,
+        });
+        showToast(`PIN Code verified: ${result.city || result.state}`);
+      }
+    } catch {
+      setPincodeStatus({
+        type: 'error',
+        message: 'Could not auto-detect location. Please enter city and state below.',
+      });
+    } finally {
+      setIsLookingUpPincode(false);
     }
   };
 
-  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
+  const handleSaveAddressForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addressForm.address.trim()) {
+      showToast('Street address / building is required.');
+      return;
+    }
+    const cleanPin = addressForm.postalCode.trim().replace(/\D/g, '');
+    if (cleanPin.length !== 6) {
+      showToast('Please enter a valid 6-digit PIN code.');
+      return;
+    }
+    if (!addressForm.city.trim()) {
+      showToast('City is required.');
+      return;
+    }
 
-  const handleConfirmMapAddress = async (addr: DetectedAddress) => {
-    await updateCustomerAddress(addr);
-    showToast(`Delivery destination & PIN ${addr.postalCode || ''} pinned & saved.`);
+    setIsSavingAddress(true);
+    try {
+      if (editingAddressId) {
+        await updateCustomerAddressItem(editingAddressId, {
+          label: addressForm.label,
+          recipientName: addressForm.recipientName.trim() || undefined,
+          phone: addressForm.phone.trim() || undefined,
+          address: addressForm.address.trim(),
+          apartment: addressForm.apartment.trim() || undefined,
+          city: addressForm.city.trim(),
+          state: addressForm.state.trim(),
+          postalCode: cleanPin,
+          country: addressForm.country.trim() || 'India',
+          isDefault: addressForm.isDefault,
+        });
+        showToast('Address updated successfully.');
+      } else {
+        await addCustomerAddress({
+          label: addressForm.label,
+          recipientName: addressForm.recipientName.trim() || undefined,
+          phone: addressForm.phone.trim() || undefined,
+          address: addressForm.address.trim(),
+          apartment: addressForm.apartment.trim() || undefined,
+          city: addressForm.city.trim(),
+          state: addressForm.state.trim(),
+          postalCode: cleanPin,
+          country: addressForm.country.trim() || 'India',
+          isDefault: addressForm.isDefault,
+          source: 'manual',
+        });
+        showToast('New address saved to your profile.');
+      }
+      setIsAddressModalOpen(false);
+    } catch (err: any) {
+      console.error('Failed to save address:', err);
+      showToast(`Failed to save address: ${err.message || 'Error'}`);
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    try {
+      await deleteCustomerAddress(id);
+      showToast('Address removed.');
+    } catch (err: any) {
+      showToast(`Failed to delete address: ${err.message || 'Error'}`);
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      await setDefaultAddress(id);
+      showToast('Default delivery address updated.');
+    } catch (err: any) {
+      showToast(`Failed to update default: ${err.message || 'Error'}`);
+    }
   };
 
   if (!isAccountDrawerOpen) return null;
@@ -512,74 +693,165 @@ export const AccountDrawer: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Saved Delivery Destination Card */}
-                  <div
-                    className={`p-4 rounded-2xl border space-y-3 ${
-                      theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                  {/* Saved Delivery Destinations Section */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <MapPin className="w-4 h-4 text-amber-400" />
-                        <span className="font-medium text-xs sm:text-sm text-white">Default Delivery Address</span>
+                        <h4 className={`text-xs sm:text-sm font-semibold uppercase tracking-wider ${
+                          theme === 'alabaster' ? 'text-stone-900' : 'text-white'
+                        }`}>
+                          Delivery Addresses
+                        </h4>
+                        {savedAddresses.length > 0 && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                            theme === 'alabaster' ? 'bg-stone-200 text-stone-700' : 'bg-white/10 text-stone-300'
+                          }`}>
+                            {savedAddresses.length}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsMapPickerOpen(true)}
-                          className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs uppercase tracking-wider font-mono flex items-center space-x-1.5 transition-colors cursor-pointer"
-                          title="Open interactive map to pin exact residence"
-                        >
-                          <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Pin on Map</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDetectSavedAddress}
-                          disabled={isDetectingAddress}
-                          className="px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-stone-300 border border-white/10 text-xs uppercase tracking-wider font-mono flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          {isDetectingAddress ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Detecting...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Navigation className="w-3.5 h-3.5" />
-                              <span>GPS</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenAddAddress}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs uppercase tracking-wider font-mono flex items-center space-x-1.5 transition-all cursor-pointer hover:scale-[1.02]"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Address</span>
+                      </button>
                     </div>
 
-                    {savedAddress?.address ? (
-                      <div className="text-xs sm:text-sm space-y-1">
-                        <p className="text-stone-200 font-medium leading-snug">{savedAddress.address}</p>
-                        {savedAddress.apartment && (
-                          <p className="text-stone-400">{savedAddress.apartment}</p>
-                        )}
-                        <p className="text-stone-400">
-                          {savedAddress.city}, {savedAddress.state} — {savedAddress.postalCode}, {savedAddress.country || 'India'}
-                        </p>
-                        <div className="pt-1.5 flex items-center space-x-2">
-                          {savedAddress.accuracy && (
-                            <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                              GPS ±{savedAddress.accuracy}m
-                            </span>
-                          )}
-                          <span className="text-xs font-mono text-stone-400">
-                            Saved for fast 1-tap checkout
-                          </span>
-                        </div>
+                    {/* Address Cards List */}
+                    {savedAddresses.length > 0 ? (
+                      <div className="space-y-3">
+                        {savedAddresses.map((addr) => (
+                          <div
+                            key={addr.id}
+                            className={`p-4 rounded-2xl border transition-all ${
+                              addr.isDefault
+                                ? (theme === 'alabaster' ? 'bg-amber-500/5 border-amber-500/40 shadow-sm' : 'bg-amber-500/[0.04] border-amber-500/40 shadow-md')
+                                : (theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10')
+                            }`}
+                          >
+                            <div className={`flex items-start justify-between border-b pb-2.5 mb-2.5 ${
+                              theme === 'alabaster' ? 'border-stone-200/60' : 'border-white/5'
+                            }`}>
+                              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                                <span className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold uppercase tracking-wider flex items-center space-x-1 ${
+                                  theme === 'alabaster' ? 'bg-stone-100 text-stone-800' : 'bg-white/10 text-stone-200'
+                                }`}>
+                                  {addr.label?.toLowerCase() === 'work' ? (
+                                    <Briefcase className="w-3 h-3 text-amber-400" />
+                                  ) : addr.label?.toLowerCase() === 'studio' || addr.label?.toLowerCase() === 'villa' ? (
+                                    <Building className="w-3 h-3 text-amber-400" />
+                                  ) : (
+                                    <Home className="w-3 h-3 text-amber-400" />
+                                  )}
+                                  <span>{addr.label || 'Home'}</span>
+                                </span>
+
+                                {addr.isDefault ? (
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-400 text-black font-mono font-bold text-[10px] uppercase tracking-wider flex items-center space-x-1">
+                                    <Check className="w-3 h-3" />
+                                    <span>Default</span>
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetDefault(addr.id)}
+                                    className={`text-[10px] uppercase font-mono tracking-wider transition-colors cursor-pointer ${
+                                      theme === 'alabaster' ? 'text-stone-500 hover:text-amber-600' : 'text-stone-400 hover:text-amber-400'
+                                    }`}
+                                  >
+                                    Set as Default
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditAddress(addr)}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    theme === 'alabaster'
+                                      ? 'hover:bg-stone-100 text-stone-500 hover:text-stone-900'
+                                      : 'hover:bg-white/10 text-stone-400 hover:text-white'
+                                  }`}
+                                  title="Edit Address"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAddress(addr.id)}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    theme === 'alabaster'
+                                      ? 'hover:bg-red-50 text-stone-500 hover:text-red-600'
+                                      : 'hover:bg-red-500/15 text-stone-400 hover:text-red-400'
+                                  }`}
+                                  title="Delete Address"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="text-xs sm:text-sm space-y-1">
+                              {(addr.recipientName || addr.phone) && (
+                                <p className={`font-medium ${theme === 'alabaster' ? 'text-stone-900' : 'text-white'}`}>
+                                  {addr.recipientName}
+                                  {addr.phone && (
+                                    <span className={`font-normal ml-1.5 ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                                      · {addr.phone}
+                                    </span>
+                                  )}
+                                </p>
+                              )}
+                              <p className={`font-medium leading-snug ${theme === 'alabaster' ? 'text-stone-800' : 'text-stone-200'}`}>
+                                {addr.address}
+                              </p>
+                              {addr.apartment && (
+                                <p className={theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}>
+                                  {addr.apartment}
+                                </p>
+                              )}
+                              <p className={theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}>
+                                {addr.city}, {addr.state} — {addr.postalCode}, {addr.country || 'India'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
-                      <div className="text-center py-4 text-stone-400 text-xs sm:text-sm space-y-1">
-                        <p>No default address saved yet.</p>
-                        <p className="text-xs text-stone-500">
-                          Click "Pin on Map" or "GPS" above to save your delivery location.
-                        </p>
+                      <div
+                        className={`p-6 rounded-2xl border text-center space-y-3 ${
+                          theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+                          <MapPin className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h5 className={`text-sm font-serif ${theme === 'alabaster' ? 'text-stone-900' : 'text-white'}`}>
+                            No Addresses Saved Yet
+                          </h5>
+                          <p className={`text-xs mt-1 max-w-xs mx-auto ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                            Save your home, work, or studio address for seamless 1-tap checkout.
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-center space-x-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleOpenAddAddress}
+                            className={`px-3 py-2 rounded-xl text-xs uppercase font-mono font-semibold transition-colors cursor-pointer ${
+                              theme === 'alabaster'
+                                ? 'bg-stone-900 text-white hover:bg-black'
+                                : 'bg-white text-black hover:bg-stone-200'
+                            }`}
+                          >
+                            + Add New Address
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -762,14 +1034,340 @@ export const AccountDrawer: React.FC = () => {
         </div>
       )}
 
-      {/* Interactive Map Pin Picker Modal */}
-      <MapPinPickerModal
-        isOpen={isMapPickerOpen}
-        onClose={() => setIsMapPickerOpen(false)}
-        onConfirmAddress={handleConfirmMapAddress}
-        initialPostalCode={savedAddress?.postalCode}
-        theme={theme}
-      />
+      {/* Modal: Add / Edit Address Drawer / Dialog */}
+      {isAddressModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div
+            className={`w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${
+              theme === 'alabaster' ? 'bg-[#faf9f5] border-stone-300 text-black' : 'bg-[#0f0f13] border-white/15 text-white'
+            }`}
+          >
+            {/* Header */}
+            <div className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${
+              theme === 'alabaster' ? 'border-stone-200' : 'border-white/10'
+            }`}>
+              <div>
+                <span className="text-[10px] font-mono tracking-[0.2em] text-amber-400 uppercase block">
+                  {editingAddressId ? 'Update Coordinates' : 'New Destination'}
+                </span>
+                <h3 className={`text-lg font-serif ${theme === 'alabaster' ? 'text-stone-900' : 'text-white'}`}>
+                  {editingAddressId ? 'Edit Delivery Address' : 'Add Delivery Address'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddressModalOpen(false)}
+                className={`p-2 rounded-full transition-colors cursor-pointer ${
+                  theme === 'alabaster'
+                    ? 'hover:bg-stone-200 text-stone-500 hover:text-stone-900'
+                    : 'hover:bg-white/10 text-stone-400 hover:text-white'
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <form onSubmit={handleSaveAddressForm} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+              {/* Address Label Chips */}
+              <div>
+                <label className={`block text-[11px] uppercase tracking-wider mb-1.5 font-mono ${
+                  theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                }`}>
+                  Address Label *
+                </label>
+                <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                  {['Home', 'Work', 'Studio', 'Villa', 'Other'].map((lbl) => (
+                    <button
+                      key={lbl}
+                      type="button"
+                      onClick={() => setAddressForm({ ...addressForm, label: lbl })}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider border transition-all cursor-pointer ${
+                        addressForm.label === lbl
+                          ? 'bg-amber-400 text-black border-amber-400 font-semibold shadow-sm'
+                          : theme === 'alabaster'
+                          ? 'bg-stone-100 border-stone-200 text-stone-700 hover:border-stone-400'
+                          : 'bg-white/[0.04] border-white/10 text-stone-300 hover:border-white/20'
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recipient Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-[11px] uppercase tracking-wider mb-1 font-mono ${
+                    theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                  }`}>
+                    Recipient Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={addressForm.recipientName}
+                    onChange={(e) => setAddressForm({ ...addressForm, recipientName: e.target.value })}
+                    placeholder="e.g. Syed Hamza"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none text-xs transition-colors ${
+                      theme === 'alabaster'
+                        ? 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400 focus:border-amber-500'
+                        : 'bg-white/[0.04] border-white/10 text-white placeholder:text-stone-600 focus:border-white/30'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-[11px] uppercase tracking-wider mb-1 font-mono ${
+                    theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                  }`}>
+                    Contact Phone (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={addressForm.phone}
+                    onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
+                    placeholder="e.g. 9876543210"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none text-xs font-mono transition-colors ${
+                      theme === 'alabaster'
+                        ? 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400 focus:border-amber-500'
+                        : 'bg-white/[0.04] border-white/10 text-white placeholder:text-stone-600 focus:border-white/30'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Street Address */}
+              <div>
+                <label className={`block text-[11px] uppercase tracking-wider mb-1 font-mono ${
+                  theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                }`}>
+                  Street Address, Building, House No. *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={addressForm.address}
+                  onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })}
+                  placeholder="e.g. Villa 14, Lavelle Road"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none text-xs transition-colors ${
+                    theme === 'alabaster'
+                      ? 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400 focus:border-amber-500'
+                      : 'bg-white/[0.04] border-white/10 text-white placeholder:text-stone-600 focus:border-white/30'
+                  }`}
+                />
+              </div>
+
+              {/* Apartment / Landmark */}
+              <div>
+                <label className={`block text-[11px] uppercase tracking-wider mb-1 font-mono ${
+                  theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                }`}>
+                  Apartment, Suite, Landmark (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={addressForm.apartment}
+                  onChange={(e) => setAddressForm({ ...addressForm, apartment: e.target.value })}
+                  placeholder="e.g. Near Cubbon Park"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none text-xs transition-colors ${
+                    theme === 'alabaster'
+                      ? 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400 focus:border-amber-500'
+                      : 'bg-white/[0.04] border-white/10 text-white placeholder:text-stone-600 focus:border-white/30'
+                  }`}
+                />
+              </div>
+
+              {/* PIN Code Verification Card (Auto-fills City & State) */}
+              <div
+                className={`p-3.5 sm:p-4 rounded-2xl border transition-all ${
+                  theme === 'alabaster'
+                    ? 'bg-white border-stone-200/90 shadow-[0_2px_12px_rgba(0,0,0,0.03)]'
+                    : 'bg-white/[0.04] border-white/10 shadow-[0_2px_12px_rgba(0,0,0,0.2)]'
+                } space-y-2`}
+              >
+                <div className="flex items-center justify-between">
+                  <label
+                    className={`block text-[11px] font-semibold uppercase tracking-[0.14em] font-mono ${
+                      theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                    }`}
+                  >
+                    PIN Code *
+                  </label>
+                  <span
+                    className={`text-[10px] font-mono ${
+                      theme === 'alabaster' ? 'text-stone-400' : 'text-stone-500'
+                    }`}
+                  >
+                    Auto-fills City & State
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={addressForm.postalCode}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setAddressForm({ ...addressForm, postalCode: clean });
+                      if (pincodeStatus) setPincodeStatus(null);
+                      if (clean.length === 6) {
+                        handleLookupPincodeForForm(clean);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleLookupPincodeForForm();
+                      }
+                    }}
+                    placeholder="e.g. 560001"
+                    className={`flex-1 rounded-xl px-3.5 py-2.5 sm:py-3 text-xs font-mono tracking-wider border focus:outline-none transition-colors ${
+                      theme === 'alabaster'
+                        ? 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400 focus:border-stone-900'
+                        : 'bg-black/30 border-white/15 text-white placeholder:text-stone-500 focus:border-white/40'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleLookupPincodeForForm()}
+                    disabled={isLookingUpPincode || addressForm.postalCode.replace(/\D/g, '').length !== 6}
+                    className={`px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 active:scale-95 flex items-center space-x-1.5 shadow-sm ${
+                      theme === 'alabaster'
+                        ? 'bg-[#111111] hover:bg-black text-white'
+                        : 'bg-white hover:bg-stone-200 text-black'
+                    }`}
+                  >
+                    {isLookingUpPincode ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>CHECKING...</span>
+                      </>
+                    ) : (
+                      <span>CHECK</span>
+                    )}
+                  </button>
+                </div>
+
+                {pincodeStatus && (
+                  <div
+                    className={`pt-1 flex items-center space-x-1.5 text-xs ${
+                      pincodeStatus.type === 'success'
+                        ? 'text-emerald-600 font-medium'
+                        : 'text-amber-600'
+                    }`}
+                  >
+                    {pincodeStatus.type === 'success' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                    )}
+                    <span>{pincodeStatus.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* City / District & State (Auto-filled by PIN) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label
+                    className={`block text-[11px] uppercase tracking-wider mb-1 font-mono ${
+                      theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                    }`}
+                  >
+                    City / District *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.city}
+                    onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                    placeholder="e.g. Bengaluru"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none text-xs transition-colors ${
+                      theme === 'alabaster'
+                        ? 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400 focus:border-stone-900'
+                        : 'bg-white/[0.04] border-white/10 text-white placeholder:text-stone-600 focus:border-white/30'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-[11px] uppercase tracking-wider mb-1 font-mono ${
+                      theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                    }`}
+                  >
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.state}
+                    onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
+                    placeholder="e.g. Karnataka"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none text-xs transition-colors ${
+                      theme === 'alabaster'
+                        ? 'bg-white border-stone-300 text-stone-900 placeholder:text-stone-400 focus:border-stone-900'
+                        : 'bg-white/[0.04] border-white/10 text-white placeholder:text-stone-600 focus:border-white/30'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Set Default Toggle */}
+              <label className="flex items-center space-x-2.5 pt-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={addressForm.isDefault}
+                  onChange={(e) => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
+                  className="w-4 h-4 rounded border-white/20 bg-white/5 text-amber-400 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-amber-400"
+                />
+                <span className={`text-xs font-medium ${
+                  theme === 'alabaster' ? 'text-stone-700' : 'text-stone-300'
+                }`}>
+                  Set as default delivery address for checkout
+                </span>
+              </label>
+
+              {/* Actions */}
+              <div className={`pt-3 border-t flex items-center justify-end space-x-2 ${
+                theme === 'alabaster' ? 'border-stone-200' : 'border-white/10'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddressModalOpen(false)}
+                  className={`px-4 py-2.5 rounded-xl border text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                    theme === 'alabaster'
+                      ? 'border-stone-300 text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                      : 'border-white/10 text-stone-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAddress}
+                  className={`px-5 py-2.5 rounded-xl font-semibold text-xs font-mono uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 flex items-center space-x-1.5 ${
+                    theme === 'alabaster'
+                      ? 'bg-stone-900 text-white hover:bg-black'
+                      : 'bg-white text-black hover:bg-stone-200'
+                  }`}
+                >
+                  {isSavingAddress ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>{editingAddressId ? 'Update Address' : 'Save Address'}</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

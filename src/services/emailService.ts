@@ -7,6 +7,8 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { OrderRecord } from '../context/AuthContext';
 
+export const ADMIN_NOTIFICATION_EMAIL = 'syedhamza1238@gmail.com';
+
 export interface WelcomeEmailParams {
   email: string;
   fullName?: string;
@@ -212,18 +214,62 @@ export const emailService = {
       user_id: order.user_id || null,
       data: {
         customerName: order.customer_name,
+        customerEmail: order.customer_email,
+        customerPhone: order.customer_phone || order.shipping_address?.phone || '',
         orderNumber: num,
         orderDate: order.created_at,
         items: order.items || [],
         subtotal: order.subtotal || order.total_amount,
         shippingCost: order.shipping_cost || 0,
         discountAmount: order.discount_amount || 0,
+        couponCode: order.coupon_code || '',
         totalAmount: order.total_amount,
         paymentMethod: order.payment_method,
         paymentStatus: order.payment_status || 'paid',
         orderStatus: order.order_status || 'confirmed',
         shippingAddress: order.shipping_address,
         actionUrl: `https://zarb.shop`,
+      },
+    });
+
+    // Also explicitly trigger admin notification (deduplicated by event_key)
+    await emailService.sendAdminOrderNotification(order).catch(err => {
+      console.warn('[EMAIL SERVICE] Non-fatal admin order notification error:', err);
+    });
+  },
+
+  /**
+   * 5b. Send New Order Notification directly to Admin (syedhamza1238@gmail.com)
+   */
+  async sendAdminOrderNotification(order: OrderRecord | any): Promise<void> {
+    if (!order || !order.order_number) return;
+    const num = order.order_number;
+    const eventKey = `admin_order_notification:${num}`;
+
+    await dispatchEmail({
+      event_type: 'admin_order_notification',
+      recipient_email: ADMIN_NOTIFICATION_EMAIL,
+      event_key: eventKey,
+      order_id: order.id || null,
+      order_number: num,
+      user_id: order.user_id || null,
+      data: {
+        customerName: order.customer_name || 'Client',
+        customerEmail: order.customer_email,
+        customerPhone: order.customer_phone || order.shipping_address?.phone || '',
+        orderNumber: num,
+        orderDate: order.created_at || new Date().toISOString(),
+        items: order.items || [],
+        subtotal: order.subtotal || order.total_amount,
+        shippingCost: order.shipping_cost || 0,
+        discountAmount: order.discount_amount || 0,
+        couponCode: order.coupon_code || '',
+        totalAmount: order.total_amount,
+        paymentMethod: order.payment_method || 'Online',
+        paymentStatus: order.payment_status || 'paid',
+        orderStatus: order.order_status || 'confirmed',
+        shippingAddress: order.shipping_address,
+        actionUrl: `https://zarb.shop/admin`,
       },
     });
   },

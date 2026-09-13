@@ -7,6 +7,7 @@
 export interface EmailTemplateData {
   customerName?: string;
   customerEmail?: string;
+  customerPhone?: string;
   orderNumber?: string;
   orderDate?: string;
   items?: Array<{
@@ -20,6 +21,7 @@ export interface EmailTemplateData {
   subtotal?: number;
   shippingCost?: number;
   discountAmount?: number;
+  couponCode?: string;
   totalAmount?: number;
   paymentMethod?: string;
   paymentStatus?: string;
@@ -31,6 +33,8 @@ export interface EmailTemplateData {
     state?: string;
     postalCode?: string;
     country?: string;
+    recipientName?: string;
+    phone?: string;
   };
   trackingNumber?: string;
   carrier?: string;
@@ -224,25 +228,30 @@ function renderOrderItems(items: NonNullable<EmailTemplateData['items']>): strin
 
 // Order Summary & Financials
 function renderOrderTotals(data: EmailTemplateData): string {
+  const subtotalVal = data.subtotal ?? (data as any).total_amount ?? data.totalAmount ?? 0;
+  const totalVal = data.totalAmount ?? (data as any).total_amount ?? subtotalVal;
+  const discountVal = data.discountAmount ?? (data as any).discount_amount ?? 0;
+  const shippingVal = data.shippingCost ?? (data as any).shipping_cost ?? 0;
+
   return `
     <div style="background-color: #1a1a22; border: 1px solid #2b2b35; border-radius: 14px; padding: 18px 20px; margin-top: 24px;">
       <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 13px; line-height: 1.8;">
         <tr>
           <td style="color: #a1a1aa;">Subtotal</td>
-          <td align="right" style="color: #ffffff; font-weight: 500;">${formatINR(data.subtotal || data.totalAmount)}</td>
+          <td align="right" style="color: #ffffff; font-weight: 500;">${formatINR(subtotalVal)}</td>
         </tr>
-        ${data.discountAmount && data.discountAmount > 0 ? `
+        ${discountVal > 0 ? `
         <tr>
-          <td style="color: #34d399;">Privilege Discount</td>
-          <td align="right" style="color: #34d399; font-weight: 600;">-${formatINR(data.discountAmount)}</td>
+          <td style="color: #34d399;">Privilege Discount ${data.couponCode ? `(${data.couponCode})` : ''}</td>
+          <td align="right" style="color: #34d399; font-weight: 600;">-${formatINR(discountVal)}</td>
         </tr>` : ''}
         <tr>
           <td style="color: #a1a1aa;">White-Glove Insured Delivery</td>
-          <td align="right" style="color: #ffffff; font-weight: 500;">${data.shippingCost && data.shippingCost > 0 ? formatINR(data.shippingCost) : '<span style="color: #34d399; font-weight: 600;">COMPLIMENTARY</span>'}</td>
+          <td align="right" style="color: #ffffff; font-weight: 500;">${shippingVal > 0 ? formatINR(shippingVal) : '<span style="color: #34d399; font-weight: 600;">COMPLIMENTARY</span>'}</td>
         </tr>
         <tr style="border-top: 1px solid #2e2e38;">
           <td style="padding-top: 10px; font-size: 15px; font-weight: 700; color: #ffffff;">Total Amount</td>
-          <td align="right" style="padding-top: 10px; font-size: 17px; font-weight: 700; color: #f59e0b;">${formatINR(data.totalAmount)}</td>
+          <td align="right" style="padding-top: 10px; font-size: 17px; font-weight: 700; color: #f59e0b;">${formatINR(totalVal)}</td>
         </tr>
       </table>
     </div>
@@ -256,19 +265,60 @@ function renderShippingDestination(address?: EmailTemplateData['shippingAddress'
     <div style="background-color: #181820; border: 1px solid #272730; border-radius: 14px; padding: 16px 20px; margin-top: 20px;">
       <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #d97706; margin-bottom: 6px;">Delivery Destination</div>
       <div style="font-size: 13px; color: #e4e4e7; line-height: 1.5;">
+        ${address.recipientName ? `<strong>${address.recipientName}</strong><br>` : ''}
         ${address.address}${address.apartment ? `, ${address.apartment}` : ''}<br>
         ${[address.city, address.state, address.postalCode].filter(Boolean).join(', ')}<br>
         ${address.country || 'India'}
+        ${address.phone ? `<br><span style="color: #a1a1aa; font-size: 12px;">Contact: ${address.phone}</span>` : ''}
       </div>
     </div>
   `;
+}
+
+// Helper to normalize data across camelCase and snake_case properties
+function normalizeTemplateData(data: EmailTemplateData | any): EmailTemplateData {
+  const d = data || {};
+  const addr = d.shippingAddress || d.shipping_address;
+  return {
+    customerName: d.customerName || d.customer_name,
+    customerEmail: d.customerEmail || d.customer_email,
+    customerPhone: d.customerPhone || d.customer_phone || addr?.phone,
+    orderNumber: d.orderNumber || d.order_number,
+    orderDate: d.orderDate || d.order_date || d.created_at,
+    items: d.items || [],
+    subtotal: d.subtotal !== undefined ? Number(d.subtotal) : (d.totalAmount !== undefined ? Number(d.totalAmount) : (d.total_amount !== undefined ? Number(d.total_amount) : 0)),
+    shippingCost: d.shippingCost !== undefined ? Number(d.shippingCost) : (d.shipping_cost !== undefined ? Number(d.shipping_cost) : 0),
+    discountAmount: d.discountAmount !== undefined ? Number(d.discountAmount) : (d.discount_amount !== undefined ? Number(d.discount_amount) : 0),
+    couponCode: d.couponCode || d.coupon_code,
+    totalAmount: d.totalAmount !== undefined ? Number(d.totalAmount) : (d.total_amount !== undefined ? Number(d.total_amount) : 0),
+    paymentMethod: d.paymentMethod || d.payment_method,
+    paymentStatus: d.paymentStatus || d.payment_status,
+    orderStatus: d.orderStatus || d.order_status,
+    shippingAddress: addr ? {
+      address: addr.address,
+      apartment: addr.apartment,
+      city: addr.city,
+      state: addr.state,
+      postalCode: addr.postalCode || addr.postal_code,
+      country: addr.country,
+      recipientName: addr.recipientName || addr.recipient_name || d.customerName || d.customer_name,
+      phone: addr.phone || d.customerPhone || d.customer_phone,
+    } : undefined,
+    trackingNumber: d.trackingNumber || d.tracking_number,
+    carrier: d.carrier,
+    estimatedDelivery: d.estimatedDelivery || d.estimated_delivery,
+    actionUrl: d.actionUrl || d.action_url,
+    cancellationReason: d.cancellationReason || d.cancellation_reason,
+    refundAmount: d.refundAmount !== undefined ? Number(d.refundAmount) : (d.refund_amount !== undefined ? Number(d.refund_amount) : undefined),
+  };
 }
 
 // =========================================================================
 // TEMPLATE BUILDERS
 // =========================================================================
 
-export function generateEmailContent(eventType: string, data: EmailTemplateData): GeneratedEmail {
+export function generateEmailContent(eventType: string, rawData: EmailTemplateData): GeneratedEmail {
+  const data = normalizeTemplateData(rawData);
   const customerGreeting = data.customerName ? `Dear ${data.customerName},` : 'Welcome,';
   const actionUrl = data.actionUrl || 'https://zarb.shop';
 
@@ -621,6 +671,143 @@ export function generateEmailContent(eventType: string, data: EmailTemplateData)
       `, `Your Zarb refund for order #${num} has been processed.`);
 
       const text = `Your Zarb refund has been processed — #${num}\n\n${customerGreeting}\n\nA refund of ${formatINR(refundVal)} has been processed for order #${num}.\n© ${new Date().getFullYear()} Zarb Haute Couture`;
+      return { subject, html, text };
+    }
+
+    // -----------------------------------------------------------------------
+    // 12. ADMIN NOTIFICATION: NEW ORDER RECEIVED
+    // -----------------------------------------------------------------------
+    case 'admin_order_notification':
+    case 'admin_new_order': {
+      const num = data.orderNumber || 'ZARB';
+      const customerName = data.customerName || 'Valued Client';
+      const customerEmail = data.customerEmail || 'N/A';
+      const customerPhone = data.customerPhone || 'Not provided';
+      const totalFormatted = formatINR(data.totalAmount);
+      const subject = `🚨 [NEW ORDER] #${num} — ${totalFormatted} from ${customerName}`;
+
+      const rawDigits = (data.customerPhone || '').replace(/\D/g, '');
+      const waDigits = rawDigits.startsWith('91') && rawDigits.length === 12
+        ? rawDigits
+        : (rawDigits.length >= 10 ? `91${rawDigits.slice(-10)}` : '');
+      const waLink = waDigits ? `https://wa.me/${waDigits}` : null;
+      const telLink = rawDigits.length >= 10 ? `tel:+${rawDigits.startsWith('91') ? rawDigits : `91${rawDigits.slice(-10)}`}` : null;
+      const mailtoLink = data.customerEmail && data.customerEmail.includes('@') ? `mailto:${data.customerEmail}` : null;
+      const adminUrl = 'https://zarb.shop/admin';
+
+      const html = wrapLayout(`
+        <div style="text-align: center; padding-bottom: 12px;">
+          <span style="display: inline-block; background-color: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.45); color: #fbbf24; font-size: 11px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; padding: 6px 16px; border-radius: 9999px;">
+            🔔 NEW ORDER RECEIVED &middot; ATELIER ACTION REQUIRED
+          </span>
+        </div>
+        <h1 style="font-family: 'Times New Roman', Times, serif, Georgia; font-size: 26px; font-weight: 600; text-align: center; color: #ffffff; margin: 12px 0 6px 0; letter-spacing: 0.04em;">
+          New Atelier Acquisition
+        </h1>
+        <div style="text-align: center; font-size: 14px; color: #f59e0b; font-weight: 700; letter-spacing: 0.12em; margin-bottom: 24px;">
+          REFERENCE #${num} &mdash; ${totalFormatted}
+        </div>
+
+        <!-- Customer Dossier Card -->
+        <div style="background-color: #1a1a22; border: 1px solid #2b2b36; border-radius: 14px; padding: 20px; margin-bottom: 20px;">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #f59e0b; margin-bottom: 14px; border-bottom: 1px solid #272733; padding-bottom: 8px;">
+            👤 Client Profile
+          </div>
+          <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 13px; line-height: 2;">
+            <tr>
+              <td style="color: #a1a1aa; width: 120px;">Client Name:</td>
+              <td style="color: #ffffff; font-weight: 600;">${customerName}</td>
+            </tr>
+            <tr>
+              <td style="color: #a1a1aa;">Email Address:</td>
+              <td>
+                ${mailtoLink
+                  ? `<a href="${mailtoLink}" style="color: #60a5fa; text-decoration: underline; font-weight: 500;">${customerEmail}</a>`
+                  : `<span style="color: #e4e4e7;">${customerEmail}</span>`}
+              </td>
+            </tr>
+            <tr>
+              <td style="color: #a1a1aa;">Contact Phone:</td>
+              <td>
+                ${telLink
+                  ? `<a href="${telLink}" style="color: #34d399; font-weight: 600; text-decoration: none;">${customerPhone}</a>`
+                  : `<span style="color: #71717a;">${customerPhone}</span>`}
+                ${waLink ? ` &nbsp;&middot;&nbsp; <a href="${waLink}" target="_blank" style="color: #22c55e; font-weight: 600; text-decoration: underline; font-size: 12px;">Chat on WhatsApp &rarr;</a>` : ''}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Payment & Order Status Card -->
+        <div style="background-color: #1a1a22; border: 1px solid #2b2b36; border-radius: 14px; padding: 20px; margin-bottom: 20px;">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #f59e0b; margin-bottom: 14px; border-bottom: 1px solid #272733; padding-bottom: 8px;">
+            💳 Payment &amp; Order Status
+          </div>
+          <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 13px; line-height: 2;">
+            <tr>
+              <td style="color: #a1a1aa; width: 120px;">Payment Method:</td>
+              <td style="color: #ffffff; font-weight: 600;">${(data.paymentMethod || 'Online').toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td style="color: #a1a1aa;">Payment Status:</td>
+              <td>
+                <span style="display: inline-block; background-color: ${data.paymentStatus === 'paid' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(245, 158, 11, 0.15)'}; border: 1px solid ${data.paymentStatus === 'paid' ? '#34d399' : '#f59e0b'}; color: ${data.paymentStatus === 'paid' ? '#34d399' : '#fbbf24'}; padding: 2px 10px; border-radius: 6px; font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;">
+                  ${data.paymentStatus || 'PENDING'}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="color: #a1a1aa;">Order Status:</td>
+              <td style="color: #ffffff; font-weight: 600; text-transform: uppercase;">${data.orderStatus || 'CONFIRMED'}</td>
+            </tr>
+            ${data.couponCode ? `
+            <tr>
+              <td style="color: #a1a1aa;">Privilege Coupon:</td>
+              <td style="color: #34d399; font-weight: 600; font-family: monospace;">${data.couponCode}</td>
+            </tr>` : ''}
+          </table>
+        </div>
+
+        <!-- Ordered Silhouettes Breakdown -->
+        ${renderOrderItems(data.items || [])}
+
+        <!-- Financial Totals -->
+        ${renderOrderTotals(data)}
+
+        <!-- Shipping Destination -->
+        ${renderShippingDestination(data.shippingAddress)}
+
+        <!-- Quick Admin Action Buttons -->
+        <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 28px 0 12px 0;">
+          <tr>
+            <td align="center">
+              <a href="${adminUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: #ffffff; font-size: 14px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; text-decoration: none; padding: 15px 36px; border-radius: 12px; border: 1px solid #f59e0b; box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);">
+                Open Atelier Admin Portal &rarr;
+              </a>
+            </td>
+          </tr>
+        </table>
+      `, `New order #${num} received for ${totalFormatted} from ${customerName}.`);
+
+      const text = `🚨 NEW ATELIER ORDER RECEIVED: #${num}\n` +
+        `===================================================\n` +
+        `Total Amount: ${totalFormatted}\n` +
+        `Client Name: ${customerName}\n` +
+        `Email: ${customerEmail}\n` +
+        `Phone: ${customerPhone}\n` +
+        `Payment Method: ${data.paymentMethod || 'Online'} (${data.paymentStatus || 'pending'})\n` +
+        `Order Status: ${data.orderStatus || 'confirmed'}\n` +
+        `${data.couponCode ? `Coupon Used: ${data.couponCode}\n` : ''}` +
+        `\nORDER SILHOUETTES:\n` +
+        (data.items || []).map((it: any) => `* ${it.name} (Size: ${it.size || 'N/A'}, Color: ${it.color || 'N/A'}, Qty: ${it.quantity}) — ${formatINR(it.price * it.quantity)}`).join('\n') +
+        `\n\nDELIVERY DESTINATION:\n` +
+        `${data.shippingAddress?.recipientName ? `${data.shippingAddress.recipientName}\n` : ''}` +
+        `${data.shippingAddress?.address || ''}${data.shippingAddress?.apartment ? `, ${data.shippingAddress.apartment}` : ''}\n` +
+        `${[data.shippingAddress?.city, data.shippingAddress?.state, data.shippingAddress?.postalCode].filter(Boolean).join(', ')}\n` +
+        `${data.shippingAddress?.country || 'India'}\n` +
+        `${data.shippingAddress?.phone ? `Contact: ${data.shippingAddress.phone}\n` : ''}` +
+        `\nManage in Admin Portal: ${adminUrl}\n© ${new Date().getFullYear()} Zarb Haute Couture`;
+
       return { subject, html, text };
     }
 

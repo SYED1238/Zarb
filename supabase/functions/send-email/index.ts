@@ -9,6 +9,7 @@ import { generateEmailContent, type EmailTemplateData } from './templates.ts';
 
 const SENDER_IDENTITY = 'Zarb <hello@zarb.shop>';
 const RESEND_API_URL = 'https://api.resend.com/emails';
+export const ADMIN_NOTIFICATION_EMAIL = 'syedhamza1238@gmail.com';
 
 const ALLOWED_ORIGINS = [
   'https://zarb.shop',
@@ -79,8 +80,13 @@ serve(async (req: Request) => {
       data = {},
     } = payload;
 
+    // Allow admin order notification events to default to ADMIN_NOTIFICATION_EMAIL
+    const cleanRecipient = (event_type === 'admin_order_notification' || event_type === 'admin_new_order')
+      ? (recipient_email || ADMIN_NOTIFICATION_EMAIL).toLowerCase().trim()
+      : (recipient_email || '').toLowerCase().trim();
+
     // Validate email
-    if (!recipient_email || !recipient_email.includes('@')) {
+    if (!cleanRecipient || !cleanRecipient.includes('@')) {
       return new Response(
         JSON.stringify({ error: 'Valid recipient_email is required.' }),
         { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
@@ -232,6 +238,101 @@ serve(async (req: Request) => {
           error_message: null,
         })
         .eq('id', eventRecordId);
+    }
+
+    // 8. If this is an order confirmation, also deliver the Admin Notification to syedhamza1238@gmail.com
+    if (event_type === 'order_confirmation') {
+      try {
+        const orderNum = order_number || data.orderNumber || (data as any).order_number || 'ZARB';
+        const adminEventKey = `admin_order_notification:${orderNum}`.toLowerCase().trim();
+
+        const { data: existingAdminEvent } = await supabase
+          .from('email_events')
+          .select('id, status, provider_message_id')
+          .eq('event_key', adminEventKey)
+          .maybeSingle();
+
+        if (existingAdminEvent && existingAdminEvent.status === 'sent') {
+          console.log(`[EMAIL SERVICE] Admin notification already sent for ${orderNum}`);
+        } else {
+          let adminRecordId = existingAdminEvent?.id;
+          if (!adminRecordId) {
+            const { data: adminInsert } = await supabase
+              .from('email_events')
+              .insert({
+                event_key: adminEventKey,
+                event_type: 'admin_order_notification',
+                recipient_email: ADMIN_NOTIFICATION_EMAIL,
+                user_id: user_id || null,
+                order_id: order_id || null,
+                order_number: orderNum,
+                status: 'pending',
+                payload: {
+                  ...data,
+                  customerEmail: recipient_email,
+                  orderNumber: orderNum,
+                },
+              })
+              .select('id')
+              .maybeSingle();
+
+            if (adminInsert) {
+              adminRecordId = adminInsert.id;
+            }
+          }
+
+          const adminEmailContent = generateEmailContent('admin_order_notification', {
+            ...data,
+            customerEmail: recipient_email,
+            orderNumber: orderNum,
+          });
+
+          const adminResendRes = await fetch(RESEND_API_URL, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: SENDER_IDENTITY,
+              to: [ADMIN_NOTIFICATION_EMAIL],
+              subject: adminEmailContent.subject,
+              html: adminEmailContent.html,
+              text: adminEmailContent.text,
+            }),
+          });
+
+          const adminResendJson = await adminResendRes.json();
+          if (adminResendRes.ok) {
+            const adminMsgId = adminResendJson.id || 'resend_admin_ok';
+            console.log(`[EMAIL SERVICE] Admin order notification delivered for ${orderNum} (ID: ${adminMsgId})`);
+            if (adminRecordId) {
+              await supabase
+                .from('email_events')
+                .update({
+                  status: 'sent',
+                  sent_at: new Date().toISOString(),
+                  provider_message_id: adminMsgId,
+                  error_message: null,
+                })
+                .eq('id', adminRecordId);
+            }
+          } else {
+            console.warn(`[EMAIL SERVICE] Admin order notification Resend failed:`, adminResendJson);
+            if (adminRecordId) {
+              await supabase
+                .from('email_events')
+                .update({
+                  status: 'failed',
+                  error_message: adminResendJson.message || 'Resend admin send failed',
+                })
+                .eq('id', adminRecordId);
+            }
+          }
+        }
+      } catch (adminErr) {
+        console.warn('[EMAIL SERVICE] Non-fatal admin order notification error:', adminErr);
+      }
     }
 
     return new Response(

@@ -13,10 +13,16 @@ import {
 import {
   fetchCustomerAddressFromSupabase,
   saveCustomerAddressToSupabase,
+  fetchCustomerAddressesFromSupabase,
+  saveCustomerAddressesToSupabase,
   getSavedAddress,
+  getSavedAddresses,
   saveAddressToStorage,
+  saveAddressesToStorage,
   clearSavedAddressStorage,
+  clearSavedAddressesStorage,
   type DetectedAddress,
+  type CustomerAddress,
 } from '../utils/geolocation';
 import { emailService } from '../services/emailService';
 
@@ -107,7 +113,12 @@ interface AuthContextType {
   pendingSyncCount: number;
   triggerPendingSync: () => Promise<void>;
   savedAddress: Partial<DetectedAddress> | null;
+  savedAddresses: CustomerAddress[];
   updateCustomerAddress: (address: Partial<DetectedAddress>) => Promise<boolean>;
+  addCustomerAddress: (addressData: Omit<CustomerAddress, 'id'>) => Promise<CustomerAddress>;
+  updateCustomerAddressItem: (id: string, updates: Partial<CustomerAddress>) => Promise<void>;
+  deleteCustomerAddress: (id: string) => Promise<void>;
+  setDefaultAddress: (id: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -122,33 +133,223 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(() => getPendingSyncOrders().length);
 
   // Customer Delivery Destination State — Supabase is permanent source of truth
-  const [savedAddress, setSavedAddress] = useState<Partial<DetectedAddress> | null>(() => getSavedAddress());
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>(() => getSavedAddresses());
+  const [savedAddress, setSavedAddress] = useState<Partial<DetectedAddress> | null>(() => {
+    const list = getSavedAddresses();
+    const def = list.find((a) => a.isDefault) || list[0];
+    return def || getSavedAddress();
+  });
 
-  // Load customer's permanent address from Supabase cloud database
-  const loadCustomerSavedAddress = useCallback(async (userId: string) => {
+  // Load customer's permanent addresses from Supabase cloud database
+  const loadCustomerSavedAddresses = useCallback(async (userId: string) => {
     if (!userId) return;
     try {
-      const cloudAddress = await fetchCustomerAddressFromSupabase(userId);
-      if (cloudAddress && cloudAddress.address) {
-        setSavedAddress(cloudAddress);
-        saveAddressToStorage(cloudAddress);
+      const cloudAddresses = await fetchCustomerAddressesFromSupabase(userId);
+      if (cloudAddresses && cloudAddresses.length > 0) {
+        setSavedAddresses(cloudAddresses);
+        saveAddressesToStorage(cloudAddresses);
+        const def = cloudAddresses.find((a) => a.isDefault) || cloudAddresses[0];
+        setSavedAddress(def);
+        return;
+      }
+
+      // Fallback to legacy single address check
+      const single = await fetchCustomerAddressFromSupabase(userId);
+      if (single && single.address) {
+        const migrated: CustomerAddress = {
+          id: 'addr_default',
+          label: 'Home',
+          address: single.address,
+          apartment: single.apartment || '',
+          city: single.city || '',
+          state: single.state || '',
+          postalCode: single.postalCode || '',
+          country: single.country || 'India',
+          isDefault: true,
+          source: single.source,
+          accuracy: single.accuracy,
+          createdAt: new Date().toISOString(),
+        };
+        setSavedAddresses([migrated]);
+        saveAddressesToStorage([migrated]);
+        setSavedAddress(migrated);
       }
     } catch (e) {
-      console.warn('Could not load address from Supabase:', e);
+      console.warn('Could not load addresses from Supabase:', e);
     }
   }, []);
 
-  // Update customer's delivery destination permanently in Supabase Cloud & local state
-  const updateCustomerAddress = useCallback(async (address: Partial<DetectedAddress>): Promise<boolean> => {
-    setSavedAddress(address);
-    saveAddressToStorage(address);
+  // Update customer's delivery destination permanently in Supabase Cloud & local state (backward compatible)
+  const updateCustomerAddress = useCallback(
+    async (address: Partial<DetectedAddress>): Promise<boolean> => {
+      setSavedAddress(address);
+      saveAddressToStorage(address);
 
-    if (user?.id) {
-      const ok = await saveCustomerAddressToSupabase(user.id, address);
-      return ok;
-    }
-    return true;
-  }, [user]);
+      // Also update in savedAddresses list
+      setSavedAddresses((prev) => {
+        let updated: CustomerAddress[];
+        const defaultIdx = prev.findIndex((a) => a.isDefault);
+        if (defaultIdx >= 0) {
+          updated = prev.map((item, i) =>
+            i === defaultIdx
+              ? {
+                  ...item,
+                  address: address.address || item.address,
+                  apartment: address.apartment !== undefined ? address.apartment : item.apartment,
+                  city: address.city || item.city,
+                  state: address.state || item.state,
+                  postalCode: address.postalCode || item.postalCode,
+                  country: address.country || item.country,
+                  source: address.source || item.source,
+                  accuracy: address.accuracy !== undefined ? address.accuracy : item.accuracy,
+                }
+              : item
+          );
+        } else {
+          const newAddr: CustomerAddress = {
+            id: 'addr_' + Date.now(),
+            label: 'Home',
+            address: address.address || '',
+            apartment: address.apartment || '',
+            city: address.city || '',
+            state: address.state || '',
+            postalCode: address.postalCode || '',
+            country: address.country || 'India',
+            isDefault: true,
+            source: address.source,
+            accuracy: address.accuracy,
+            createdAt: new Date().toISOString(),
+          };
+          updated = [newAddr, ...prev];
+        }
+        saveAddressesToStorage(updated);
+        if (user?.id) {
+          saveCustomerAddressesToSupabase(user.id, updated);
+        }
+        return updated;
+      });
+
+      if (user?.id) {
+        return await saveCustomerAddressToSupabase(user.id, address);
+      }
+      return true;
+    },
+    [user]
+  );
+
+  // Add a new delivery address
+  const addCustomerAddress = useCallback(
+    async (addressData: Omit<CustomerAddress, 'id'>): Promise<CustomerAddress> => {
+      const newId = 'addr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      const newAddress: CustomerAddress = {
+        ...addressData,
+        id: newId,
+        createdAt: new Date().toISOString(),
+      };
+
+      setSavedAddresses((prev) => {
+        let next: CustomerAddress[];
+        if (newAddress.isDefault || prev.length === 0) {
+          newAddress.isDefault = true;
+          next = [newAddress, ...prev.map((a) => ({ ...a, isDefault: false }))];
+          setSavedAddress(newAddress);
+          saveAddressToStorage(newAddress);
+        } else {
+          next = [...prev, newAddress];
+        }
+        saveAddressesToStorage(next);
+        if (user?.id) {
+          saveCustomerAddressesToSupabase(user.id, next);
+        }
+        return next;
+      });
+
+      return newAddress;
+    },
+    [user]
+  );
+
+  // Update a specific address item
+  const updateCustomerAddressItem = useCallback(
+    async (id: string, updates: Partial<CustomerAddress>): Promise<void> => {
+      setSavedAddresses((prev) => {
+        const next = prev.map((a) => {
+          if (a.id === id) {
+            return { ...a, ...updates };
+          }
+          if (updates.isDefault) {
+            return { ...a, isDefault: false };
+          }
+          return a;
+        });
+
+        saveAddressesToStorage(next);
+        const def = next.find((a) => a.isDefault) || next[0];
+        if (def) {
+          setSavedAddress(def);
+          saveAddressToStorage(def);
+        }
+
+        if (user?.id) {
+          saveCustomerAddressesToSupabase(user.id, next);
+        }
+        return next;
+      });
+    },
+    [user]
+  );
+
+  // Delete an address
+  const deleteCustomerAddress = useCallback(
+    async (id: string): Promise<void> => {
+      setSavedAddresses((prev) => {
+        const remaining = prev.filter((a) => a.id !== id);
+        if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
+          remaining[0].isDefault = true;
+        }
+        saveAddressesToStorage(remaining);
+
+        const def = remaining.find((a) => a.isDefault) || remaining[0] || null;
+        setSavedAddress(def);
+        if (def) {
+          saveAddressToStorage(def);
+        } else {
+          clearSavedAddressStorage();
+        }
+
+        if (user?.id) {
+          saveCustomerAddressesToSupabase(user.id, remaining);
+        }
+        return remaining;
+      });
+    },
+    [user]
+  );
+
+  // Set default address
+  const setDefaultAddress = useCallback(
+    async (id: string): Promise<void> => {
+      setSavedAddresses((prev) => {
+        const next = prev.map((a) => ({
+          ...a,
+          isDefault: a.id === id,
+        }));
+        saveAddressesToStorage(next);
+
+        const def = next.find((a) => a.id === id);
+        if (def) {
+          setSavedAddress(def);
+          saveAddressToStorage(def);
+        }
+
+        if (user?.id) {
+          saveCustomerAddressesToSupabase(user.id, next);
+        }
+        return next;
+      });
+    },
+    [user]
+  );
 
   // Map Supabase User to UserProfile
   const mapUserProfile = (u: User): UserProfile => {
@@ -273,7 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const profile = mapUserProfile(session.user);
         linkGoogleCustomerAccount(profile);
         setUser(profile);
-        loadCustomerSavedAddress(session.user.id);
+        loadCustomerSavedAddresses(session.user.id);
       } else {
         // Fallback: check saved phone OTP session
         try {
@@ -283,7 +484,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (parsed?.user) {
               setUser(parsed.user);
               if (parsed.user.id) {
-                loadCustomerSavedAddress(parsed.user.id);
+                loadCustomerSavedAddresses(parsed.user.id);
               }
             }
           } else {
@@ -305,7 +506,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const profile = mapUserProfile(session.user);
         linkGoogleCustomerAccount(profile);
         setUser(profile);
-        loadCustomerSavedAddress(session.user.id);
+        loadCustomerSavedAddresses(session.user.id);
 
         // Genuine Sign-in vs Session Restoration detection
         if (event === 'SIGNED_IN' && profile.email) {
@@ -340,7 +541,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (parsed?.user) {
               setUser(parsed.user);
               if (parsed.user.id) {
-                loadCustomerSavedAddress(parsed.user.id);
+                loadCustomerSavedAddresses(parsed.user.id);
               }
               return;
             }
@@ -355,7 +556,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadCustomerSavedAddress]);
+  }, [loadCustomerSavedAddresses]);
 
   // Refresh orders when user changes
   useEffect(() => {
@@ -430,7 +631,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setRawUser(null);
       setSavedAddress(null);
-      clearSavedAddressStorage();
+      setSavedAddresses([]);
+      clearSavedAddressesStorage();
       localStorage.removeItem('atelier_last_checkout_email');
       localStorage.removeItem('zarb_phone_session');
       setUserOrders([]);
@@ -653,10 +855,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPendingSyncCount(getPendingSyncOrders().length);
     }
 
-    // 8. Trigger asynchronous, non-blocking order confirmation email
+    // 8. Trigger asynchronous, non-blocking order emails
     if (fullOrder.customer_email) {
       emailService.sendOrderConfirmationEmail(fullOrder).catch(err => {
         console.warn('[AUTH CONTEXT] Background order confirmation email notice:', err);
+      });
+    } else {
+      // If customer provided no email, ensure store owner is still alerted of new order
+      emailService.sendAdminOrderNotification(fullOrder).catch(err => {
+        console.warn('[AUTH CONTEXT] Background admin order email notice:', err);
       });
     }
 
@@ -686,7 +893,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pendingSyncCount,
         triggerPendingSync,
         savedAddress,
+        savedAddresses,
         updateCustomerAddress,
+        addCustomerAddress,
+        updateCustomerAddressItem,
+        deleteCustomerAddress,
+        setDefaultAddress,
       }}
     >
       {children}

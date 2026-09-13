@@ -16,7 +16,7 @@ export interface DetectedAddress {
   state: string;
   postalCode: string;
   country: string;
-  source: 'gps' | 'ip';
+  source?: 'gps' | 'ip' | 'map' | 'manual';
   accuracy?: number;
   displayName?: string;
 }
@@ -284,6 +284,24 @@ export async function detectUserLocation(): Promise<GeolocationResult> {
  * Local storage keys for saved address
  */
 export const SAVED_ADDRESS_STORAGE_KEY = 'zarb_saved_delivery_address';
+export const SAVED_ADDRESSES_STORAGE_KEY = 'zarb_saved_addresses';
+
+export interface CustomerAddress {
+  id: string;
+  label: string; // 'Home' | 'Work' | 'Other' | custom
+  recipientName?: string;
+  phone?: string;
+  address: string;
+  apartment?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  isDefault: boolean;
+  source?: 'gps' | 'ip' | 'manual' | 'map';
+  accuracy?: number;
+  createdAt?: string;
+}
 
 export function getSavedAddress(): Partial<DetectedAddress> | null {
   try {
@@ -310,6 +328,67 @@ export function clearSavedAddressStorage(): void {
   }
 }
 
+export function getSavedAddresses(): CustomerAddress[] {
+  try {
+    const raw = localStorage.getItem(SAVED_ADDRESSES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to parse saved addresses:', e);
+  }
+
+  // Fallback / migration for legacy single saved address
+  const legacy = getSavedAddress();
+  if (legacy && legacy.address) {
+    const migrated: CustomerAddress = {
+      id: 'addr_default',
+      label: 'Home',
+      address: legacy.address,
+      apartment: legacy.apartment || '',
+      city: legacy.city || '',
+      state: legacy.state || '',
+      postalCode: legacy.postalCode || '',
+      country: legacy.country || 'India',
+      isDefault: true,
+      source: legacy.source,
+      accuracy: legacy.accuracy,
+      createdAt: new Date().toISOString(),
+    };
+    saveAddressesToStorage([migrated]);
+    return [migrated];
+  }
+
+  return [];
+}
+
+export function saveAddressesToStorage(addresses: CustomerAddress[]): void {
+  try {
+    localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(addresses));
+    // Also synchronize legacy single key for backwards compatibility
+    const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
+    if (defaultAddr) {
+      saveAddressToStorage(defaultAddr);
+    } else {
+      clearSavedAddressStorage();
+    }
+  } catch (e) {
+    console.warn('Failed to save addresses to localStorage:', e);
+  }
+}
+
+export function clearSavedAddressesStorage(): void {
+  try {
+    localStorage.removeItem(SAVED_ADDRESSES_STORAGE_KEY);
+    clearSavedAddressStorage();
+  } catch (e) {
+    console.warn('Failed to clear addresses from localStorage:', e);
+  }
+}
+
 /**
  * Permanently load customer address from Supabase cloud database
  */
@@ -324,13 +403,17 @@ export async function fetchCustomerAddressFromSupabase(userId: string): Promise<
       .maybeSingle();
 
     if (!profileErr && profile?.shipping_address && typeof profile.shipping_address === 'object') {
-      return profile.shipping_address as Partial<DetectedAddress>;
+      const s = profile.shipping_address as any;
+      if (Array.isArray(s) && s.length > 0) return s[0];
+      return s as Partial<DetectedAddress>;
     }
 
     // 2. Check authenticated user metadata in Supabase Auth
     const { data: { user } } = await supabase.auth.getUser();
     if (user?.id === userId && user.user_metadata?.shipping_address) {
-      return user.user_metadata.shipping_address as Partial<DetectedAddress>;
+      const s = user.user_metadata.shipping_address;
+      if (Array.isArray(s) && s.length > 0) return s[0];
+      return s as Partial<DetectedAddress>;
     }
 
     // 3. Fallback: check customer's most recent order in Supabase
@@ -349,6 +432,65 @@ export async function fetchCustomerAddressFromSupabase(userId: string): Promise<
     console.warn('Could not load customer address from Supabase:', e);
   }
   return null;
+}
+
+/**
+ * Permanently load all customer addresses from Supabase cloud database
+ */
+export async function fetchCustomerAddressesFromSupabase(userId: string): Promise<CustomerAddress[]> {
+  if (!isSupabaseConfigured() || !userId) return [];
+  try {
+    // 1. Check authenticated user metadata
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id === userId) {
+      const metaAddrs = user.user_metadata?.shipping_addresses;
+      if (Array.isArray(metaAddrs) && metaAddrs.length > 0) {
+        return metaAddrs;
+      }
+    }
+
+    // 2. Check public.profiles table
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('shipping_address')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profile?.shipping_address) {
+      if (Array.isArray(profile.shipping_address)) {
+        return profile.shipping_address;
+      }
+      if (typeof profile.shipping_address === 'object') {
+        const pObj = profile.shipping_address as any;
+        if (Array.isArray(pObj.addresses) && pObj.addresses.length > 0) {
+          return pObj.addresses;
+        }
+        if (pObj.address) {
+          return [
+            {
+              id: pObj.id || 'addr_default',
+              label: pObj.label || 'Home',
+              recipientName: pObj.recipientName,
+              phone: pObj.phone,
+              address: pObj.address,
+              apartment: pObj.apartment || '',
+              city: pObj.city || '',
+              state: pObj.state || '',
+              postalCode: pObj.postalCode || '',
+              country: pObj.country || 'India',
+              isDefault: true,
+              source: pObj.source,
+              accuracy: pObj.accuracy,
+              createdAt: pObj.createdAt || new Date().toISOString(),
+            },
+          ];
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not load customer addresses from Supabase:', e);
+  }
+  return [];
 }
 
 /**
@@ -387,6 +529,53 @@ export async function saveCustomerAddressToSupabase(
     }
   } catch (e) {
     console.warn('Could not upsert profile address in Supabase:', e);
+  }
+
+  return isSaved;
+}
+
+/**
+ * Permanently save customer shipping addresses list to Supabase cloud database
+ */
+export async function saveCustomerAddressesToSupabase(
+  userId: string,
+  addresses: CustomerAddress[]
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !userId) return false;
+  let isSaved = false;
+  const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0] || null;
+
+  // 1. Save to Supabase Auth User Metadata
+  try {
+    const { error: authErr } = await supabase.auth.updateUser({
+      data: {
+        shipping_address: defaultAddr,
+        shipping_addresses: addresses,
+      },
+    });
+    if (!authErr) isSaved = true;
+  } catch (e) {
+    console.warn('Could not update user metadata addresses in Supabase:', e);
+  }
+
+  // 2. Upsert into public.profiles table
+  try {
+    const profilePayload: any = {
+      id: userId,
+      shipping_address: defaultAddr
+        ? {
+            ...defaultAddr,
+            addresses,
+          }
+        : null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error: profileErr } = await supabase
+      .from('profiles')
+      .upsert(profilePayload);
+    if (!profileErr) isSaved = true;
+  } catch (e) {
+    console.warn('Could not upsert profile addresses in Supabase:', e);
   }
 
   return isSaved;
