@@ -714,7 +714,11 @@ export const AccountDrawer: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleOpenAddAddress}
-                        className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs uppercase tracking-wider font-mono flex items-center space-x-1.5 transition-all cursor-pointer hover:scale-[1.02]"
+                        className={`px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider font-mono flex items-center space-x-1.5 transition-all cursor-pointer hover:scale-[1.02] ${
+                          theme === 'alabaster'
+                            ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 shadow-sm'
+                            : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                        }`}
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Add Address</span>
