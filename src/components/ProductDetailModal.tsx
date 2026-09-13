@@ -25,6 +25,8 @@ import {
   ZoomIn,
   ChevronLeft,
   ChevronRight,
+  Share2,
+  Link2,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -222,6 +224,34 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
     onClose();
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?product=${product.slug}`;
+    const shareData = {
+      title: product.name,
+      text: `Check out ${product.name} on Zarb — ${formattedPrice}`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        showToast('Product link copied to clipboard!');
+      }
+    } catch (err: any) {
+      // User cancelled share or clipboard failed — try clipboard as fallback
+      if (err?.name !== 'AbortError') {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          showToast('Product link copied to clipboard!');
+        } catch {
+          showToast('Could not copy link');
+        }
+      }
+    }
   };
 
   const relatedProducts = products.filter(
@@ -521,6 +551,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       aria-label="Save to Wishlist"
                     >
                       <Heart className={`w-5 h-5 ${isSaved ? 'fill-red-500' : ''}`} />
+                    </button>
+
+                    {/* Share Button */}
+                    <button
+                      onClick={handleShare}
+                      className="pdp-share-btn p-3.5 rounded-xl border bg-white/[0.05] text-stone-300 hover:text-white border-white/10 hover:border-white/30 transition-colors cursor-pointer active:scale-95"
+                      aria-label="Share this product"
+                      title="Share this product"
+                    >
+                      <Share2 className="w-5 h-5" />
                     </button>
                   </div>
 

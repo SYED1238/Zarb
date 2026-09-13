@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Header } from './components/Header';
@@ -78,6 +78,7 @@ const StoreFront: React.FC = () => {
   const {
     gender,
     theme,
+    products,
     activeProduct,
     setActiveProduct,
   } = useStore();
@@ -95,6 +96,34 @@ const StoreFront: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate]);
+
+  // Deep-link: auto-open product from ?product=slug on page load
+  const hasHandledDeepLink = useRef(false);
+  useEffect(() => {
+    if (hasHandledDeepLink.current || products.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const productSlug = params.get('product');
+    if (productSlug) {
+      const match = products.find(p => p.slug === productSlug);
+      if (match) {
+        setActiveProduct(match);
+        hasHandledDeepLink.current = true;
+      }
+    }
+  }, [products, setActiveProduct]);
+
+  // Update URL when product modal opens/closes
+  useEffect(() => {
+    if (activeProduct) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('product', activeProduct.slug);
+      window.history.replaceState({}, '', url.toString());
+    } else if (hasHandledDeepLink.current || window.location.search.includes('product=')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('product');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [activeProduct]);
 
   const handleSearchSelectCategory = (cat: string) => {
     const slugMap: Record<string, string> = {
