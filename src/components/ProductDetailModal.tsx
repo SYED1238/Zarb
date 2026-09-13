@@ -26,7 +26,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Share2,
-  Link2,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
