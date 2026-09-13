@@ -757,6 +757,7 @@ export const CheckoutModal: React.FC = () => {
 
   return (
     <div
+      id="checkout-modal"
       className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto"
       role="dialog"
       aria-modal="true"
@@ -1064,16 +1065,16 @@ export const CheckoutModal: React.FC = () => {
                           key={addr.id}
                           type="button"
                           onClick={() => handleSelectAddress(addr)}
-                          className={`px-3.5 py-2 rounded-xl border text-xs font-medium transition-all duration-150 shrink-0 flex items-center space-x-1.5 cursor-pointer ${
+                          className={`checkout-addr-chip px-3.5 py-2 rounded-xl border text-xs font-medium transition-all duration-150 shrink-0 flex items-center space-x-1.5 cursor-pointer ${
                             isSelected
-                              ? 'bg-black text-white border-black shadow-sm font-semibold'
-                              : 'bg-white border-stone-200 text-stone-700 hover:border-stone-400'
+                              ? 'checkout-addr-chip-active bg-black text-white border-black shadow-sm font-semibold'
+                              : 'checkout-addr-chip-inactive bg-white border-stone-200 text-stone-700 hover:border-stone-400'
                           }`}
                         >
-                          <span>{addr.label || 'Home'}</span>
+                          <span className={isSelected ? 'text-white font-semibold' : 'text-stone-700'}>{addr.label || 'Home'}</span>
                           {addr.isDefault && (
-                            <span className={`text-[9px] px-1 py-0.2 rounded font-mono uppercase tracking-wider ${
-                              isSelected ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-500'
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${
+                              isSelected ? 'bg-white/25 text-white font-semibold' : 'bg-stone-100 text-stone-500'
                             }`}>
                               Default
                             </span>
@@ -1085,14 +1086,14 @@ export const CheckoutModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleSelectNewAddress}
-                      className={`px-3.5 py-2 rounded-xl border text-xs font-medium transition-all shrink-0 flex items-center space-x-1 cursor-pointer ${
+                      className={`checkout-addr-chip px-3.5 py-2 rounded-xl border text-xs font-medium transition-all shrink-0 flex items-center space-x-1 cursor-pointer ${
                         selectedAddressId === 'new'
-                          ? 'bg-black text-white border-black shadow-sm font-semibold'
-                          : 'bg-white border-dashed border-stone-300 text-stone-600 hover:border-stone-500 hover:text-black'
+                          ? 'checkout-addr-chip-active bg-black text-white border-black shadow-sm font-semibold'
+                          : 'checkout-addr-chip-inactive bg-white border-dashed border-stone-300 text-stone-600 hover:border-stone-500 hover:text-black'
                       }`}
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>New Address</span>
+                      <Plus className={`w-3.5 h-3.5 ${selectedAddressId === 'new' ? 'text-white' : 'text-stone-600'}`} />
+                      <span className={selectedAddressId === 'new' ? 'text-white font-semibold' : 'text-stone-600'}>New Address</span>
                     </button>
                   </div>
                 </div>
@@ -1127,15 +1128,15 @@ export const CheckoutModal: React.FC = () => {
                     type="button"
                     onClick={() => handleCheckPincode()}
                     disabled={isCheckingPincode || formData.postalCode.replace(/\D/g, '').length !== 6}
-                    className="px-6 py-3.5 rounded-xl bg-[#111111] hover:bg-black text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 active:scale-95 flex items-center space-x-1.5 shadow-sm"
+                    className="checkout-pincode-btn px-6 py-3.5 rounded-xl bg-[#111111] hover:bg-black text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 active:scale-95 flex items-center space-x-1.5 shadow-sm"
                   >
                     {isCheckingPincode ? (
                       <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>CHECKING...</span>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span className="text-white font-bold">CHECKING...</span>
                       </>
                     ) : (
-                      <span>CHECK</span>
+                      <span className="text-white font-bold">CHECK</span>
                     )}
                   </button>
                 </div>
@@ -1642,7 +1643,7 @@ export const CheckoutModal: React.FC = () => {
                     setStep(1);
                     setIsAccountDrawerOpen(true);
                   }}
-                  className="w-full sm:w-1/2 py-3.5 px-4 rounded-xl bg-white hover:bg-stone-100 text-stone-900 text-xs font-semibold tracking-[0.15em] uppercase border border-stone-200 transition-colors cursor-pointer"
+                  className="checkout-secondary-btn w-full sm:w-1/2 py-3.5 px-4 rounded-xl bg-white hover:bg-stone-100 text-stone-900 text-xs font-semibold tracking-[0.15em] uppercase border border-stone-200 transition-colors cursor-pointer"
                 >
                   View in My Orders
                 </button>
@@ -1652,7 +1653,7 @@ export const CheckoutModal: React.FC = () => {
                     setIsCheckoutOpen(false);
                     setStep(1);
                   }}
-                  className="w-full sm:w-1/2 bg-black text-white hover:bg-stone-800 py-3.5 px-4 rounded-xl text-xs font-semibold tracking-[0.15em] uppercase transition-colors cursor-pointer"
+                  className="checkout-primary-btn w-full sm:w-1/2 bg-black text-white hover:bg-stone-800 py-3.5 px-4 rounded-xl text-xs font-semibold tracking-[0.15em] uppercase transition-colors cursor-pointer"
                 >
                   Continue Shopping
                 </button>
@@ -1667,6 +1668,7 @@ export const CheckoutModal: React.FC = () => {
       {/* In-Checkout Manage Addresses Modal */}
       {isManageAddressesOpen && (
         <div
+          id="checkout-manage-addresses-modal"
           className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
           role="dialog"
           aria-modal="true"

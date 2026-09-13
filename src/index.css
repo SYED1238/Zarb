@@ -664,7 +664,7 @@ html.theme-alabaster [role="dialog"] h4 {
   color: #121214 !important;
 }
 
-html.theme-alabaster [role="dialog"] .text-white {
+html.theme-alabaster [role="dialog"] .text-white:not(.bg-black):not(.bg-\[\#111111\]):not(button.bg-black *):not(button.bg-\[\#111111\] *):not(.checkout-pincode-btn *):not(.checkout-primary-btn *):not(.checkout-addr-chip-active *) {
   color: #121214 !important;
 }
 
@@ -679,6 +679,26 @@ html.theme-alabaster [role="dialog"] .text-stone-300 {
 
 html.theme-alabaster [role="dialog"] .text-stone-400 {
   color: #716e67 !important;
+}
+
+/* Dark contrast buttons inside dialogs (CHECK, Continue Shopping, Add Address): Always obsidian with crisp white text */
+html.theme-alabaster [role="dialog"] button.bg-black,
+html.theme-alabaster [role="dialog"] button.bg-\[\#111111\],
+html.theme-alabaster [role="dialog"] .checkout-primary-btn,
+html.theme-alabaster [role="dialog"] .checkout-pincode-btn,
+html.theme-alabaster [role="dialog"] .checkout-addr-chip-active {
+  background-color: #111111 !important;
+  color: #ffffff !important;
+  border-color: #111111 !important;
+}
+
+html.theme-alabaster [role="dialog"] button.bg-black *,
+html.theme-alabaster [role="dialog"] button.bg-\[\#111111\] *,
+html.theme-alabaster [role="dialog"] .checkout-primary-btn *,
+html.theme-alabaster [role="dialog"] .checkout-pincode-btn *,
+html.theme-alabaster [role="dialog"] .checkout-addr-chip-active * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
 }
 
 /* Modals & Drawers Input & Select Fields */
@@ -700,7 +720,7 @@ html.theme-alabaster [role="dialog"] input::placeholder {
 }
 
 /* Modals & Drawers Primary Action Buttons (PROCEED TO CHECKOUT, MOVE TO BAG, CONFIRM ORDER) */
-html.theme-alabaster [role="dialog"] button.bg-white,
+html.theme-alabaster [role="dialog"]:not(#checkout-modal):not(#checkout-manage-addresses-modal) button.bg-white:not(.checkout-secondary-btn):not(.checkout-addr-chip):not(.pdp-buy-now):not([class*="border-stone"]),
 html.theme-alabaster [role="dialog"] form button[type="submit"] {
   background-color: #121214 !important;
   color: #ffffff !important;
@@ -720,6 +740,55 @@ html.theme-alabaster [role="dialog"] button.bg-white:hover,
 html.theme-alabaster [role="dialog"] form button[type="submit"]:hover {
   background-color: #000000 !important;
   color: #ffffff !important;
+}
+
+/* Checkout Secondary Outline Buttons (View in My Orders) */
+html.theme-alabaster #checkout-modal .checkout-secondary-btn,
+html.theme-alabaster [role="dialog"] .checkout-secondary-btn {
+  background-color: #ffffff !important;
+  color: #1c1917 !important;
+  border: 1px solid #e7e5e4 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster #checkout-modal .checkout-secondary-btn:hover,
+html.theme-alabaster [role="dialog"] .checkout-secondary-btn:hover {
+  background-color: #f5f5f4 !important;
+  color: #0c0a09 !important;
+  border-color: #d6d3d1 !important;
+}
+
+html.theme-alabaster #checkout-modal .checkout-secondary-btn *,
+html.theme-alabaster [role="dialog"] .checkout-secondary-btn * {
+  color: inherit !important;
+}
+
+/* Checkout Address Switcher Chips */
+html.theme-alabaster #checkout-modal .checkout-addr-chip-inactive,
+html.theme-alabaster [role="dialog"] .checkout-addr-chip-inactive {
+  background-color: #ffffff !important;
+  color: #57534e !important;
+  border-color: #d6d3d1 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.theme-alabaster #checkout-modal .checkout-addr-chip-inactive *,
+html.theme-alabaster [role="dialog"] .checkout-addr-chip-inactive * {
+  color: #57534e !important;
+  stroke: #57534e !important;
+}
+
+html.theme-alabaster #checkout-modal .checkout-addr-chip-inactive:hover,
+html.theme-alabaster [role="dialog"] .checkout-addr-chip-inactive:hover {
+  background-color: #f5f5f4 !important;
+  border-color: #78716c !important;
+  color: #1c1917 !important;
+}
+
+html.theme-alabaster #checkout-modal .checkout-addr-chip-inactive:hover *,
+html.theme-alabaster [role="dialog"] .checkout-addr-chip-inactive:hover * {
+  color: #1c1917 !important;
+  stroke: #1c1917 !important;
 }
 
 /* Modal Inner Borders & Dividers */
