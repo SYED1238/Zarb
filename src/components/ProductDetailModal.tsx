@@ -400,12 +400,26 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             {/* Right: Product Details & Purchase Actions (5 Cols) */}
             <div className="lg:col-span-5 flex flex-col justify-between">
               <div>
-                {/* Category & SKU */}
+                {/* Category & SKU & Share */}
                 <div className="pdp-meta-row flex items-center justify-between text-xs tracking-[0.2em] uppercase text-stone-400 mb-2">
                   <span>
                     {product.gender === 'men' ? "Men's Collection" : "Women's Collection"} &middot; {product.category}
                   </span>
-                  <span className="font-mono text-[10px] text-stone-500">{product.sku}</span>
+                  <div className="flex items-center space-x-2.5">
+                    <span className="font-mono text-[10px] text-stone-500">{product.sku}</span>
+                    <button
+                      onClick={handleShare}
+                      className={`flex items-center space-x-1 px-2 py-1 rounded-full border text-[10px] tracking-wider font-mono transition-all cursor-pointer active:scale-95 ${
+                        isAlabaster
+                          ? 'bg-stone-100 hover:bg-stone-200 border-stone-300 text-stone-600 hover:text-stone-900'
+                          : 'bg-white/[0.06] hover:bg-white/15 border-white/15 text-stone-400 hover:text-white'
+                      }`}
+                      title="Share this product"
+                    >
+                      <Share2 className="w-3 h-3" />
+                      <span>SHARE</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Title */}
