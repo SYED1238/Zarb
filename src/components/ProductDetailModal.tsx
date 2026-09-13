@@ -295,7 +295,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
 
               {/* Main Image Stage */}
-              <div className={`relative aspect-[3/4] flex-1 rounded-xl overflow-hidden border transition-colors group/stage ${
+              <div className={`relative aspect-[2/3] flex-1 rounded-xl overflow-hidden border transition-colors group/stage ${
                 isAlabaster ? 'bg-stone-100 border-stone-200' : 'bg-[#16161b] border-white/10'
               }`}>
                 <img
@@ -304,7 +304,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   alt={`${product.name} - ${selectedColor}`}
                   onClick={() => setIsFullscreenOpen(true)}
                   decoding="async"
-                  className="w-full h-full object-cover transition-all duration-700 ease-out cursor-zoom-in animate-fade-in"
+                  className="w-full h-full object-contain sm:object-contain object-top transition-all duration-700 ease-out cursor-zoom-in animate-fade-in"
                 />
 
                 {/* Season Watermark at bottom-left */}
@@ -1051,7 +1051,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 src={getMediaUrl(activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0])}
                 alt={`${product.name} - ${selectedColor}`}
                 decoding="async"
-                className={`max-h-[76vh] sm:max-h-[82vh] max-w-[94vw] object-contain rounded-lg sm:rounded-xl shadow-2xl transition-transform duration-300 ${
+                className={`max-h-[82vh] sm:max-h-[88vh] max-w-[96vw] object-contain rounded-lg sm:rounded-xl shadow-2xl transition-transform duration-300 ${
                   isZoomed ? 'scale-135 sm:scale-160' : 'scale-100'
                 }`}
               />
