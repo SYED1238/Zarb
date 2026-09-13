@@ -67,6 +67,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
+  // Hover-zoom state for desktop magnifier effect
+  const [isHoverZoomed, setIsHoverZoomed] = useState(false);
+  const [hoverOrigin, setHoverOrigin] = useState({ x: 50, y: 50 });
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
   // Scroll Container Refs
   const outerScrollRef = useRef<HTMLDivElement>(null);
   const contentScrollRef = useRef<HTMLDivElement>(null);
@@ -325,16 +330,41 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
 
               {/* Main Image Stage */}
-              <div className={`relative aspect-[2/3] flex-1 rounded-xl overflow-hidden border transition-colors group/stage ${
-                isAlabaster ? 'bg-stone-100 border-stone-200' : 'bg-[#16161b] border-white/10'
-              }`}>
+              <div
+                className={`relative aspect-[2/3] flex-1 rounded-xl overflow-hidden border transition-colors group/stage ${
+                  isAlabaster ? 'bg-stone-100 border-stone-200' : 'bg-[#16161b] border-white/10'
+                }`}
+                onMouseMove={(e) => {
+                  if (isTouchDevice) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = ((e.clientX - rect.left) / rect.width) * 100;
+                  const y = ((e.clientY - rect.top) / rect.height) * 100;
+                  setHoverOrigin({ x, y });
+                  setIsHoverZoomed(true);
+                }}
+                onMouseLeave={() => setIsHoverZoomed(false)}
+              >
                 <img
                   key={`${selectedColor}-${activeImageIndex}`}
                   src={getMediaUrl(activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0])}
                   alt={`${product.name} - ${selectedColor}`}
                   onClick={() => setIsFullscreenOpen(true)}
                   decoding="async"
-                  className="w-full h-full object-contain sm:object-contain object-top transition-all duration-700 ease-out cursor-zoom-in animate-fade-in"
+                  className="w-full h-full object-contain sm:object-contain object-top cursor-zoom-in animate-fade-in"
+                  style={
+                    isHoverZoomed && !isTouchDevice
+                      ? {
+                          transformOrigin: `${hoverOrigin.x}% ${hoverOrigin.y}%`,
+                          transform: 'scale(2)',
+                          transition: 'transform 0.2s ease-out',
+                          objectFit: 'cover',
+                        }
+                      : {
+                          transformOrigin: 'center center',
+                          transform: 'scale(1)',
+                          transition: 'transform 0.3s ease-out',
+                        }
+                  }
                 />
 
                 {/* Season Watermark at bottom-left */}
