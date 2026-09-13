@@ -652,9 +652,11 @@ export const AccountDrawer: React.FC = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-12 border border-dashed border-white/10 rounded-3xl p-6 text-stone-400 space-y-2">
+                    <div className={`text-center py-12 border border-dashed rounded-3xl p-6 space-y-2 ${
+                      theme === 'alabaster' ? 'border-stone-300 text-stone-500' : 'border-white/10 text-stone-400'
+                    }`}>
                       <Package className="w-10 h-10 mx-auto text-stone-500" />
-                      <h4 className="text-base font-serif text-white">No Orders Placed Yet</h4>
+                      <h4 className={`text-base font-serif ${theme === 'alabaster' ? 'text-stone-900' : 'text-white'}`}>No Orders Placed Yet</h4>
                       <p className="text-xs sm:text-sm font-light">
                         Acquisitions made under {user.email} will permanently display here.
                       </p>
@@ -671,25 +673,25 @@ export const AccountDrawer: React.FC = () => {
                       theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-white/[0.02] border-white/10'
                     }`}
                   >
-                    <div className="flex justify-between border-b border-white/5 pb-2.5">
+                    <div className={`flex justify-between border-b pb-2.5 ${theme === 'alabaster' ? 'border-stone-200' : 'border-white/5'}`}>
                       <span className="text-stone-400">Sign-in Method</span>
-                      <span className="font-medium text-emerald-400">
+                      <span className={`font-medium ${theme === 'alabaster' ? 'text-emerald-600' : 'text-emerald-400'}`}>
                         {user.phone ? 'Verified Mobile' : 'Google Account'}
                       </span>
                     </div>
-                    <div className="flex justify-between border-b border-white/5 pb-2.5">
+                    <div className={`flex justify-between border-b pb-2.5 ${theme === 'alabaster' ? 'border-stone-200' : 'border-white/5'}`}>
                       <span className="text-stone-400">Account ID</span>
-                      <span className="font-mono text-stone-300 text-xs truncate max-w-[200px]">{user.id}</span>
+                      <span className={`font-mono text-xs truncate max-w-[200px] ${theme === 'alabaster' ? 'text-stone-600' : 'text-stone-300'}`}>{user.id}</span>
                     </div>
                     {user.phone && (
-                      <div className="flex justify-between border-b border-white/5 pb-2.5">
+                      <div className={`flex justify-between border-b pb-2.5 ${theme === 'alabaster' ? 'border-stone-200' : 'border-white/5'}`}>
                         <span className="text-stone-400">Verified Phone</span>
                         <span className="font-mono text-amber-400 text-xs">{user.phone}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
                       <span className="text-stone-400">Membership Status</span>
-                      <span className="text-white font-medium">Verified Active Member</span>
+                      <span className={`font-medium ${theme === 'alabaster' ? 'text-stone-900' : 'text-white'}`}>Verified Active Member</span>
                     </div>
                   </div>
 
@@ -1325,7 +1327,11 @@ export const AccountDrawer: React.FC = () => {
                   type="checkbox"
                   checked={addressForm.isDefault}
                   onChange={(e) => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
-                  className="w-4 h-4 rounded border-white/20 bg-white/5 text-amber-400 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-amber-400"
+                  className={`w-4 h-4 rounded focus:ring-0 focus:ring-offset-0 cursor-pointer accent-amber-500 ${
+                    theme === 'alabaster'
+                      ? 'border-stone-400 bg-white text-amber-500'
+                      : 'border-white/20 bg-white/5 text-amber-400'
+                  }`}
                 />
                 <span className={`text-xs font-medium ${
                   theme === 'alabaster' ? 'text-stone-700' : 'text-stone-300'
