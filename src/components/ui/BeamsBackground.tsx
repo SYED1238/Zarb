@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { useStore } from '../../context/StoreContext';
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
@@ -25,6 +26,10 @@ export interface HolographicBeamsProps extends React.HTMLAttributes<HTMLDivEleme
    * Default: 50 (matches user preset)
    */
   opacity?: number;
+  /**
+   * Whether to render in Alabaster (warm ivory) light mode.
+   */
+  isAlabaster?: boolean;
 }
 
 export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
@@ -33,11 +38,23 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
   speed = 3.9,
   aberration = 10.0,
   opacity = 50,
+  isAlabaster,
   style,
   ...props
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  let storeTheme: string | undefined;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const store = useStore();
+    storeTheme = store?.theme;
+  } catch {
+    storeTheme = undefined;
+  }
+
+  const effectiveAlabaster = isAlabaster ?? (storeTheme === 'alabaster');
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -78,8 +95,8 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
       const effectiveDensity = isMobile ? Math.max(16, Math.min(24, Math.floor(width / 20))) : density;
       const effectiveAberration = isMobile ? Math.min(aberration, 8.0) : aberration;
 
-      // Additive screen blending identical to new-main
-      ctx.globalCompositeOperation = 'screen';
+      // Additive screen blending in noir, multiply in alabaster
+      ctx.globalCompositeOperation = effectiveAlabaster ? 'multiply' : 'screen';
 
       time += 0.01 * speed;
       const beamWidth = width / effectiveDensity;
@@ -160,12 +177,16 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
       if (resizeObserver) resizeObserver.disconnect();
       cancelAnimationFrame(animationFrameId);
     };
-  }, [density, speed, aberration, opacity]);
+  }, [density, speed, aberration, opacity, effectiveAlabaster]);
 
   return (
     <div
       ref={containerRef}
-      className={cn('absolute inset-0 w-full h-full overflow-hidden pointer-events-none bg-[#070709]', className)}
+      className={cn(
+        'absolute inset-0 w-full h-full overflow-hidden pointer-events-none',
+        effectiveAlabaster ? 'bg-transparent' : 'bg-[#070709]',
+        className
+      )}
       style={style}
       {...props}
     >
@@ -176,7 +197,7 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
 
       {/* Texture Overlay (Scanlines) matching new-main */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-30"
+        className={cn('absolute inset-0 pointer-events-none transition-opacity duration-300', effectiveAlabaster ? 'opacity-10' : 'opacity-30')}
         style={{
           backgroundImage:
             'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.3) 100%)',
@@ -188,8 +209,9 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background:
-            'radial-gradient(ellipse at 50% 95%, transparent 30%, rgba(7,7,9,0.3) 65%, rgba(7,7,9,0.85) 100%)',
+          background: effectiveAlabaster
+            ? 'radial-gradient(ellipse at 50% 95%, transparent 40%, rgba(236,232,223,0.3) 70%, rgba(236,232,223,0.9) 100%)'
+            : 'radial-gradient(ellipse at 50% 95%, transparent 30%, rgba(7,7,9,0.3) 65%, rgba(7,7,9,0.85) 100%)',
         }}
       />
     </div>

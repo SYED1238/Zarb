@@ -59,6 +59,9 @@ export const EditorialSection: React.FC<EditorialSectionProps> = ({ onShopCollec
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        {/* The Atelier & Brand Story Anchor for Header and Footer navigation */}
+        <div id="brand-story" className="scroll-mt-28" />
+
         {/* ========================================================================= */}
         {/* 1. SECTION EDITORIAL HEADER                                               */}
         {/* ========================================================================= */}

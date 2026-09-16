@@ -35,8 +35,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const defaultSize = product.sizes[0];
-    const defaultColor = product.colors[selectedColorIndex]?.name || 'Standard';
+    const defaultSize = product.sizes?.[0] || 'Standard';
+    const defaultColor = product.colors?.[selectedColorIndex]?.name || 'Standard';
     addToCart(product, defaultSize, defaultColor, 1);
   };
 
@@ -65,13 +65,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       onClick={() => onQuickView(product)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group cursor-pointer flex flex-col justify-between"
+      className={`card-neumorphic group cursor-pointer flex flex-col justify-between p-3.5 sm:p-4 rounded-3xl transition-all duration-300 ${
+        isAlabaster ? 'bg-[#f4f3ec] text-stone-900' : 'bg-[#121216] text-white'
+      }`}
       role="article"
       aria-label={product.name}
     >
-      {/* Image Container with editorial 3:4 ratio */}
-      <div className={`relative aspect-[3/4] w-full overflow-hidden rounded-xl mb-4 border transition-colors duration-300 ${
-        isAlabaster ? 'bg-stone-200 border-stone-200/80' : 'bg-[#141418] border-transparent'
+      {/* Image Container with editorial 3:4 ratio & Neumorphic Inset Well */}
+      <div className={`relative aspect-[3/4] w-full overflow-hidden rounded-2xl mb-3.5 border transition-all duration-300 card-neumorphic-inset ${
+        isAlabaster ? 'bg-stone-200/70 border-stone-200/50' : 'bg-[#0d0d10] border-white/[0.04]'
       }`}>
         {/* Primary Image with Crossfade */}
         <img
@@ -89,12 +91,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         {/* Badges: New Season / Best Seller */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
           {product.newArrival && (
-            <span className="product-badge-new text-[9px] font-sans font-medium uppercase tracking-[0.25em] bg-white text-black px-2 py-0.5 rounded-sm shadow-md">
+            <span className="product-badge-new text-[9px] font-sans font-semibold uppercase tracking-[0.25em] bg-white text-black px-2.5 py-0.5 rounded-full shadow-md border border-black/10">
               NEW
             </span>
           )}
           {product.bestSeller && (
-            <span className="product-badge-edition text-[9px] font-sans font-medium uppercase tracking-[0.25em] bg-black/80 backdrop-blur-md text-stone-200 border border-white/20 px-2 py-0.5 rounded-sm">
+            <span className="product-badge-edition text-[9px] font-sans font-medium uppercase tracking-[0.25em] bg-black/80 backdrop-blur-md text-stone-200 border border-white/20 px-2.5 py-0.5 rounded-full shadow-md">
               EDITION
             </span>
           )}
@@ -103,27 +105,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         {/* Floating Wishlist Heart */}
         <button
           onClick={handleWishlistToggle}
-          className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all duration-300 z-10 cursor-pointer ${
+          className={`product-card-wishlist absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all duration-300 z-10 cursor-pointer ${
             isSaved
-              ? 'bg-white text-red-600 scale-110 shadow-lg'
-              : 'bg-black/40 text-stone-300 hover:text-white hover:bg-black/70 opacity-90 sm:opacity-0 group-hover:opacity-100'
-          }`}
+              ? 'is-saved scale-105'
+              : ''
+          } ${isHovered ? 'opacity-100' : 'opacity-90 sm:opacity-0 group-hover:opacity-100'}`}
           aria-label={isSaved ? 'Remove from wishlist' : 'Save to wishlist'}
         >
-          <Heart className={`w-4 h-4 ${isSaved ? 'fill-red-600' : ''}`} />
+          <Heart className="w-3.5 h-3.5" />
         </button>
 
         {/* Quick Actions overlay on desktop hover */}
         <div className="absolute bottom-3 inset-x-3 hidden sm:flex items-center space-x-2 z-10 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
           <button
             onClick={handleQuickAdd}
-            className={`product-quick-add flex-1 py-2.5 px-3 rounded-lg text-[11px] font-sans font-medium uppercase tracking-[0.2em] flex items-center justify-center space-x-1.5 shadow-xl transition-all cursor-pointer ${
-              isAlabaster
-                ? 'bg-stone-950 hover:bg-black text-white'
-                : 'bg-white hover:bg-stone-200 text-black'
-            }`}
+            className="product-quick-add flex-1 py-2.5 px-3 rounded-xl text-[11px] font-sans font-semibold uppercase tracking-[0.2em] flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
+            <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
             <span>QUICK ADD</span>
           </button>
           <button
@@ -131,7 +129,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
               e.stopPropagation();
               onQuickView(product);
             }}
-            className="product-quick-eye bg-black/80 hover:bg-black text-white p-2.5 rounded-lg border border-white/20 backdrop-blur-md transition-colors cursor-pointer"
+            className="product-quick-eye p-2.5 rounded-xl backdrop-blur-md transition-colors cursor-pointer shrink-0"
             title="View Details"
           >
             <Eye className="w-4 h-4" />
@@ -145,11 +143,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
             e.stopPropagation();
             onQuickView(product);
           }}
-          className={`sm:hidden absolute bottom-2.5 right-2.5 p-2 rounded-full backdrop-blur-md shadow-md z-10 transition-all active:scale-95 cursor-pointer ${
-            isAlabaster
-              ? 'bg-white/90 text-stone-900 border border-stone-300/80 shadow-black/10'
-              : 'bg-black/65 text-stone-200 border border-white/20'
-          }`}
+          className="sm:hidden product-card-mobile-eye absolute bottom-2.5 right-2.5 p-2 rounded-full backdrop-blur-md shadow-md z-10 transition-all active:scale-95 cursor-pointer"
           aria-label="View piece in detail"
           title="View Details"
         >
@@ -158,31 +152,33 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       </div>
 
       {/* Product Information */}
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 px-1 pb-0.5">
         {/* Category & Rating */}
-        <div className={`flex items-center justify-between text-[11px] uppercase tracking-[0.2em] ${
+        <div className={`flex items-center justify-between text-[10px] uppercase tracking-[0.2em] font-mono ${
           isAlabaster ? 'text-stone-500' : 'text-stone-400'
         }`}>
           <span>{product.category}</span>
-          <div className={`flex items-center space-x-1 ${isAlabaster ? 'text-stone-700' : 'text-stone-300'}`}>
+          <div className={`flex items-center space-x-1 px-1.5 py-0.5 rounded-md ${
+            isAlabaster ? 'bg-black/[0.04] text-stone-700' : 'bg-white/[0.04] text-stone-300'
+          }`}>
             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-            <span>{product.rating.toFixed(1)}</span>
+            <span className="font-semibold text-[10px]">{product.rating.toFixed(1)}</span>
           </div>
         </div>
 
         {/* Product Title */}
-        <h3 className={`text-sm font-sans tracking-[0.04em] line-clamp-1 transition-colors ${
+        <h3 className={`text-sm font-sans tracking-[0.03em] line-clamp-1 transition-colors ${
           isAlabaster
-            ? 'text-stone-900 group-hover:text-black font-medium'
-            : 'text-stone-100 group-hover:text-white font-normal'
+            ? 'text-stone-900 group-hover:text-black font-semibold'
+            : 'text-stone-100 group-hover:text-white font-medium'
         }`}>
           {product.name}
         </h3>
 
         {/* Price & Compare */}
-        <div className="flex items-center space-x-2.5 pt-0.5">
-          <span className={`text-sm tracking-[0.06em] ${
-            isAlabaster ? 'text-stone-950 font-semibold' : 'text-stone-100 font-medium'
+        <div className="flex items-center space-x-2 pt-0.5">
+          <span className={`text-sm font-semibold tracking-[0.05em] ${
+            isAlabaster ? 'text-stone-950' : 'text-amber-400'
           }`}>
             {formattedPrice}
           </span>
@@ -210,8 +206,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
                 className={`w-3.5 h-3.5 rounded-full border transition-all cursor-pointer ${
                   selectedColorIndex === idx
                     ? (isAlabaster
-                        ? 'ring-1 ring-stone-900 ring-offset-2 ring-offset-[#f6f5f0] border-stone-900 scale-110'
-                        : 'ring-1 ring-white ring-offset-2 ring-offset-[#09090b] border-white scale-110')
+                        ? 'ring-1 ring-stone-900 ring-offset-2 ring-offset-[#f4f3ec] border-stone-900 scale-110 shadow-sm'
+                        : 'ring-1 ring-white ring-offset-2 ring-offset-[#121216] border-white scale-110 shadow-sm')
                     : (isAlabaster ? 'border-stone-300 hover:border-stone-600' : 'border-white/20 hover:border-white/60')
                 }`}
                 style={{ backgroundColor: col.hex }}

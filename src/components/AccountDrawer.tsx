@@ -404,7 +404,7 @@ export const AccountDrawer: React.FC = () => {
                   type="button"
                   onClick={handleGoogleClick}
                   disabled={isSigningIn}
-                  className={`relative w-full py-4 px-6 rounded-2xl flex items-center justify-center space-x-3.5 shadow-xl transition-all duration-300 cursor-pointer overflow-hidden active:scale-[0.97] hover:-translate-y-0.5 z-10 ${
+                  className={`auth-google-btn relative w-full py-4 px-6 rounded-2xl flex items-center justify-center space-x-3.5 shadow-xl transition-all duration-300 cursor-pointer overflow-hidden active:scale-[0.97] hover:-translate-y-0.5 z-10 ${
                     theme === 'alabaster'
                       ? 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:shadow-[0_15px_35px_rgba(245,158,11,0.2)]'
                       : 'bg-white hover:bg-stone-50 text-stone-950 border border-white/90 shadow-[0_10px_35px_rgba(255,255,255,0.18)] hover:shadow-[0_15px_40px_rgba(245,158,11,0.3)]'
@@ -849,13 +849,14 @@ export const AccountDrawer: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleOpenAddAddress}
-                            className={`px-3 py-2 rounded-xl text-xs uppercase font-mono font-semibold transition-colors cursor-pointer ${
+                            className={`drawer-primary-btn px-3 py-2 rounded-xl text-xs uppercase font-mono font-semibold transition-colors cursor-pointer ${
                               theme === 'alabaster'
                                 ? 'bg-stone-900 text-white hover:bg-black'
                                 : 'bg-white text-black hover:bg-stone-200'
                             }`}
+                            style={theme === 'alabaster' ? { color: '#ffffff', backgroundColor: '#1c1917' } : undefined}
                           >
-                            + Add New Address
+                            <span style={theme === 'alabaster' ? { color: '#ffffff' } : undefined}>+ Add New Address</span>
                           </button>
                         </div>
                       </div>
@@ -1358,11 +1359,12 @@ export const AccountDrawer: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSavingAddress}
-                  className={`px-5 py-2.5 rounded-xl font-semibold text-xs font-mono uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 flex items-center space-x-1.5 ${
+                  className={`drawer-primary-btn px-5 py-2.5 rounded-xl font-semibold text-xs font-mono uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 flex items-center space-x-1.5 ${
                     theme === 'alabaster'
                       ? 'bg-stone-900 text-white hover:bg-black'
                       : 'bg-white text-black hover:bg-stone-200'
                   }`}
+                  style={theme === 'alabaster' ? { color: '#ffffff', backgroundColor: '#1c1917' } : undefined}
                 >
                   {isSavingAddress ? (
                     <>

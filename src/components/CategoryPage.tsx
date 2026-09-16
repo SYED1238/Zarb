@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import { ProductCard } from './ProductCard';
@@ -20,8 +20,11 @@ interface CategoryPageProps {
 
 export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
   const { gender: paramGender, categorySlug } = useParams<{ gender?: string; categorySlug?: string }>();
+  const [searchParams] = useSearchParams();
+  const filterParam = searchParams.get('filter');
   const navigate = useNavigate();
-  const { gender: storeGender, setGender, products, getCategories, getCategoryBySlug } = useStore();
+  const { gender: storeGender, setGender, products, getCategories, getCategoryBySlug, theme } = useStore();
+  const isAlabaster = theme === 'alabaster';
 
   // Normalize gender from URL (default to storeGender or 'women')
   const gender: 'men' | 'women' = (paramGender === 'men' || paramGender === 'women') 
@@ -64,6 +67,16 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
   }, [currentCategory, gender]);
 
   // Filter States
+  const [activeQuickFilter, setActiveQuickFilter] = useState<'all' | 'newArrival' | 'bestSeller'>(
+    (filterParam === 'newArrival' || filterParam === 'bestSeller') ? filterParam : 'all'
+  );
+
+  useEffect(() => {
+    if (filterParam === 'newArrival' || filterParam === 'bestSeller') {
+      setActiveQuickFilter(filterParam);
+    }
+  }, [filterParam]);
+
   const [selectedSize, setSelectedSize] = useState<string>('all');
   const [selectedColor, setSelectedColor] = useState<string>('all');
   const [priceRange, setPriceRange] = useState<'all' | 'under15k' | '15k-30k' | 'over30k'>('all');
@@ -74,12 +87,22 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
 
   useModalBackHandler(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false), 'category-filters');
 
-  // Available Sizes for this gender
+  // Dynamically discover all real sizes available for this gender
   const availableSizes = useMemo(() => {
+    const sizeSet = new Set<string>();
+    products
+      .filter((p) => p.gender === gender)
+      .forEach((p) => {
+        (p.sizes || []).forEach((s) => {
+          if (s && s.trim()) sizeSet.add(s.trim());
+        });
+      });
+    const list = Array.from(sizeSet);
+    if (list.length > 0) return list;
     return gender === 'women' 
-      ? ['34 (XS)', '36 (S)', '38 (M)', '40 (L)', '25', '26', '27', '28', '29', '30'] 
-      : ['46 (S)', '48 (M)', '50 (L)', '52 (XL)', '30', '32', '34', '36'];
-  }, [gender]);
+      ? ['XS', 'S', 'M', 'L', 'XL', 'XXL', '34 (XS)', '36 (S)', '38 (M)', '40 (L)'] 
+      : ['46 (S)', '48 (M)', '50 (L)', '52 (XL)', 'S', 'M', 'L', 'XL', 'XXL'];
+  }, [gender, products]);
 
   // Filter & Sort Products (Strict category filtering: ONLY products belonging to category)
   const filteredProducts = useMemo(() => {
@@ -92,9 +115,22 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
         return false;
       }
 
-      // Size filter
-      if (selectedSize !== 'all' && !p.sizes.some((s) => s.includes(selectedSize) || selectedSize.includes(s))) {
+      // Quick filter tabs (new arrival / best seller)
+      if (activeQuickFilter === 'newArrival' && !p.newArrival) {
         return false;
+      }
+      if (activeQuickFilter === 'bestSeller' && !p.bestSeller) {
+        return false;
+      }
+
+      // Size filter with robust matching
+      if (selectedSize !== 'all') {
+        const cleanFilter = selectedSize.toLowerCase().replace(/[()]/g, '').trim();
+        const hasSize = (p.sizes || []).some((s) => {
+          const cleanS = s.toLowerCase().replace(/[()]/g, '').trim();
+          return cleanS === cleanFilter || cleanS.includes(cleanFilter) || cleanFilter.includes(cleanS);
+        });
+        if (!hasSize) return false;
       }
 
       // Color filter
@@ -118,24 +154,27 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
       if (sortBy === 'newest') return (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0);
       return 0; // featured default
     });
-  }, [products, gender, currentCategory, selectedSize, selectedColor, priceRange, inStockOnly, sortBy]);
+  }, [products, gender, currentCategory, activeQuickFilter, selectedSize, selectedColor, priceRange, inStockOnly, sortBy]);
 
   // Total products in this category before secondary filter
   const totalCategoryPieces = useMemo(() => {
     return products.filter((p) => {
       if (p.gender !== gender) return false;
       if (currentCategory && p.category.toLowerCase() !== currentCategory.slug.toLowerCase()) return false;
+      if (activeQuickFilter === 'newArrival' && !p.newArrival) return false;
+      if (activeQuickFilter === 'bestSeller' && !p.bestSeller) return false;
       return true;
     }).length;
-  }, [products, gender, currentCategory]);
+  }, [products, gender, currentCategory, activeQuickFilter]);
 
-  const hasActiveFilters = selectedSize !== 'all' || selectedColor !== 'all' || priceRange !== 'all' || inStockOnly;
+  const hasActiveFilters = selectedSize !== 'all' || selectedColor !== 'all' || priceRange !== 'all' || inStockOnly || activeQuickFilter !== 'all';
 
   const handleResetFilters = () => {
     setSelectedSize('all');
     setSelectedColor('all');
     setPriceRange('all');
     setInStockOnly(false);
+    setActiveQuickFilter('all');
   };
 
   const sortLabels = {
@@ -382,13 +421,31 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
 
       {/* Mobile Filter Drawer Modal */}
       {isFilterDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:hidden bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full bg-[#0e0e11] border-t border-white/15 rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto space-y-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <span className="text-sm font-serif text-white tracking-wider uppercase">Filter Collection</span>
+        <div
+          id="category-filters-modal"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-end sm:hidden bg-black/70 backdrop-blur-sm animate-fade-in"
+        >
+          <div className={`w-full border-t rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto space-y-6 transition-colors duration-300 ${
+            isAlabaster
+              ? 'bg-[#faf9f5] border-stone-300 text-stone-900 shadow-2xl'
+              : 'bg-[#0e0e11] border-white/15 text-white shadow-2xl'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-4 ${
+              isAlabaster ? 'border-stone-200' : 'border-white/10'
+            }`}>
+              <span className={`text-sm font-serif tracking-wider uppercase ${
+                isAlabaster ? 'text-stone-950 font-normal' : 'text-white'
+              }`}>
+                Filter Collection
+              </span>
               <button
                 onClick={() => setIsFilterDrawerOpen(false)}
-                className="p-2 text-stone-400 hover:text-white"
+                className={`p-2 transition-colors ${
+                  isAlabaster ? 'text-stone-500 hover:text-stone-900' : 'text-stone-400 hover:text-white'
+                }`}
+                aria-label="Close filter drawer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -396,12 +453,22 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
 
             {/* Size Options */}
             <div>
-              <span className="text-xs uppercase tracking-wider text-stone-400 block mb-3">Size</span>
+              <span className={`text-xs uppercase tracking-wider block mb-3 font-medium ${
+                isAlabaster ? 'text-stone-600' : 'text-stone-400'
+              }`}>
+                Size
+              </span>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setSelectedSize('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs tracking-wider border ${
-                    selectedSize === 'all' ? 'bg-white text-black border-white' : 'bg-white/5 text-stone-300 border-white/10'
+                  className={`px-3 py-1.5 rounded-lg text-xs tracking-wider border transition-colors ${
+                    selectedSize === 'all'
+                      ? isAlabaster
+                        ? 'bg-stone-900 text-white border-stone-900 shadow-sm'
+                        : 'bg-white text-black border-white'
+                      : isAlabaster
+                      ? 'bg-stone-200/70 text-stone-800 border-stone-300 hover:bg-stone-200'
+                      : 'bg-white/5 text-stone-300 border-white/10'
                   }`}
                 >
                   All
@@ -410,8 +477,14 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
                   <button
                     key={s}
                     onClick={() => setSelectedSize(s)}
-                    className={`px-3 py-1.5 rounded-lg text-xs tracking-wider border ${
-                      selectedSize === s ? 'bg-white text-black border-white' : 'bg-white/5 text-stone-300 border-white/10'
+                    className={`px-3 py-1.5 rounded-lg text-xs tracking-wider border transition-colors ${
+                      selectedSize === s
+                        ? isAlabaster
+                          ? 'bg-stone-900 text-white border-stone-900 shadow-sm'
+                          : 'bg-white text-black border-white'
+                        : isAlabaster
+                        ? 'bg-stone-200/70 text-stone-800 border-stone-300 hover:bg-stone-200'
+                        : 'bg-white/5 text-stone-300 border-white/10'
                     }`}
                   >
                     {s}
@@ -422,7 +495,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
 
             {/* Price Options */}
             <div>
-              <span className="text-xs uppercase tracking-wider text-stone-400 block mb-3">Price Range</span>
+              <span className={`text-xs uppercase tracking-wider block mb-3 font-medium ${
+                isAlabaster ? 'text-stone-600' : 'text-stone-400'
+              }`}>
+                Price Range
+              </span>
               <div className="space-y-2 text-xs">
                 {[
                   { key: 'all', label: 'All Prices' },
@@ -433,8 +510,14 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
                   <button
                     key={opt.key}
                     onClick={() => setPriceRange(opt.key as any)}
-                    className={`w-full text-left px-3 py-2 rounded-lg border ${
-                      priceRange === opt.key ? 'bg-white text-black border-white' : 'bg-white/5 text-stone-300 border-white/10'
+                    className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                      priceRange === opt.key
+                        ? isAlabaster
+                          ? 'bg-stone-900 text-white border-stone-900 shadow-sm'
+                          : 'bg-white text-black border-white'
+                        : isAlabaster
+                        ? 'bg-stone-200/70 text-stone-800 border-stone-300 hover:bg-stone-200'
+                        : 'bg-white/5 text-stone-300 border-white/10'
                     }`}
                   >
                     {opt.label}
@@ -444,27 +527,43 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
             </div>
 
             {/* In Stock Toggle */}
-            <div className="flex items-center justify-between py-2 border-t border-white/10">
-              <span className="text-xs uppercase tracking-wider text-stone-300">In Stock Only</span>
+            <div className={`flex items-center justify-between py-2 border-t ${
+              isAlabaster ? 'border-stone-200' : 'border-white/10'
+            }`}>
+              <span className={`text-xs uppercase tracking-wider ${
+                isAlabaster ? 'text-stone-700' : 'text-stone-300'
+              }`}>
+                In Stock Only
+              </span>
               <input
                 type="checkbox"
                 checked={inStockOnly}
                 onChange={(e) => setInStockOnly(e.target.checked)}
-                className="w-4 h-4 rounded text-black focus:ring-0"
+                className="w-4 h-4 rounded text-black focus:ring-0 cursor-pointer"
               />
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-white/10">
+            <div className={`flex gap-3 pt-4 border-t ${
+              isAlabaster ? 'border-stone-200' : 'border-white/10'
+            }`}>
               <button
                 onClick={handleResetFilters}
-                className="flex-1 py-3 rounded-xl border border-white/20 text-xs tracking-wider uppercase text-stone-300"
+                className={`flex-1 py-3 rounded-xl border text-xs tracking-wider uppercase transition-colors ${
+                  isAlabaster
+                    ? 'border-stone-300 text-stone-700 hover:bg-stone-200/50'
+                    : 'border-white/20 text-stone-300 hover:bg-white/5'
+                }`}
               >
                 Reset
               </button>
               <button
                 onClick={() => setIsFilterDrawerOpen(false)}
-                className="flex-1 py-3 rounded-xl bg-white text-black font-medium text-xs tracking-wider uppercase"
+                className={`flex-1 py-3 rounded-xl font-medium text-xs tracking-wider uppercase transition-colors shadow-md ${
+                  isAlabaster
+                    ? 'bg-stone-950 text-white hover:bg-black'
+                    : 'bg-white text-black'
+                }`}
               >
                 Apply
               </button>

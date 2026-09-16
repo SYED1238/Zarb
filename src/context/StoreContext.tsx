@@ -105,7 +105,13 @@ interface StoreContextType {
   cartCount: number;
   freeShippingThreshold: number;
   amountToFreeShipping: number;
-  
+
+  // Coupons & Privileges
+  appliedCoupon: { code: string; percent: number } | null;
+  applyCoupon: (code: string) => { success: boolean; message: string };
+  removeCoupon: () => void;
+  discountPercent: number;
+  discountAmount: number;
   // Wishlist
   wishlist: string[];
   toggleWishlist: (productId: string) => void;
@@ -1029,9 +1035,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const amountToFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - cartSubtotal);
 
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percent: number } | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('atelier_applied_coupon');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const applyCoupon = (code: string): { success: boolean; message: string } => {
+    const clean = code.trim().toUpperCase();
+    if (clean === 'ATELIER10') {
+      const coupon = { code: 'ATELIER10', percent: 10 };
+      setAppliedCoupon(coupon);
+      try {
+        sessionStorage.setItem('atelier_applied_coupon', JSON.stringify(coupon));
+      } catch {}
+      return { success: true, message: '10% VIP Atelier privilege applied.' };
+    } else if (clean === 'FIRST15') {
+      const coupon = { code: 'FIRST15', percent: 15 };
+      setAppliedCoupon(coupon);
+      try {
+        sessionStorage.setItem('atelier_applied_coupon', JSON.stringify(coupon));
+      } catch {}
+      return { success: true, message: '15% First Haute Order privilege applied.' };
+    }
+    return { success: false, message: 'Invalid coupon code. Try "ATELIER10".' };
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    try {
+      sessionStorage.removeItem('atelier_applied_coupon');
+    } catch {}
+  };
+
+  const discountPercent = appliedCoupon?.percent || 0;
+  const discountAmount = Math.round((cartSubtotal * discountPercent) / 100);
+
   return (
     <StoreContext.Provider
       value={{
+        appliedCoupon,
+        applyCoupon,
+        removeCoupon,
+        discountPercent,
+        discountAmount,
         gender,
         setGender,
         hasSelectedGender,

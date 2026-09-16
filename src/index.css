@@ -94,6 +94,64 @@ html.theme-alabaster #category-section .category-view-all {
 }
 
 /* ========================================================== */
+/* LUXURY HAUTE COUTURE NEUMORPHISM DESIGN SYSTEM (SOFT UI)   */
+/* ========================================================== */
+
+/* Dark Mode (Noir Obsidian) Neumorphic Card */
+.card-neumorphic {
+  background-color: #121216;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    7px 7px 20px rgba(0, 0, 0, 0.75),
+    -5px -5px 16px rgba(255, 255, 255, 0.03);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease;
+}
+
+.card-neumorphic:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    11px 11px 28px rgba(0, 0, 0, 0.9),
+    -7px -7px 22px rgba(255, 255, 255, 0.05);
+}
+
+/* Dark Mode Neumorphic Inset / Recessed Well (for images) */
+.card-neumorphic-inset {
+  border-radius: 1rem;
+  box-shadow: 
+    inset 4px 4px 10px rgba(0, 0, 0, 0.75),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.025);
+}
+
+/* Light Mode (Alabaster Warm Ivory) Neumorphic Card */
+html.theme-alabaster .card-neumorphic,
+.theme-alabaster .card-neumorphic {
+  background-color: #f4f3ec !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 
+    6px 6px 18px rgba(195, 188, 175, 0.45),
+    -6px -6px 18px #ffffff !important;
+}
+
+html.theme-alabaster .card-neumorphic:hover,
+.theme-alabaster .card-neumorphic:hover {
+  transform: translateY(-4px);
+  border-color: #ffffff !important;
+  box-shadow: 
+    10px 10px 26px rgba(195, 188, 175, 0.6),
+    -10px -10px 26px #ffffff !important;
+}
+
+/* Light Mode Neumorphic Inset / Recessed Well */
+html.theme-alabaster .card-neumorphic-inset,
+.theme-alabaster .card-neumorphic-inset {
+  box-shadow: 
+    inset 3px 3px 8px rgba(195, 188, 175, 0.4),
+    inset -3px -3px 8px #ffffff !important;
+}
+
+/* ========================================================== */
 /* CATEGORY PHOTO TILES IN ALABASTER (LUMINOUS HIGH CONTRAST) */
 /* ========================================================== */
 html.theme-alabaster .category-tile-card {
@@ -308,8 +366,9 @@ html.theme-alabaster button.text-stone-400 {
 }
 
 /* ========================================================== */
-/* PRODUCT CARD BADGES & HOVER BUTTONS (ALABASTER)            */
+/* PRODUCT CARD BADGES & HOVER BUTTONS (ALABASTER & NOIR)     */
 /* ========================================================== */
+/* Alabaster Theme: High-Contrast Obsidian Action Buttons */
 html.theme-alabaster .product-badge-new {
   background-color: #121214 !important;
   color: #ffffff !important;
@@ -323,13 +382,16 @@ html.theme-alabaster .product-badge-edition {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
 }
 
+/* Alabaster Quick Add: Pitch Black with Crisp White Text & Icon */
 html.theme-alabaster .product-quick-add {
   background-color: #121214 !important;
   color: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.25) !important;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3) !important;
 }
 
-html.theme-alabaster .product-quick-add span {
+html.theme-alabaster .product-quick-add span,
+html.theme-alabaster .product-quick-add svg {
   color: #ffffff !important;
 }
 
@@ -338,6 +400,7 @@ html.theme-alabaster .product-quick-add:hover {
   color: #ffffff !important;
 }
 
+/* Alabaster Quick Eye: Crisp White with Black Icon */
 html.theme-alabaster .product-quick-eye {
   background-color: rgba(255, 255, 255, 0.95) !important;
   color: #121214 !important;
@@ -345,9 +408,100 @@ html.theme-alabaster .product-quick-eye {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
+html.theme-alabaster .product-quick-eye svg {
+  color: #121214 !important;
+}
+
 html.theme-alabaster .product-quick-eye:hover {
   background-color: #ffffff !important;
   color: #000000 !important;
+}
+
+html.theme-alabaster .product-quick-eye:hover svg {
+  color: #000000 !important;
+}
+
+/* Alabaster Wishlist & Mobile Quick View */
+html.theme-alabaster .product-card-wishlist:not(.is-saved),
+html.theme-alabaster .product-card-mobile-eye {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  color: #141416 !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+html.theme-alabaster .product-card-wishlist:not(.is-saved) svg,
+html.theme-alabaster .product-card-mobile-eye svg {
+  color: #141416 !important;
+}
+
+html.theme-alabaster .product-card-wishlist:not(.is-saved):hover,
+html.theme-alabaster .product-card-mobile-eye:hover {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Noir Obsidian Theme: Crisp Pure White Quick-Add with Black Text & Icon */
+.product-quick-add {
+  background-color: #ffffff;
+  color: #000000;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+}
+
+.product-quick-add span,
+.product-quick-add svg {
+  color: #000000;
+}
+
+.product-quick-add:hover {
+  background-color: #e5e5e5;
+  color: #000000;
+}
+
+.product-quick-eye {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.product-quick-eye svg {
+  color: #ffffff;
+}
+
+.product-quick-eye:hover {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+.product-card-wishlist:not(.is-saved),
+.product-card-mobile-eye {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #f5f5f4;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.product-card-wishlist:not(.is-saved) svg,
+.product-card-mobile-eye svg {
+  color: #f5f5f4;
+}
+
+.product-card-wishlist:not(.is-saved):hover,
+.product-card-mobile-eye:hover {
+  background-color: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.product-card-wishlist.is-saved {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.4) !important;
+}
+
+.product-card-wishlist.is-saved svg {
+  color: #dc2626 !important;
+  fill: #dc2626 !important;
 }
 
 /* ========================================================== */
@@ -504,6 +658,37 @@ html.theme-alabaster .pdp-quantity-num {
   color: #121214 !important;
 }
 
+/* PDP Action Buttons Base (Noir Midnight) */
+.pdp-add-to-bag {
+  background-color: #ffffff;
+  color: #000000;
+}
+.pdp-add-to-bag:hover {
+  background-color: #e7e5e4;
+}
+.pdp-add-to-bag span,
+.pdp-add-to-bag .pdp-bag-text {
+  color: #000000;
+}
+.pdp-add-to-bag svg,
+.pdp-add-to-bag .pdp-bag-icon {
+  color: #000000;
+  stroke: #000000;
+}
+
+.pdp-buy-now {
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+.pdp-buy-now:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.pdp-buy-now span {
+  color: #ffffff;
+}
+
 /* ADD TO BAG: Commanding obsidian black button with crisp white typography */
 html.theme-alabaster .pdp-add-to-bag {
   background-color: #121214 !important;
@@ -657,6 +842,7 @@ html.theme-alabaster .bg-\[\#0a0a0d\] {
 }
 
 /* General text inside all dialogs in Alabaster */
+/* General text inside all dialogs in Alabaster */
 html.theme-alabaster [role="dialog"] h1,
 html.theme-alabaster [role="dialog"] h2,
 html.theme-alabaster [role="dialog"] h3,
@@ -664,7 +850,7 @@ html.theme-alabaster [role="dialog"] h4 {
   color: #121214 !important;
 }
 
-html.theme-alabaster [role="dialog"] .text-white:not(.bg-black):not(.bg-\[\#111111\]):not(button.bg-black *):not(button.bg-\[\#111111\] *):not(.checkout-pincode-btn *):not(.checkout-primary-btn *):not(.checkout-addr-chip-active *) {
+html.theme-alabaster [role="dialog"] .text-white:not(button):not(button *):not([class*="bg-stone-9"]):not([class*="bg-black"]):not([class*="bg-emerald"]):not([class*="bg-amber"]):not([class*="bg-[#1"]):not(.cart-checkout-btn):not(.cart-checkout-btn *):not(.cart-apply-btn):not(.cart-apply-btn *):not(.wishlist-move-btn):not(.wishlist-move-btn *):not(.drawer-primary-btn):not(.drawer-primary-btn *):not(.drawer-tab-active):not(.drawer-tab-active *):not(.checkout-pincode-btn *):not(.checkout-primary-btn *):not(.checkout-addr-chip-active *) {
   color: #121214 !important;
 }
 
@@ -681,24 +867,51 @@ html.theme-alabaster [role="dialog"] .text-stone-400 {
   color: #716e67 !important;
 }
 
-/* Dark contrast buttons inside dialogs (CHECK, Continue Shopping, Add Address): Always obsidian with crisp white text */
+/* Dark contrast buttons inside dialogs (Cart Checkout, Apply Coupon, Move to Bag, Shopping Bag, etc.): Always obsidian with crisp white text */
+html.theme-alabaster [role="dialog"] button.bg-stone-950,
+html.theme-alabaster [role="dialog"] button.bg-stone-900,
 html.theme-alabaster [role="dialog"] button.bg-black,
 html.theme-alabaster [role="dialog"] button.bg-\[\#111111\],
+html.theme-alabaster [role="dialog"] button.bg-\[\#121214\],
+html.theme-alabaster [role="dialog"] .cart-checkout-btn,
+html.theme-alabaster [role="dialog"] .cart-apply-btn,
+html.theme-alabaster [role="dialog"] .wishlist-move-btn,
+html.theme-alabaster [role="dialog"] .drawer-primary-btn,
+html.theme-alabaster [role="dialog"] .drawer-tab-active,
 html.theme-alabaster [role="dialog"] .checkout-primary-btn,
 html.theme-alabaster [role="dialog"] .checkout-pincode-btn,
 html.theme-alabaster [role="dialog"] .checkout-addr-chip-active {
-  background-color: #111111 !important;
+  background-color: #0c0a09 !important;
   color: #ffffff !important;
-  border-color: #111111 !important;
+  border-color: #0c0a09 !important;
 }
 
+html.theme-alabaster [role="dialog"] button.bg-stone-950 *,
+html.theme-alabaster [role="dialog"] button.bg-stone-900 *,
 html.theme-alabaster [role="dialog"] button.bg-black *,
 html.theme-alabaster [role="dialog"] button.bg-\[\#111111\] *,
+html.theme-alabaster [role="dialog"] button.bg-\[\#121214\] *,
+html.theme-alabaster [role="dialog"] .cart-checkout-btn *,
+html.theme-alabaster [role="dialog"] .cart-apply-btn *,
+html.theme-alabaster [role="dialog"] .wishlist-move-btn *,
+html.theme-alabaster [role="dialog"] .drawer-primary-btn *,
+html.theme-alabaster [role="dialog"] .drawer-tab-active *,
 html.theme-alabaster [role="dialog"] .checkout-primary-btn *,
 html.theme-alabaster [role="dialog"] .checkout-pincode-btn *,
 html.theme-alabaster [role="dialog"] .checkout-addr-chip-active * {
   color: #ffffff !important;
   stroke: #ffffff !important;
+}
+
+html.theme-alabaster [role="dialog"] button.bg-stone-950:hover,
+html.theme-alabaster [role="dialog"] button.bg-stone-900:hover,
+html.theme-alabaster [role="dialog"] button.bg-black:hover,
+html.theme-alabaster [role="dialog"] .cart-checkout-btn:hover,
+html.theme-alabaster [role="dialog"] .cart-apply-btn:hover,
+html.theme-alabaster [role="dialog"] .wishlist-move-btn:hover,
+html.theme-alabaster [role="dialog"] .drawer-primary-btn:hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
 }
 
 /* Modals & Drawers Input & Select Fields */
@@ -720,26 +933,73 @@ html.theme-alabaster [role="dialog"] input::placeholder {
 }
 
 /* Modals & Drawers Primary Action Buttons (PROCEED TO CHECKOUT, MOVE TO BAG, CONFIRM ORDER) */
-html.theme-alabaster [role="dialog"]:not(#checkout-modal):not(#checkout-manage-addresses-modal) button.bg-white:not(.checkout-secondary-btn):not(.checkout-addr-chip):not(.pdp-buy-now):not([class*="border-stone"]),
-html.theme-alabaster [role="dialog"] form button[type="submit"] {
+html.theme-alabaster [role="dialog"]:not(#checkout-modal):not(#checkout-manage-addresses-modal) button.bg-white:not(.checkout-secondary-btn):not(.checkout-addr-chip):not(.pdp-buy-now):not([class*="border-stone"]):not(.auth-google-btn),
+html.theme-alabaster [role="dialog"] form button[type="submit"]:not(.auth-google-btn) {
   background-color: #121214 !important;
   color: #ffffff !important;
   border: 1px solid #121214 !important;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
 }
 
-html.theme-alabaster [role="dialog"] button.bg-white span,
-html.theme-alabaster [role="dialog"] button.bg-white svg,
-html.theme-alabaster [role="dialog"] form button[type="submit"] span,
-html.theme-alabaster [role="dialog"] form button[type="submit"] svg {
+html.theme-alabaster [role="dialog"]:not(#checkout-modal):not(#checkout-manage-addresses-modal) button.bg-white:not(.checkout-secondary-btn):not(.checkout-addr-chip):not(.pdp-buy-now):not([class*="border-stone"]):not(.auth-google-btn) span,
+html.theme-alabaster [role="dialog"]:not(#checkout-modal):not(#checkout-manage-addresses-modal) button.bg-white:not(.checkout-secondary-btn):not(.checkout-addr-chip):not(.pdp-buy-now):not([class*="border-stone"]):not(.auth-google-btn) svg,
+html.theme-alabaster [role="dialog"] form button[type="submit"]:not(.auth-google-btn),
+html.theme-alabaster [role="dialog"] form button[type="submit"]:not(.auth-google-btn) * {
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
 
-html.theme-alabaster [role="dialog"] button.bg-white:hover,
-html.theme-alabaster [role="dialog"] form button[type="submit"]:hover {
+html.theme-alabaster [role="dialog"]:not(#checkout-modal):not(#checkout-manage-addresses-modal) button.bg-white:not(.checkout-secondary-btn):not(.checkout-addr-chip):not(.pdp-buy-now):not([class*="border-stone"]):not(.auth-google-btn):hover,
+html.theme-alabaster [role="dialog"] form button[type="submit"]:not(.auth-google-btn):hover {
   background-color: #000000 !important;
   color: #ffffff !important;
+}
+
+/* ========================================================== */
+/* LUXURY GOOGLE AUTHENTICATION BUTTONS                       */
+/* ========================================================== */
+.auth-google-btn {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+  border: 1px solid rgba(0, 0, 0, 0.16) !important;
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.auth-google-btn span {
+  color: #121214 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.auth-google-btn svg {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.auth-google-btn:hover {
+  background-color: #fbfbfa !important;
+  border-color: rgba(0, 0, 0, 0.28) !important;
+  box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.14), 0 4px 10px rgba(0, 0, 0, 0.06) !important;
+}
+
+html.theme-alabaster .auth-google-btn {
+  background-color: #ffffff !important;
+  color: #121214 !important;
+  border: 1px solid rgba(0, 0, 0, 0.16) !important;
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.08) !important;
+}
+
+html.theme-alabaster .auth-google-btn span {
+  color: #121214 !important;
+  font-weight: 600 !important;
+}
+
+html.theme-alabaster .auth-google-btn:hover {
+  background-color: #fbfbfa !important;
+  border-color: rgba(0, 0, 0, 0.28) !important;
+  box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.14) !important;
 }
 
 /* Checkout Secondary Outline Buttons (View in My Orders) */
@@ -830,7 +1090,7 @@ html.theme-alabaster [role="dialog"] .border-white\/30 {
   border-color: rgba(20, 20, 24, 0.25) !important;
 }
 
-html.theme-alabaster [role="dialog"] .bg-stone-900 {
+html.theme-alabaster [role="dialog"] div.bg-stone-900:not(button):not([role="button"]):not(.drawer-tab-active):not(.cart-checkout-btn):not(.cart-apply-btn):not(.wishlist-move-btn):not(.drawer-primary-btn) {
   background-color: #e7e5e4 !important;
 }
 

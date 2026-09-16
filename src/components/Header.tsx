@@ -87,7 +87,7 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
       icon: Sparkles,
       action: () => {
         if (onSelectFilter) onSelectFilter('newArrival');
-        navigate(`/shop/${gender}`);
+        navigate(`/shop/${gender}?filter=newArrival`);
       },
     },
     {

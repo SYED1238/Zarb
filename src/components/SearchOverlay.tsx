@@ -13,7 +13,8 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   onSelectProduct,
   onSelectCategory,
 }) => {
-  const { isSearchOpen, setIsSearchOpen, products } = useStore();
+  const { isSearchOpen, setIsSearchOpen, products, theme } = useStore();
+  const isAlabaster = theme === 'alabaster';
 
   useModalBackHandler(isSearchOpen, () => setIsSearchOpen(false), 'search-overlay');
 
@@ -22,11 +23,11 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
   const trendingTags = [
     'Cashmere Overcoat',
-    'Silk Gown',
     'Tailored Blazer',
+    'Tiered Dress',
     'Wide-Leg Trousers',
-    'Selvedge Denim',
-    'Calfskin Boots',
+    'Embroidered Kurti',
+    'Wool Jacket',
     'Saddle Bag',
   ];
 
@@ -42,9 +43,21 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
     }
   }, [isSearchOpen]);
 
+  // Keyboard shortcut: Escape to close search overlay
+  useEffect(() => {
+    if (!isSearchOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSearchOpen, setIsSearchOpen]);
+
   if (!isSearchOpen) return null;
 
-  // Filter products by search query
+  // Filter products by search query with synonym and details support
   const matchedProducts = query.trim() === ''
     ? []
     : products.filter((p) => {
@@ -54,7 +67,9 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
           p.category.toLowerCase().includes(q) ||
           p.description.toLowerCase().includes(q) ||
           p.gender.toLowerCase().includes(q) ||
-          (p.materials && p.materials.toLowerCase().includes(q))
+          (p.materials && p.materials.toLowerCase().includes(q)) ||
+          (p.details && p.details.some((d) => d.toLowerCase().includes(q))) ||
+          (q === 'silk' && (p.category.toLowerCase().includes('dress') || p.name.toLowerCase().includes('dress') || p.description.toLowerCase().includes('silk')))
         );
       });
 
@@ -71,6 +86,11 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
       className="fixed inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-xl animate-fade-in"
       role="dialog"
       aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          setIsSearchOpen(false);
+        }
+      }}
     >
       {/* Header bar */}
       <div className="max-w-5xl mx-auto w-full px-6 pt-8 pb-4 flex items-center justify-between border-b border-white/10">
@@ -83,7 +103,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
         <button
           onClick={() => setIsSearchOpen(false)}
-          className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+          className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
           aria-label="Close search"
         >
           <X className="w-5 h-5" />
@@ -99,7 +119,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search silhouettes, materials, jackets, silk..."
+            placeholder="Search silhouettes, materials, jackets, dresses..."
             className="w-full bg-transparent text-xl sm:text-3xl md:text-4xl font-serif text-white placeholder-stone-600 focus:outline-none tracking-[0.02em]"
           />
           {query && (
@@ -180,24 +200,34 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
                       onSelectProduct(product);
                       setIsSearchOpen(false);
                     }}
-                    className="group cursor-pointer"
+                    className={`card-neumorphic p-3 rounded-2xl group cursor-pointer flex flex-col justify-between ${
+                      isAlabaster ? 'bg-[#f4f3ec] text-stone-900' : 'bg-[#121216] text-white'
+                    }`}
                   >
-                    <div className="aspect-[3/4] rounded-xl overflow-hidden bg-[#16161b] mb-2.5 border border-white/10">
+                    <div className={`aspect-[3/4] rounded-xl overflow-hidden mb-2.5 border card-neumorphic-inset ${
+                      isAlabaster ? 'bg-stone-200/60 border-stone-200/50' : 'bg-[#0d0d10] border-white/[0.04]'
+                    }`}>
                       <img
                         src={product.images[0]}
                         alt={product.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     </div>
-                    <span className="text-[10px] tracking-[0.2em] uppercase text-stone-400 block">
-                      {product.gender} &middot; {product.category}
-                    </span>
-                    <h4 className="text-xs sm:text-sm font-sans text-stone-100 group-hover:text-white line-clamp-1 transition-colors">
-                      {product.name}
-                    </h4>
-                    <span className="text-xs font-medium text-white">
-                      {formatPrice(product.price)}
-                    </span>
+                    <div className="space-y-1">
+                      <span className={`text-[9px] font-mono tracking-[0.2em] uppercase block ${
+                        isAlabaster ? 'text-stone-500' : 'text-stone-400'
+                      }`}>
+                        {product.gender} &middot; {product.category}
+                      </span>
+                      <h4 className={`text-xs sm:text-sm font-sans line-clamp-1 transition-colors ${
+                        isAlabaster ? 'text-stone-900 group-hover:text-black font-semibold' : 'text-stone-100 group-hover:text-white font-medium'
+                      }`}>
+                        {product.name}
+                      </h4>
+                      <span className={`text-xs font-semibold block ${isAlabaster ? 'text-stone-950' : 'text-amber-400'}`}>
+                        {formatPrice(product.price)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

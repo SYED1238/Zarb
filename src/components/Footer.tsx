@@ -1,12 +1,28 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { Globe, Shield, Lock } from 'lucide-react';
 import { HolographicBeams } from './ui/BeamsBackground';
 
 export const Footer: React.FC = () => {
-  const { theme } = useStore();
+  const navigate = useNavigate();
+  const { theme, showToast } = useStore();
   const isAlabaster = theme === 'alabaster';
+
+  const scrollToSection = (id: string) => {
+    if (window.location.pathname !== '/') {
+      navigate('/');
+      setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      }, 120);
+    } else {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleLegalNotice = (title: string) => {
+    showToast(`${title}: Official Atelier documentation available upon request.`);
+  };
 
   return (
     <footer
@@ -24,6 +40,7 @@ export const Footer: React.FC = () => {
         speed={isAlabaster ? 2.5 : 3.9}
         aberration={isAlabaster ? 6.0 : 10.0}
         opacity={isAlabaster ? 18 : 50}
+        isAlabaster={isAlabaster}
       />
 
       {/* Top Border Specular Refraction Seam */}
@@ -86,11 +103,11 @@ export const Footer: React.FC = () => {
               Customer Concierge
             </h4>
             <ul className={`space-y-2 text-xs ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
-              <li><a href="#catalog-section" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Private Fitting Appointments</a></li>
-              <li><a href="#catalog-section" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Complimentary Alterations</a></li>
-              <li><a href="#catalog-section" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Track Haute Consignment</a></li>
-              <li><a href="#catalog-section" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>White-Glove Courier Logistics</a></li>
-              <li><a href="#catalog-section" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Care & Preservation</a></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Private Fitting Appointments</button></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Complimentary Alterations</button></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Track Haute Consignment</button></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>White-Glove Courier Logistics</button></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Care & Preservation</button></li>
             </ul>
           </div>
 
@@ -104,11 +121,11 @@ export const Footer: React.FC = () => {
               The Maison
             </h4>
             <ul className={`space-y-2 text-xs ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
-              <li><a href="#brand-story" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Atelier Provenance</a></li>
-              <li><a href="#brand-story" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Sustainable Sourcing Standard</a></li>
-              <li><a href="#editorial-section" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Autumn/Winter 2026 Runway</a></li>
-              <li><a href="#" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Privacy Policy</a></li>
-              <li><a href="#" className={`transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Terms of Haute Couture</a></li>
+              <li><button type="button" onClick={() => scrollToSection('brand-story')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Atelier Provenance</button></li>
+              <li><button type="button" onClick={() => scrollToSection('brand-story')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Sustainable Sourcing Standard</button></li>
+              <li><button type="button" onClick={() => scrollToSection('editorial-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Autumn/Winter 2026 Runway</button></li>
+              <li><button type="button" onClick={() => handleLegalNotice('Privacy Policy')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Privacy Policy</button></li>
+              <li><button type="button" onClick={() => handleLegalNotice('Terms of Haute Couture')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Terms of Haute Couture</button></li>
             </ul>
           </div>
         </div>
@@ -159,9 +176,9 @@ export const Footer: React.FC = () => {
               <ul className={`space-y-1 text-[10px] ${
                 isAlabaster ? 'text-stone-600' : 'text-stone-300 drop-shadow-sm'
               }`}>
-                <li><a href="#catalog-section" className={isAlabaster ? 'hover:text-black' : 'hover:text-white'}>Private Fittings</a></li>
-                <li><a href="#catalog-section" className={isAlabaster ? 'hover:text-black' : 'hover:text-white'}>Alterations</a></li>
-                <li><a href="#catalog-section" className={isAlabaster ? 'hover:text-black' : 'hover:text-white'}>White-Glove Courier</a></li>
+                <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`cursor-pointer ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Private Fittings</button></li>
+                <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`cursor-pointer ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Alterations</button></li>
+                <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`cursor-pointer ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>White-Glove Courier</button></li>
               </ul>
             </div>
           </div>
@@ -177,9 +194,9 @@ export const Footer: React.FC = () => {
               <ul className={`space-y-1 text-[10px] ${
                 isAlabaster ? 'text-stone-600' : 'text-stone-300 drop-shadow-sm'
               }`}>
-                <li><a href="#brand-story" className={isAlabaster ? 'hover:text-black' : 'hover:text-white'}>Atelier Provenance</a></li>
-                <li><a href="#editorial-section" className={isAlabaster ? 'hover:text-black' : 'hover:text-white'}>AW26 Runway</a></li>
-                <li><a href="#" className={isAlabaster ? 'hover:text-black' : 'hover:text-white'}>Privacy & Terms</a></li>
+                <li><button type="button" onClick={() => scrollToSection('brand-story')} className={`cursor-pointer ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Atelier Provenance</button></li>
+                <li><button type="button" onClick={() => scrollToSection('editorial-section')} className={`cursor-pointer ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>AW26 Runway</button></li>
+                <li><button type="button" onClick={() => handleLegalNotice('Privacy & Terms')} className={`cursor-pointer ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Privacy & Terms</button></li>
               </ul>
             </div>
 

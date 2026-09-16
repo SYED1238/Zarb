@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import type { Product, ProductColor } from '../../types/product';
@@ -45,6 +45,7 @@ import {
   Save,
   CheckCircle2,
   Info,
+  Loader2,
 } from 'lucide-react';
 import {
   isSupabaseConfigured,
@@ -655,6 +656,159 @@ export const AdminPortal: React.FC = () => {
   const [newColorImageUrl, setNewColorImageUrl] = useState('');
   const [customColorName, setCustomColorName] = useState('');
   const [customColorHex, setCustomColorHex] = useState('#8a1c14');
+
+  // Multi-Image Drag & Drop and Upload States
+  const [isDraggingGallery, setIsDraggingGallery] = useState(false);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
+  const [galleryUploadProgress, setGalleryUploadProgress] = useState({ current: 0, total: 0, percent: 0 });
+  const galleryFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isDraggingColorPhotos, setIsDraggingColorPhotos] = useState(false);
+  const [isUploadingColorPhotos, setIsUploadingColorPhotos] = useState(false);
+  const [colorUploadProgress, setColorUploadProgress] = useState({ current: 0, total: 0, percent: 0 });
+  const colorFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Upload multiple images to main gallery (from drop or file input)
+  const handleUploadMultipleGalleryFiles = async (rawFiles: (File | Blob)[]) => {
+    const validFiles = Array.from(rawFiles).filter(
+      (f): f is File => f instanceof File && (f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name))
+    );
+    if (validFiles.length === 0) return;
+
+    setIsUploadingGallery(true);
+    setGalleryUploadProgress({ current: 0, total: validFiles.length, percent: 0 });
+    showToast(`Uploading ${validFiles.length} image(s) to Cloudflare R2...`);
+
+    let completed = 0;
+    const uploadedUrls: string[] = [];
+
+    await Promise.all(
+      validFiles.map(async (file) => {
+        const res = await uploadImageToR2(file, 'products', productForm.id || 'draft');
+        completed += 1;
+        const percent = Math.round((completed / validFiles.length) * 100);
+        setGalleryUploadProgress({ current: completed, total: validFiles.length, percent });
+        if (res.url) {
+          uploadedUrls.push(res.url);
+        }
+      })
+    );
+
+    if (uploadedUrls.length > 0) {
+      setProductForm((prev) => ({ ...prev, images: [...prev.images, ...uploadedUrls] }));
+      showToast(`✓ Successfully uploaded all ${uploadedUrls.length} image(s) to Cloudflare R2!`);
+    }
+    setIsUploadingGallery(false);
+  };
+
+  // Upload multiple images to active color shade
+  const handleUploadMultipleColorFiles = async (rawFiles: (File | Blob)[], activeColorName: string, activeIdx: number) => {
+    const validFiles = Array.from(rawFiles).filter(
+      (f): f is File => f instanceof File && (f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name))
+    );
+    if (validFiles.length === 0) return;
+
+    setIsUploadingColorPhotos(true);
+    setColorUploadProgress({ current: 0, total: validFiles.length, percent: 0 });
+    showToast(`Uploading ${validFiles.length} photos for ${activeColorName} to Cloudflare R2...`);
+
+    const entityId = `${productForm.id || 'draft'}-${activeColorName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+    let completed = 0;
+    const uploadedUrls: string[] = [];
+
+    await Promise.all(
+      validFiles.map(async (file) => {
+        const res = await uploadImageToR2(file, 'products', entityId);
+        completed += 1;
+        const percent = Math.round((completed / validFiles.length) * 100);
+        setColorUploadProgress({ current: completed, total: validFiles.length, percent });
+        if (res.url) {
+          uploadedUrls.push(res.url);
+        }
+      })
+    );
+
+    if (uploadedUrls.length > 0) {
+      const updatedColors = productForm.colors.map((c, i) => {
+        if (i !== activeIdx) return c;
+        const currentImgs = c.images && c.images.length > 0 ? [...c.images] : (c.image ? [c.image] : []);
+        const updated = [...currentImgs, ...uploadedUrls];
+        return {
+          ...c,
+          image: updated[0] || uploadedUrls[0],
+          images: updated,
+        };
+      });
+      setProductForm((prev) => ({ ...prev, colors: updatedColors }));
+      showToast(`✓ Uploaded all ${uploadedUrls.length} photo(s) for ${activeColorName}!`);
+    }
+    setIsUploadingColorPhotos(false);
+  };
+
+  // Change primary gallery cover photo (moves selected photo to index 0)
+  const handleSetPrimaryCover = (idx: number) => {
+    if (idx <= 0 || idx >= productForm.images.length) return;
+    const target = productForm.images[idx];
+    const remaining = productForm.images.filter((_, i) => i !== idx);
+    const updated = [target, ...remaining];
+    setProductForm((prev) => ({ ...prev, images: updated }));
+    showToast(`✓ Photo #${idx + 1} is now the primary cover photo!`);
+  };
+
+  // Move primary gallery photo left or right
+  const handleMoveGalleryImage = (fromIdx: number, direction: 'left' | 'right') => {
+    const toIdx = direction === 'left' ? fromIdx - 1 : fromIdx + 1;
+    if (toIdx < 0 || toIdx >= productForm.images.length) return;
+    const updated = [...productForm.images];
+    const temp = updated[fromIdx];
+    updated[fromIdx] = updated[toIdx];
+    updated[toIdx] = temp;
+    setProductForm((prev) => ({ ...prev, images: updated }));
+    showToast(toIdx === 0 ? '✓ Photo moved to position #1 (Cover Photo)!' : `Photo moved to position #${toIdx + 1}`);
+  };
+
+  // Change color shade cover photo (moves photo to index 0 of that color)
+  const handleSetColorCover = (colorIdx: number | null, imgIdx: number) => {
+    if (colorIdx === null || imgIdx <= 0) return;
+    const colorName = productForm.colors[colorIdx]?.name || 'color';
+    const updatedColors = productForm.colors.map((c, i) => {
+      if (i !== colorIdx) return c;
+      const currentImgs = c.images && c.images.length > 0 ? [...c.images] : (c.image ? [c.image] : []);
+      if (imgIdx >= currentImgs.length) return c;
+      const target = currentImgs[imgIdx];
+      const remaining = currentImgs.filter((_, idx) => idx !== imgIdx);
+      const updated = [target, ...remaining];
+      return {
+        ...c,
+        image: updated[0],
+        images: updated,
+      };
+    });
+    setProductForm((prev) => ({ ...prev, colors: updatedColors }));
+    showToast(`✓ Photo #${imgIdx + 1} is now the cover photo for ${colorName}!`);
+  };
+
+  // Move color shade photo left or right
+  const handleMoveColorImage = (colorIdx: number | null, fromIdx: number, direction: 'left' | 'right') => {
+    if (colorIdx === null) return;
+    const toIdx = direction === 'left' ? fromIdx - 1 : fromIdx + 1;
+    const updatedColors = productForm.colors.map((c, i) => {
+      if (i !== colorIdx) return c;
+      const currentImgs = c.images && c.images.length > 0 ? [...c.images] : (c.image ? [c.image] : []);
+      if (toIdx < 0 || toIdx >= currentImgs.length) return c;
+      const updated = [...currentImgs];
+      const temp = updated[fromIdx];
+      updated[fromIdx] = updated[toIdx];
+      updated[toIdx] = temp;
+      return {
+        ...c,
+        image: updated[0],
+        images: updated,
+      };
+    });
+    setProductForm((prev) => ({ ...prev, colors: updatedColors }));
+    showToast(toIdx === 0 ? '✓ Photo moved to position #1 (Color Cover)!' : `Photo moved to position #${toIdx + 1}`);
+  };
 
   // Category Edit/Create Modal State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -1577,8 +1731,8 @@ export const AdminPortal: React.FC = () => {
         {/* Metric Header Cards */}
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {/* Pieces */}
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+          <div className={`card-neumorphic p-4 sm:p-5 transition-all ${
+            theme === 'alabaster' ? 'bg-[#f4f3ec]' : 'bg-[#121216]'
           }`}>
             <div className="flex items-center justify-between text-stone-400 mb-2">
               <span className="text-[10px] uppercase font-mono tracking-[0.2em]">Total Pieces</span>
@@ -1593,8 +1747,8 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           {/* Client Orders */}
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+          <div className={`card-neumorphic p-4 sm:p-5 transition-all ${
+            theme === 'alabaster' ? 'bg-[#f4f3ec]' : 'bg-[#121216]'
           }`}>
             <div className="flex items-center justify-between text-stone-400 mb-2">
               <span className="text-[10px] uppercase font-mono tracking-[0.2em]">Client Orders</span>
@@ -1609,8 +1763,8 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           {/* Reviews Moderation */}
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+          <div className={`card-neumorphic p-4 sm:p-5 transition-all ${
+            theme === 'alabaster' ? 'bg-[#f4f3ec]' : 'bg-[#121216]'
           }`}>
             <div className="flex items-center justify-between text-stone-400 mb-2">
               <span className="text-[10px] uppercase font-mono tracking-[0.2em]">Client Reviews</span>
@@ -1625,8 +1779,8 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           {/* Categories */}
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+          <div className={`card-neumorphic p-4 sm:p-5 transition-all ${
+            theme === 'alabaster' ? 'bg-[#f4f3ec]' : 'bg-[#121216]'
           }`}>
             <div className="flex items-center justify-between text-stone-400 mb-2">
               <span className="text-[10px] uppercase font-mono tracking-[0.2em]">Categories</span>
@@ -1641,8 +1795,8 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           {/* Inventory Valuation */}
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-            theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+          <div className={`card-neumorphic p-4 sm:p-5 transition-all ${
+            theme === 'alabaster' ? 'bg-[#f4f3ec]' : 'bg-[#121216]'
           }`}>
             <div className="flex items-center justify-between text-stone-400 mb-2">
               <span className="text-[10px] uppercase font-mono tracking-[0.2em]">Inventory Value</span>
@@ -1837,21 +1991,6 @@ export const AdminPortal: React.FC = () => {
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isProductsLoading ? 'animate-spin text-amber-400' : ''}`} />
                   <span className="hidden sm:inline">Sync Cloud</span>
-                </button>
-
-                {/* Erase Full Inventory Button */}
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirmTarget({
-                    type: 'erase_all',
-                    id: 'all',
-                    name: 'All Inventory Pieces',
-                  })}
-                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-400 border border-red-500/30 text-xs tracking-wider uppercase transition-all shadow-xs cursor-pointer font-medium"
-                  title="Permanently erase all products from the store and database"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                  <span>Erase Full Inventory</span>
                 </button>
 
                 {/* Add New Piece Button */}
@@ -3750,43 +3889,200 @@ export const AdminPortal: React.FC = () => {
 
               {/* Gallery Images */}
               <div className="space-y-4">
-                <span className="text-xs uppercase tracking-wider font-semibold text-stone-400 block border-b border-white/10 pb-2">
-                  3. Imagery & Visual Assets
-                </span>
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs uppercase tracking-wider font-semibold text-stone-400 block">
+                    3. Imagery & Visual Assets
+                  </span>
+                  <span className="text-[10px] font-mono text-stone-400">
+                    {productForm.images.length} {productForm.images.length === 1 ? 'photo' : 'photos'} &middot; Click "Set as Cover" to choose main photo
+                  </span>
+                </div>
 
                 <div className="space-y-3">
                   {/* Images list */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {productForm.images.map((img, idx) => (
-                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-white/10 aspect-[3/4] bg-stone-900">
-                        <img src={getMediaUrl(img)} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const target = productForm.images[idx];
-                              if (isR2Url(target)) {
-                                deleteImageFromR2(target);
-                              }
-                              const updated = productForm.images.filter((_, i) => i !== idx);
-                              setProductForm({ ...productForm, images: updated });
-                            }}
-                            className="p-1.5 rounded-full bg-red-600 text-white hover:bg-red-500"
-                            title="Remove image"
+                  {productForm.images.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {productForm.images.map((img, idx) => {
+                        const isCover = idx === 0;
+                        return (
+                          <div
+                            key={idx}
+                            className={`relative group rounded-2xl overflow-hidden border transition-all aspect-[3/4] bg-stone-900 ${
+                              isCover
+                                ? 'border-amber-500 ring-2 ring-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.25)]'
+                                : 'border-white/10 hover:border-amber-400/50'
+                            }`}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[9px] font-mono text-white">
-                          #{idx + 1} {idx === 0 ? '(Cover)' : ''}
-                        </span>
+                            <img
+                              src={getMediaUrl(img)}
+                              alt={`Preview ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+
+                            {/* Top Badge: Primary Cover Indicator */}
+                            {isCover && (
+                              <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-amber-500 text-stone-950 font-mono font-bold text-[9px] tracking-wider uppercase shadow-md">
+                                  <Star className="w-2.5 h-2.5 fill-stone-950 text-stone-950" />
+                                  <span>Cover</span>
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Position Index Badge at Bottom-Left */}
+                            <div className="absolute bottom-2 left-2 z-10 pointer-events-none">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold tracking-wider uppercase backdrop-blur-md ${
+                                isCover
+                                  ? 'bg-amber-500 text-stone-950 shadow-xs font-bold'
+                                  : 'bg-black/80 text-stone-300 border border-white/10'
+                              }`}>
+                                #{idx + 1}
+                              </span>
+                            </div>
+
+                            {/* Refined Luxury Floating Center Toolbar on Hover */}
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center p-2 z-20 space-y-2">
+                              {!isCover && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetPrimaryCover(idx)}
+                                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-sans font-bold text-[10px] tracking-wider uppercase shadow-[0_2px_10px_rgba(245,158,11,0.35)] cursor-pointer transition-all active:scale-95 hover:scale-105"
+                                >
+                                  <Star className="w-3 h-3 fill-stone-950 text-stone-950" />
+                                  <span>Set as Cover</span>
+                                </button>
+                              )}
+
+                              {/* Compact Reorder & Delete Toolbar */}
+                              <div className="flex items-center space-x-1 p-1 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 shadow-lg">
+                                {idx > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveGalleryImage(idx, 'left')}
+                                    className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-white/20 cursor-pointer transition-colors"
+                                    title="Move earlier in gallery"
+                                  >
+                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
+                                {idx < productForm.images.length - 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveGalleryImage(idx, 'right')}
+                                    className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-white/20 cursor-pointer transition-colors"
+                                    title="Move later in gallery"
+                                  >
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const target = productForm.images[idx];
+                                    if (isR2Url(target)) {
+                                      deleteImageFromR2(target);
+                                    }
+                                    const updated = productForm.images.filter((_, i) => i !== idx);
+                                    setProductForm({ ...productForm, images: updated });
+                                    showToast('Image removed from gallery.');
+                                  }}
+                                  className="p-1 rounded-lg text-stone-300 hover:text-red-400 hover:bg-red-500/20 cursor-pointer transition-colors"
+                                  title="Remove image from gallery"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Multi-Image Drag & Drop Dropzone */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingGallery(true);
+                    }}
+                    onDragLeave={() => setIsDraggingGallery(false)}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      setIsDraggingGallery(false);
+                      const files = Array.from(e.dataTransfer.files || []);
+                      await handleUploadMultipleGalleryFiles(files);
+                    }}
+                    onClick={() => galleryFileInputRef.current?.click()}
+                    className={`relative p-5 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center ${
+                      isDraggingGallery
+                        ? 'border-amber-500 bg-amber-500/15 scale-[1.01]'
+                        : theme === 'alabaster'
+                        ? 'border-stone-300 bg-stone-100/60 hover:bg-stone-100 hover:border-amber-500/60'
+                        : 'border-white/20 bg-white/[0.02] hover:bg-white/[0.05] hover:border-amber-500/60'
+                    }`}
+                  >
+                    <input
+                      ref={galleryFileInputRef}
+                      type="file"
+                      accept="image/*,image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        await handleUploadMultipleGalleryFiles(files);
+                        e.target.value = '';
+                      }}
+                    />
+
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <div className="w-11 h-11 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
+                        <Upload className="w-5 h-5" />
                       </div>
-                    ))}
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wider text-amber-500">
+                          Drop Multiple Images Here or Click to Browse
+                        </div>
+                        <div className={`text-[11px] mt-0.5 ${theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'}`}>
+                          Select 5, 10, 20+ dress photos all at once from your computer
+                        </div>
+                      </div>
+
+                      {/* Keyboard Shortcut & Multi-Select Helper Badge */}
+                      <div className={`inline-flex flex-wrap items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-mono ${
+                        theme === 'alabaster'
+                          ? 'bg-amber-500/10 border-amber-500/30 text-stone-900'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      }`}>
+                        <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span><strong>How to select all at once:</strong> In file window, press <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-amber-400 font-bold border border-amber-500/30">Ctrl + A</kbd> to select all, or hold <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-amber-400 font-bold border border-amber-500/30">Ctrl</kbd> / <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-amber-400 font-bold border border-amber-500/30">Shift</kbd> while clicking</span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Add Image URL or Local Upload */}
+                  {/* Uploading Progress Indicator */}
+                  {isUploadingGallery && (
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-2 animate-pulse">
+                      <div className="flex justify-between text-xs font-mono text-amber-400">
+                        <span className="flex items-center space-x-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Uploading {galleryUploadProgress.current} of {galleryUploadProgress.total} images directly to Cloudflare R2...</span>
+                        </span>
+                        <span className="font-bold">{galleryUploadProgress.percent}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 transition-all duration-300 rounded-full"
+                          style={{ width: `${galleryUploadProgress.percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add Image URL or Local Upload Action Bar */}
                   <div className="space-y-2.5">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <input
                         type="url"
                         value={newImageUrl}
@@ -3811,35 +4107,17 @@ export const AdminPortal: React.FC = () => {
                         }}
                         className="px-4 py-2.5 rounded-xl bg-white text-black font-semibold text-xs tracking-wider uppercase hover:bg-stone-200 cursor-pointer shadow-md transition-all shrink-0"
                       >
-                        Add Image
+                        Add URL
                       </button>
 
-                      {/* Local File Upload Button to Cloudflare R2 */}
-                      <label className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => galleryFileInputRef.current?.click()}
+                        className="flex items-center justify-center space-x-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black border border-amber-500 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer shrink-0 shadow-md"
+                      >
                         <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Files</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={async (e) => {
-                            const files = Array.from(e.target.files || []);
-                            if (files.length > 0) {
-                              showToast('Uploading images to Cloudflare R2...');
-                              const results = await Promise.all(
-                                files.map((f) => uploadImageToR2(f, 'products', productForm.id || 'draft'))
-                              );
-                              const valid = results.map((r) => r.url).filter(Boolean);
-                              if (valid.length > 0) {
-                                setProductForm((prev) => ({ ...prev, images: [...prev.images, ...valid] }));
-                                showToast(`Uploaded ${valid.length} image(s) directly to Cloudflare R2!`);
-                              }
-                            }
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
+                        <span>Select Multiple Files</span>
+                      </button>
                     </div>
 
                     {/* Quick Preset Luxury Photo Buttons */}
@@ -4008,24 +4286,92 @@ export const AdminPortal: React.FC = () => {
                         {/* Gallery Grid for this Color */}
                         {colorImages.length > 0 ? (
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                            {colorImages.map((img, imgIdx) => (
-                              <div key={imgIdx} className="relative group rounded-xl overflow-hidden border border-white/15 aspect-[3/4] bg-stone-900 shadow-sm">
-                                <img src={getMediaUrl(img)} alt={`${activeColor.name} preview ${imgIdx + 1}`} className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveImageFromColor(imgIdx)}
-                                    className="p-1.5 rounded-full bg-red-600 hover:bg-red-500 text-white cursor-pointer"
-                                    title="Remove photo from this color"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
+                            {colorImages.map((img, imgIdx) => {
+                              const isCover = imgIdx === 0;
+                              return (
+                                <div
+                                  key={imgIdx}
+                                  className={`relative group rounded-xl overflow-hidden border aspect-[3/4] bg-stone-900 shadow-sm transition-all ${
+                                    isCover
+                                      ? 'border-amber-500 ring-2 ring-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                                      : 'border-white/15 hover:border-amber-400/50'
+                                  }`}
+                                >
+                                  <img
+                                    src={getMediaUrl(img)}
+                                    alt={`${activeColor.name} preview ${imgIdx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+
+                                  {/* Top Cover Status Badge on Color Cover Photo */}
+                                  {isCover && (
+                                    <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                                      <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-amber-500 text-stone-950 font-sans font-bold text-[9px] tracking-wider uppercase shadow border border-amber-300/40">
+                                        <Star className="w-2.5 h-2.5 fill-stone-950 text-stone-950" />
+                                        <span>Cover</span>
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Position Index Badge */}
+                                  <div className="absolute bottom-1 left-1 z-10 pointer-events-none">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider uppercase backdrop-blur-md ${
+                                      isCover ? 'bg-amber-500 text-stone-950 font-bold' : 'bg-black/80 text-stone-300 border border-white/10'
+                                    }`}>
+                                      #{imgIdx + 1}
+                                    </span>
+                                  </div>
+
+                                  {/* Full Interactive Hover Overlay */}
+                                  <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center p-2 z-20 space-y-2">
+                                    {!isCover && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSetColorCover(activeColorImageIndex, imgIdx)}
+                                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-sans font-bold text-[10px] tracking-wider uppercase shadow-[0_2px_10px_rgba(245,158,11,0.35)] cursor-pointer transition-all active:scale-95 hover:scale-105"
+                                      >
+                                        <Star className="w-3 h-3 fill-stone-950 text-stone-950" />
+                                        <span>Set as Cover</span>
+                                      </button>
+                                    )}
+
+                                    {/* Compact Reorder & Delete Toolbar */}
+                                    <div className="flex items-center space-x-1 p-1 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 shadow-lg">
+                                      {imgIdx > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMoveColorImage(activeColorImageIndex, imgIdx, 'left')}
+                                          className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-white/20 cursor-pointer transition-colors"
+                                          title="Move earlier"
+                                        >
+                                          <ChevronLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+
+                                      {imgIdx < colorImages.length - 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMoveColorImage(activeColorImageIndex, imgIdx, 'right')}
+                                          className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-white/20 cursor-pointer transition-colors"
+                                          title="Move later"
+                                        >
+                                          <ChevronRight className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveImageFromColor(imgIdx)}
+                                        className="p-1 rounded-lg text-stone-300 hover:text-red-400 hover:bg-red-500/20 cursor-pointer transition-colors"
+                                        title="Remove photo from this color"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
-                                <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-stone-200">
-                                  #{imgIdx + 1} {imgIdx === 0 ? '(Cover)' : ''}
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="py-4 text-center border border-dashed border-white/15 rounded-xl text-stone-500 text-xs">
@@ -4052,43 +4398,75 @@ export const AdminPortal: React.FC = () => {
                             Add Photo
                           </button>
                           {/* File Upload for this Color directly to Cloudflare R2 */}
-                          <label className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-medium uppercase tracking-wider transition-colors cursor-pointer shrink-0">
+                          <input
+                            ref={colorFileInputRef}
+                            type="file"
+                            accept="image/*,image/jpeg,image/png,image/webp,image/gif,image/avif"
+                            multiple
+                            className="hidden"
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              if (activeColor) {
+                                await handleUploadMultipleColorFiles(files, activeColor.name, activeColorImageIndex);
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => colorFileInputRef.current?.click()}
+                            className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-medium uppercase tracking-wider transition-colors cursor-pointer shrink-0"
+                          >
                             <Upload className="w-3.5 h-3.5 text-amber-300" />
-                            <span>Upload Photos</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              onChange={async (e) => {
-                                const files = Array.from(e.target.files || []);
-                                if (files.length > 0) {
-                                  showToast(`Uploading photos for ${activeColor.name} to Cloudflare R2...`);
-                                  const entityId = `${productForm.id || 'draft'}-${activeColor.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-                                  const results = await Promise.all(
-                                    files.map((f) => uploadImageToR2(f, 'products', entityId))
-                                  );
-                                  const valid = results.map((r) => r.url).filter(Boolean);
-                                  if (valid.length > 0) {
-                                    const updatedColors = productForm.colors.map((c, i) => {
-                                      if (i !== activeColorImageIndex) return c;
-                                      const currentImgs = c.images && c.images.length > 0 ? [...c.images] : (c.image ? [c.image] : []);
-                                      const updated = [...currentImgs, ...valid];
-                                      return {
-                                        ...c,
-                                        image: updated[0] || valid[0],
-                                        images: updated,
-                                      };
-                                    });
-                                    setProductForm({ ...productForm, colors: updatedColors });
-                                    showToast(`Uploaded ${valid.length} photo(s) to Cloudflare R2!`);
-                                  }
-                                }
-                                e.target.value = '';
-                              }}
-                            />
-                          </label>
+                            <span>Select Multiple Photos</span>
+                          </button>
                         </div>
+
+                        {/* Drag & Drop Zone for Color Photos */}
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsDraggingColorPhotos(true);
+                          }}
+                          onDragLeave={() => setIsDraggingColorPhotos(false)}
+                          onDrop={async (e) => {
+                            e.preventDefault();
+                            setIsDraggingColorPhotos(false);
+                            const files = Array.from(e.dataTransfer.files || []);
+                            if (activeColor) {
+                              await handleUploadMultipleColorFiles(files, activeColor.name, activeColorImageIndex);
+                            }
+                          }}
+                          onClick={() => colorFileInputRef.current?.click()}
+                          className={`p-3 rounded-xl border border-dashed transition-all cursor-pointer text-center text-xs ${
+                            isDraggingColorPhotos
+                              ? 'border-amber-500 bg-amber-500/15'
+                              : 'border-white/15 bg-white/[0.02] hover:bg-white/[0.05]'
+                          }`}
+                        >
+                          <span className="text-stone-300">
+                            Drop multiple photos for <strong>{activeColor.name}</strong> here, or click to select multiple (Press <strong>Ctrl + A</strong> to select all)
+                          </span>
+                        </div>
+
+                        {/* Color Photos Upload Progress */}
+                        {isUploadingColorPhotos && (
+                          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1">
+                            <div className="flex justify-between text-[11px] font-mono text-amber-400">
+                              <span className="flex items-center space-x-1.5">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <span>Uploading {colorUploadProgress.current} of {colorUploadProgress.total} photos for {activeColor.name}...</span>
+                              </span>
+                              <span>{colorUploadProgress.percent}%</span>
+                            </div>
+                            <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-amber-500 transition-all duration-300"
+                                style={{ width: `${colorUploadProgress.percent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Quick Presets for Color Photos */}
                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
