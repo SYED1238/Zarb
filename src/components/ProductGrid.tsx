@@ -185,7 +185,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
       {/* Product Grid: 2 columns mobile, 3 tablet, 4 desktop */}
       {filteredProducts.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-6 sm:gap-y-12">
           {filteredProducts.map((product) => (
             <ProductCard
               key={product.id}

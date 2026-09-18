@@ -65,14 +65,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       onClick={() => onQuickView(product)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`card-neumorphic group cursor-pointer flex flex-col justify-between p-3.5 sm:p-4 rounded-3xl transition-all duration-300 ${
+      className={`card-neumorphic group cursor-pointer flex flex-col justify-between p-2 sm:p-4 rounded-2xl sm:rounded-3xl transition-all duration-300 ${
         isAlabaster ? 'bg-[#f4f3ec] text-stone-900' : 'bg-[#121216] text-white'
       }`}
       role="article"
       aria-label={product.name}
     >
       {/* Image Container with editorial 3:4 ratio & Neumorphic Inset Well */}
-      <div className={`relative aspect-[3/4] w-full overflow-hidden rounded-2xl mb-3.5 border transition-all duration-300 card-neumorphic-inset ${
+      <div className={`relative aspect-[3/4] w-full overflow-hidden rounded-xl sm:rounded-2xl mb-2.5 sm:mb-3.5 border transition-all duration-300 card-neumorphic-inset ${
         isAlabaster ? 'bg-stone-200/70 border-stone-200/50' : 'bg-[#0d0d10] border-white/[0.04]'
       }`}>
         {/* Primary Image with Crossfade */}
@@ -152,7 +152,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       </div>
 
       {/* Product Information */}
-      <div className="space-y-1.5 px-1 pb-0.5">
+      <div className="space-y-1 sm:space-y-1.5 px-0.5 sm:px-1 pb-0.5">
         {/* Category & Rating */}
         <div className={`flex items-center justify-between text-[10px] uppercase tracking-[0.2em] font-mono ${
           isAlabaster ? 'text-stone-500' : 'text-stone-400'
