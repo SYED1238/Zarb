@@ -75,21 +75,21 @@ export const Footer: React.FC = () => {
             </p>
           </div>
 
-          {/* Col 2: Global Boutiques */}
+          {/* Col 2: Store Information */}
           <div className="space-y-3">
             <h4
               className={`text-xs font-semibold uppercase tracking-[0.2em] ${
                 isAlabaster ? 'text-stone-950 font-semibold' : 'text-white'
               }`}
             >
-              Global Salons
+              Shop With Us
             </h4>
             <ul className={`space-y-2 text-xs ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
-              <li>14 Rue Saint-Honoré, Paris</li>
-              <li>Via Montenapoleone 8, Milan</li>
-              <li>724 Madison Avenue, New York</li>
-              <li>Ginza Six, Tokyo</li>
-              <li>The Pavilion, BKC, Mumbai</li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Browse Collections</button></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Track Your Order</button></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Returns & Exchanges</button></li>
+              <li><button type="button" onClick={() => scrollToSection('catalog-section')} className={`text-left cursor-pointer transition-colors ${isAlabaster ? 'hover:text-black' : 'hover:text-white'}`}>Shipping Info</button></li>
+              <li>India · Online Store</li>
             </ul>
           </div>
 
@@ -158,12 +158,12 @@ export const Footer: React.FC = () => {
               <h4 className={`text-[10px] font-semibold uppercase tracking-[0.18em] mb-1 ${
                 isAlabaster ? 'text-stone-950' : 'text-white drop-shadow-sm'
               }`}>
-                Salons
+                Shop
               </h4>
               <p className={`text-[10px] leading-relaxed ${
                 isAlabaster ? 'text-stone-600' : 'text-stone-300 drop-shadow-sm'
               }`}>
-                Paris &middot; Milan &middot; NY &middot; Tokyo &middot; Mumbai
+                India &middot; Online Store
               </p>
             </div>
 

@@ -3,6 +3,7 @@ import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
 import { Heart, Eye, ShoppingBag, Star } from 'lucide-react';
 import { getMediaUrl } from '../utils/media';
+import { getCategoryBySlug } from '../data/categories';
 
 interface ProductCardProps {
   product: Product;
@@ -60,6 +61,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       }).format(product.compareAtPrice)
     : null;
 
+  const discountPercent = product.compareAtPrice
+    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+    : 0;
+
+  const categoryLabel = getCategoryBySlug(product.gender, product.category)?.shortName || product.category.replace(/-/g, ' ');
+
   return (
     <div
       onClick={() => onQuickView(product)}
@@ -98,6 +105,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
           {product.bestSeller && (
             <span className="product-badge-edition text-[9px] font-sans font-medium uppercase tracking-[0.25em] bg-black/80 backdrop-blur-md text-stone-200 border border-white/20 px-2.5 py-0.5 rounded-full shadow-md">
               EDITION
+            </span>
+          )}
+          {discountPercent > 0 && (
+            <span className="text-[9px] font-sans font-semibold uppercase tracking-[0.15em] bg-emerald-500 text-white px-2.5 py-0.5 rounded-full shadow-md">
+              {discountPercent}% OFF
             </span>
           )}
         </div>
@@ -157,7 +169,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         <div className={`flex items-center justify-between text-[10px] uppercase tracking-[0.2em] font-mono ${
           isAlabaster ? 'text-stone-500' : 'text-stone-400'
         }`}>
-          <span>{product.category}</span>
+          <span>{categoryLabel}</span>
           <div className={`flex items-center space-x-1 px-1.5 py-0.5 rounded-md ${
             isAlabaster ? 'bg-black/[0.04] text-stone-700' : 'bg-white/[0.04] text-stone-300'
           }`}>

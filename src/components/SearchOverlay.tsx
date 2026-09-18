@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import type { Product } from '../types/product';
 import { Search, X, ArrowUpRight, TrendingUp, Sparkles } from 'lucide-react';
+import { getCategoriesByGender } from '../data/categories';
 
 interface SearchOverlayProps {
   onSelectProduct: (p: Product) => void;
@@ -21,15 +22,14 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const trendingTags = [
-    'Cashmere Overcoat',
-    'Tailored Blazer',
-    'Tiered Dress',
-    'Wide-Leg Trousers',
-    'Embroidered Kurti',
-    'Wool Jacket',
-    'Saddle Bag',
-  ];
+  const { gender } = useStore();
+  const genderForCategories: 'men' | 'women' = gender === 'men' ? 'men' : 'women';
+
+  const trendingTags = genderForCategories === 'women'
+    ? ['Embroidered Kurti', 'Tiered Dress', 'Graphic T-Shirt', 'Anarkali Gown', 'Floral Blouse', 'Leather Bag']
+    : ['Graphic T-Shirt', 'Casual Shirt', 'Tailored Trousers', 'Selvedge Denim', 'Leather Jacket', 'Sneakers'];
+
+  const quickCategories = getCategoriesByGender(genderForCategories).slice(0, 4);
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -163,20 +163,20 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
                 Explore Core Divisions
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {['Jackets', 'Dresses', 'Trousers', 'Bags'].map((cat) => (
+                {quickCategories.map((cat) => (
                   <button
-                    key={cat}
+                    key={cat.id}
                     onClick={() => {
-                      onSelectCategory(cat);
+                      onSelectCategory(cat.slug);
                       setIsSearchOpen(false);
                     }}
                     className="p-4 rounded-xl bg-white/[0.03] hover:bg-white/10 border border-white/10 text-left transition-colors cursor-pointer group"
                   >
                     <span className="text-sm font-serif text-white block mb-1">
-                      {cat}
+                      {cat.shortName}
                     </span>
                     <span className="text-[10px] tracking-[0.2em] uppercase text-stone-400 group-hover:text-stone-300 flex items-center space-x-1">
-                      <span>View Division</span>
+                      <span>View Collection</span>
                       <ArrowUpRight className="w-3 h-3" />
                     </span>
                   </button>
