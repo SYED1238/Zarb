@@ -4,11 +4,7 @@ import type { Product } from '../types/product';
 import {
   Sparkles,
   Droplets,
-  ChevronDown,
-  ChevronUp,
   ShieldCheck,
-  Flame,
-  Wind,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -42,7 +38,6 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
 
   // State
   const [selectedFamily, setSelectedFamily] = useState<string>('ALL CREATIONS');
-  const [isRitualOpen, setIsRitualOpen] = useState<boolean>(false);
 
   // All perfume creations (strictly perfumes only)
   const perfumes = useMemo(() => {
@@ -184,79 +179,7 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
           >
             Timeless scents. Modern souls. Discover a fragrance that feels like you.
           </p>
-
-          {/* Collapsible Application Ritual Guide Trigger */}
-          <div className="mt-4 flex items-center justify-center space-x-4">
-            <button
-              type="button"
-              onClick={() => setIsRitualOpen(!isRitualOpen)}
-              className={`inline-flex items-center space-x-1.5 text-[11px] font-mono tracking-wider uppercase underline underline-offset-4 cursor-pointer transition-colors ${
-                isAlabaster ? 'text-[#8a5d14] hover:text-[#634107]' : 'text-amber-400 hover:text-amber-300'
-              }`}
-            >
-              <Droplets className="w-3.5 h-3.5" />
-              <span>{isRitualOpen ? 'Hide Application Guide' : 'The Sacred Attar Application Ritual'}</span>
-              {isRitualOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-
-            <span className={isAlabaster ? 'text-stone-400' : 'text-stone-500'}>·</span>
-
-            <Link
-              to="/perfume-card"
-              className={`inline-flex items-center space-x-1 text-[11px] font-mono tracking-wider uppercase underline underline-offset-4 cursor-pointer transition-colors ${
-                isAlabaster ? 'text-[#8a5d14] hover:text-[#634107]' : 'text-amber-400 hover:text-amber-300'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>View Standalone Card</span>
-            </Link>
-          </div>
         </div>
-
-        {/* ========================================================================= */}
-        {/* COLLAPSIBLE RITUAL GUIDE (CLEAN & MINIMALIST)                             */}
-        {/* ========================================================================= */}
-        {isRitualOpen && (
-          <div
-            className={`mb-12 p-5 sm:p-7 rounded-3xl border transition-all duration-300 animate-fade-in ${
-              isAlabaster
-                ? 'bg-white/90 border-[#dfd5c5] shadow-lg text-stone-800'
-                : 'bg-white/[0.03] border-white/10 backdrop-blur-md text-stone-200 shadow-2xl'
-            }`}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
-              <div className="space-y-1.5">
-                <div className="flex items-center space-x-2 text-[#b07d2b] font-semibold text-sm font-serif">
-                  <Flame className="w-4 h-4" />
-                  <span>1. Body Heat &amp; Pulse Points</span>
-                </div>
-                <p className={`leading-relaxed ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
-                  Pure oil attars respond to blood circulation. Touch lightly to the inner wrists, base of the neck, and behind the ears.
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center space-x-2 text-[#b07d2b] font-semibold text-sm font-serif">
-                  <Droplets className="w-4 h-4" />
-                  <span>2. Crystal Wand Touch</span>
-                </div>
-                <p className={`leading-relaxed ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
-                  Use the flacon wand to apply a single drop. <strong>Do not crush</strong> your wrists together, as friction breaks delicate top notes.
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center space-x-2 text-[#b07d2b] font-semibold text-sm font-serif">
-                  <Wind className="w-4 h-4" />
-                  <span>3. Royal Layering</span>
-                </div>
-                <p className={`leading-relaxed ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
-                  Anchor pulse points with aged Dehn Al Oud or Amber attar, then mist an extrait flacon over your garments for majestic sillage.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ========================================================================= */}
         {/* OLFACTORY FAMILY FILTER TABS (EXACT REFERENCE PILLS)                      */}
