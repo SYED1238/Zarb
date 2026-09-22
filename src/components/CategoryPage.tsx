@@ -110,6 +110,13 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
       // Must match active gender
       if (p.gender !== gender) return false;
 
+      // Garment shop pages are strictly clothing / wardrobe apparel:
+      if (p.isPerfume || p.category === 'perfumes') {
+        if (!currentCategory || (currentCategory.slug !== 'perfumes' && currentCategory.id !== 'perfumes')) {
+          return false;
+        }
+      }
+
       // Must match specific category if not on 'all'
       if (currentCategory && p.category.toLowerCase() !== currentCategory.slug.toLowerCase()) {
         return false;
@@ -160,6 +167,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
   const totalCategoryPieces = useMemo(() => {
     return products.filter((p) => {
       if (p.gender !== gender) return false;
+      if (p.isPerfume || p.category === 'perfumes') {
+        if (!currentCategory || (currentCategory.slug !== 'perfumes' && currentCategory.id !== 'perfumes')) {
+          return false;
+        }
+      }
       if (currentCategory && p.category.toLowerCase() !== currentCategory.slug.toLowerCase()) return false;
       if (activeQuickFilter === 'newArrival' && !p.newArrival) return false;
       if (activeQuickFilter === 'bestSeller' && !p.bestSeller) return false;

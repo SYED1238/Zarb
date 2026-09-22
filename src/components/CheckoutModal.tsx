@@ -162,13 +162,39 @@ export const CheckoutModal: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCheckoutOpen, isProcessingPayment, setIsCheckoutOpen]);
 
-  // Reset step tracking when checkout modal closes
+  // Ensure authentication loading state is immediately cleared when returning or pressing back
   useEffect(() => {
+    const handleResetAuthLoading = () => {
+      setIsSigningIn(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setIsSigningIn(false);
+      }
+    };
+
+    window.addEventListener('pageshow', handleResetAuthLoading);
+    window.addEventListener('focus', handleResetAuthLoading);
+    window.addEventListener('popstate', handleResetAuthLoading);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pageshow', handleResetAuthLoading);
+      window.removeEventListener('focus', handleResetAuthLoading);
+      window.removeEventListener('popstate', handleResetAuthLoading);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Reset step tracking and auth state when checkout modal closes or user changes
+  useEffect(() => {
+    setIsSigningIn(false);
     if (!isCheckoutOpen) {
       setStep(1);
       setMaxVisitedStep(1);
     }
-  }, [isCheckoutOpen]);
+  }, [isCheckoutOpen, user]);
 
   // Resume checkout if returning from Google OAuth redirect
   useEffect(() => {
@@ -492,14 +518,35 @@ export const CheckoutModal: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setIsSigningIn(true);
     localStorage.setItem('zarb_resume_checkout', 'true');
-    const res = await signInWithGoogle();
-    if (res.error) {
-      showToast(res.error);
+
+    // Automatic safety reset if redirect takes longer than 6 seconds or user cancels/presses back
+    const timer = setTimeout(() => {
       setIsSigningIn(false);
+    }, 6000);
+
+    try {
+      const res = await signInWithGoogle();
+      if (res.error) {
+        clearTimeout(timer);
+        showToast(res.error);
+        setIsSigningIn(false);
+      }
+    } catch (err: any) {
+      clearTimeout(timer);
+      setIsSigningIn(false);
+      showToast(err?.message || 'Authentication error.');
     }
   };
 
   if (!isCheckoutOpen) return null;
+
+  const totalPieces = cart.reduce((acc, item) => acc + (item.quantity || 1), 0);
+  const ONLINE_DISCOUNT_PER_PIECE = 15;
+  const isOnlinePayment =
+    formData.paymentMethod === 'cashfree' ||
+    formData.paymentMethod === 'card' ||
+    formData.paymentMethod === 'upi';
+  const onlineDiscountAmount = isOnlinePayment ? totalPieces * ONLINE_DISCOUNT_PER_PIECE : 0;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -606,6 +653,7 @@ export const CheckoutModal: React.FC = () => {
             },
             shippingCost: currentShippingCost,
             couponCode: appliedCoupon?.code,
+            onlineDiscount: onlineDiscountAmount,
           });
 
           if (!sessionRes.success || !sessionRes.payment_session_id) {
@@ -687,10 +735,10 @@ export const CheckoutModal: React.FC = () => {
         }
       }
 
-      // B. Concierge Cash on Delivery (COD)
+      // B. Cash on Delivery (COD)
       if (formData.paymentMethod === 'cod') {
         setIsProcessingPayment(true);
-        setPaymentStatusText('Recording Concierge COD order...');
+        setPaymentStatusText('Recording Cash on Delivery order...');
 
         const newOrderNum = `AN-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
         setOrderNumber(newOrderNum);
@@ -728,14 +776,14 @@ export const CheckoutModal: React.FC = () => {
           discount_amount: discountAmount,
           coupon_code: appliedCoupon?.code || '',
           total_amount: orderTotal,
-          payment_method: 'Concierge COD',
+          payment_method: 'Cash on Delivery',
           payment_status: 'pending',
           order_status: 'confirmed',
           status_history: [
             {
               status: 'confirmed',
               timestamp: new Date().toISOString(),
-              note: 'Order placed via Concierge Cash on Delivery.',
+              note: 'Order placed via Cash on Delivery.',
               updatedBy: 'Customer Checkout',
             },
           ],
@@ -777,7 +825,7 @@ export const CheckoutModal: React.FC = () => {
 
   const shippingCost = calculateShippingCost(cartSubtotal, shippingConfig);
   const shippingLabel = getShippingLabel(cartSubtotal, shippingConfig);
-  const total = Math.max(0, cartSubtotal - discountAmount + shippingCost);
+  const total = Math.max(0, cartSubtotal - discountAmount - onlineDiscountAmount + shippingCost);
 
   return (
     <div
@@ -928,6 +976,20 @@ export const CheckoutModal: React.FC = () => {
                   )}
                 </button>
               </div>
+
+              {/* Cancel / Retry option if connecting takes too long or user returned */}
+              {isSigningIn && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSigningIn(false);
+                  }}
+                  className="text-[11px] text-amber-800 hover:text-amber-950 underline transition-colors cursor-pointer font-medium block mx-auto text-center"
+                >
+                  Cancel / Tap to retry
+                </button>
+              )}
 
               {/* Security Trust Micro-Badge */}
               <div className="flex items-center justify-center space-x-1.5 text-[11px] text-stone-500 font-sans tracking-wide">
@@ -1499,16 +1561,19 @@ export const CheckoutModal: React.FC = () => {
                         <Lock className="w-5 h-5" />
                       </div>
                       <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-bold text-stone-900 tracking-wide">
                             Instant Online Payment
                           </span>
                           <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200">
                             Recommended
                           </span>
+                          <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold border border-amber-300">
+                            ₹15 OFF / PIECE
+                          </span>
                         </div>
                         <p className="text-xs text-stone-500 leading-relaxed">
-                          Pay instantly via Google Pay, PhonePe, Paytm, BHIM, Credit/Debit Cards, or NetBanking.
+                          Pay instantly via Google Pay, PhonePe, Paytm, BHIM, Credit/Debit Cards, or NetBanking & save ₹15 on every piece.
                         </p>
                       </div>
                     </div>
@@ -1522,6 +1587,17 @@ export const CheckoutModal: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  {/* Highlight for instant online payment savings */}
+                  {(formData.paymentMethod === 'cashfree' || formData.paymentMethod === 'card' || formData.paymentMethod === 'upi') && (
+                    <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-medium flex items-center justify-between">
+                      <span className="flex items-center space-x-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Instant ₹15 discount applied per piece</span>
+                      </span>
+                      <span className="font-mono font-bold">-₹{totalPieces * ONLINE_DISCOUNT_PER_PIECE} ({totalPieces} {totalPieces === 1 ? 'piece' : 'pieces'})</span>
+                    </div>
+                  )}
 
                   {/* Payment Badges Strip */}
                   <div className="mt-3.5 pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-mono text-stone-500">
@@ -1537,7 +1613,7 @@ export const CheckoutModal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 2. Concierge Cash on Delivery */}
+                {/* 2. Cash on Delivery */}
                 <div
                   onClick={() => !isProcessingPayment && setFormData({ ...formData, paymentMethod: 'cod' })}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer bg-white ${
@@ -1553,10 +1629,10 @@ export const CheckoutModal: React.FC = () => {
                       </div>
                       <div className="space-y-1">
                         <span className="text-sm font-bold text-stone-900 tracking-wide block">
-                          Concierge Cash on Delivery
+                          Cash on Delivery
                         </span>
                         <p className="text-xs text-stone-500 leading-relaxed">
-                          White-glove concierge delivery with cash or mobile card terminal payment on signature.
+                          Pay with cash or UPI upon delivery at your doorstep.
                         </p>
                       </div>
                     </div>
@@ -1587,13 +1663,22 @@ export const CheckoutModal: React.FC = () => {
               {/* Summary Breakdown */}
               <div className="p-4 rounded-2xl bg-white border border-stone-200 space-y-2 text-xs">
                 <div className="flex justify-between text-stone-500">
-                  <span>Bag Subtotal ({cart.reduce((s, i) => s + i.quantity, 0)} {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? 'item' : 'items'})</span>
+                  <span>Bag Subtotal ({totalPieces} {totalPieces === 1 ? 'item' : 'items'})</span>
                   <span className="text-stone-900 font-mono font-medium">{formatPrice(cartSubtotal)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between items-center text-emerald-700">
                     <span>VIP Privilege ({appliedCoupon?.code || 'Privilege'} &middot; {discountPercent}% off)</span>
                     <span className="font-mono font-medium">-{formatPrice(discountAmount)}</span>
+                  </div>
+                )}
+                {onlineDiscountAmount > 0 && (
+                  <div className="flex justify-between items-center text-emerald-700 font-medium">
+                    <span className="flex items-center space-x-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Instant Online Payment Discount (₹15 off &times; {totalPieces} {totalPieces === 1 ? 'piece' : 'pieces'})</span>
+                    </span>
+                    <span className="font-mono font-bold">-{formatPrice(onlineDiscountAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center text-stone-500">
@@ -1627,7 +1712,7 @@ export const CheckoutModal: React.FC = () => {
                   <div className="flex items-center justify-center space-x-2">
                     <Banknote className="w-4 h-4 shrink-0 text-white" />
                     <span className="whitespace-nowrap">
-                      CONFIRM COD ORDER ({formatPrice(total)})
+                      CONFIRM CASH ON DELIVERY ({formatPrice(total)})
                     </span>
                     <ArrowRight className="w-4 h-4 shrink-0 text-white transition-transform group-hover:translate-x-1" />
                   </div>

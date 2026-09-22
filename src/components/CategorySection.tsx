@@ -270,7 +270,9 @@ export const CategorySection: React.FC = () => {
   const startXRef = useRef(0);
   const scrollLeftPosRef = useRef(0);
 
-  const categories = getCategories(gender === 'all' ? 'women' : gender);
+  const categories = getCategories(gender === 'all' ? 'women' : gender).filter(
+    (c) => c.slug !== 'perfumes' && c.id !== 'perfumes'
+  );
 
   const getProductCount = (slug: string) => {
     const count = products.filter(

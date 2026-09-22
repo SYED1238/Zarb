@@ -91,6 +91,21 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
       },
     },
     {
+      id: 'perfumes',
+      label: 'Parfumerie',
+      icon: Gem,
+      action: () => {
+        if (window.location.pathname !== '/') {
+          navigate('/perfumes');
+          setTimeout(() => {
+            document.getElementById('haute-parfumerie')?.scrollIntoView({ behavior: 'smooth' });
+          }, 150);
+        } else {
+          document.getElementById('haute-parfumerie')?.scrollIntoView({ behavior: 'smooth' });
+        }
+      },
+    },
+    {
       id: 'clothing',
       label: 'Collections',
       icon: Layers,
@@ -114,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
     {
       id: 'atelier',
       label: 'The Atelier',
-      icon: Gem,
+      icon: Sparkles,
       action: () => {
         if (window.location.pathname !== '/') {
           navigate('/');

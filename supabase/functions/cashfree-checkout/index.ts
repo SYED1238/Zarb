@@ -379,6 +379,11 @@ serve(async (req: Request) => {
       }
     }
 
+    // Instant Online Payment: ₹15 off on every piece/item quantity
+    const totalPieces = validatedItems.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 1), 0);
+    const onlineDiscountAmount = totalPieces * 15;
+    discountAmount += onlineDiscountAmount;
+
     const finalTotalAmount = Math.max(1, authoritativeSubtotal + shippingCost - discountAmount);
 
     // 3. Generate Unique Zarb Order Number & Cashfree Order ID

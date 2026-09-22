@@ -1773,3 +1773,14 @@ html.theme-alabaster .liquid-droplet:hover {
     scroll-behavior: auto !important;
   }
 }
+
+/* Custom utility for clean horizontal scroll without scrollbar clutter */
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

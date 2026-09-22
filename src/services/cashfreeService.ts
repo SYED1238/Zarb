@@ -93,6 +93,7 @@ export async function createCashfreeOrderSession(params: {
   shippingAddress: any;
   shippingCost?: number;
   couponCode?: string;
+  onlineDiscount?: number;
 }): Promise<CashfreeOrderSessionResponse> {
   if (!isSupabaseConfigured()) {
     return {
@@ -119,6 +120,7 @@ export async function createCashfreeOrderSession(params: {
         shippingAddress: params.shippingAddress,
         shippingCost: params.shippingCost ?? 0,
         couponCode: params.couponCode,
+        onlineDiscount: params.onlineDiscount ?? 0,
         returnUrl: `https://zarb.shop/payment-return?order_id={order_id}`,
       },
     });

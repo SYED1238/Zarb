@@ -1,12 +1,63 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Product, CartItem, GenderType, ProductReview } from '../types/product';
 import { PRODUCTS } from '../data/products';
-import { WOMEN_CATEGORIES, MEN_CATEGORIES, type CategoryItem } from '../data/categories';
+import { WOMEN_CATEGORIES, MEN_CATEGORIES, PERFUME_CATEGORIES, type CategoryItem } from '../data/categories';
 import { INITIAL_PRODUCT_REVIEWS, getDefaultReviewsForProduct } from '../data/reviews';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-// Mapping helpers for Supabase <-> Frontend Product model
+// Safe parsing helpers for Supabase <-> Frontend Product model
+function safeParseJson<T>(val: any, fallback: T): T {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val !== 'string') return val as T;
+  try {
+    return JSON.parse(val);
+  } catch {
+    return fallback;
+  }
+}
+
+function safeParseArray(val: any, fallback: string[] = ['One Size']): string[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      const split = val.split(',').map((s: string) => s.trim()).filter(Boolean);
+      if (split.length > 0) return split;
+    }
+  }
+  return fallback;
+}
+
+function safeParsePerfumeNotes(val: any) {
+  if (!val) return undefined;
+  let parsed = val;
+  if (typeof val === 'string') {
+    try {
+      parsed = JSON.parse(val);
+    } catch {
+      return { top: [val], heart: [], base: [] };
+    }
+  }
+  if (typeof parsed === 'object' && parsed !== null) {
+    const normalize = (n: any): string[] => {
+      if (!n) return [];
+      if (Array.isArray(n)) return n.map(String).map((s: string) => s.trim()).filter(Boolean);
+      if (typeof n === 'string') return n.split(',').map((s: string) => s.trim()).filter(Boolean);
+      return [];
+    };
+    return {
+      top: normalize(parsed.top),
+      heart: normalize(parsed.heart),
+      base: normalize(parsed.base),
+    };
+  }
+  return undefined;
+}
+
 export function mapSupabaseToProduct(d: any): Product {
+  const isPerfume = Boolean(d.is_perfume || d.isPerfume || d.category === 'perfumes');
   return {
     id: String(d.id),
     name: d.name || 'Untitled Piece',
@@ -16,9 +67,9 @@ export function mapSupabaseToProduct(d: any): Product {
     description: d.description || '',
     price: Number(d.price) || 0,
     compareAtPrice: d.compare_at_price ? Number(d.compare_at_price) : undefined,
-    images: Array.isArray(d.images) ? d.images : (typeof d.images === 'string' ? JSON.parse(d.images) : []),
-    colors: Array.isArray(d.colors) ? d.colors : (typeof d.colors === 'string' ? JSON.parse(d.colors) : [{ name: 'Obsidian Noir', hex: '#111113' }]),
-    sizes: Array.isArray(d.sizes) ? d.sizes : (typeof d.sizes === 'string' ? JSON.parse(d.sizes) : ['One Size']),
+    images: Array.isArray(d.images) ? d.images : safeParseJson(d.images, []),
+    colors: Array.isArray(d.colors) ? d.colors : safeParseJson(d.colors, [{ name: 'Obsidian Noir', hex: '#111113' }]),
+    sizes: safeParseArray(d.sizes, ['One Size']),
     stock: Number(d.stock ?? 0),
     sku: d.sku || `AT-${String(d.id).slice(-4)}`,
     rating: Number(d.rating || 5.0),
@@ -32,6 +83,14 @@ export function mapSupabaseToProduct(d: any): Product {
     returnDays: d.return_days !== undefined && d.return_days !== null
       ? Number(d.return_days)
       : (d.returnDays !== undefined && d.returnDays !== null ? Number(d.returnDays) : undefined),
+    isPerfume,
+    perfumeFamily: d.perfume_family || d.perfumeFamily,
+    concentration: d.concentration,
+    longevity: d.longevity,
+    sillage: d.sillage,
+    perfumeNotes: safeParsePerfumeNotes(d.perfume_notes || d.perfumeNotes),
+    volumeOptions: Array.isArray(d.volume_options) ? d.volume_options : safeParseJson(d.volume_options || d.volumeOptions, undefined),
+    volumeMl: Array.isArray(d.volume_ml) ? d.volume_ml : (Array.isArray(d.volumeMl) ? d.volumeMl : undefined),
   };
 }
 
@@ -78,6 +137,7 @@ interface StoreContextType {
   isProductsLoading: boolean;
   womenCategories: CategoryItem[];
   menCategories: CategoryItem[];
+  perfumeCategories: CategoryItem[];
   addProduct: (product: Omit<Product, 'id'> | Product) => Promise<Product>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
@@ -85,17 +145,17 @@ interface StoreContextType {
   refreshProductsFromCloud: () => Promise<void>;
   addCategory: (category: CategoryItem) => void;
   updateCategory: (category: CategoryItem, oldSlug?: string) => void;
-  deleteCategory: (gender: 'men' | 'women', slug: string) => void;
+  deleteCategory: (gender: 'men' | 'women' | 'perfumes', slug: string) => void;
   resetToDefaults: () => void;
   exportCatalogJson: () => string;
   importCatalogJson: (jsonStr: string) => { success: boolean; message: string };
-  getCategories: (gender: 'men' | 'women') => CategoryItem[];
-  getCategoryBySlug: (gender: 'men' | 'women', slug: string) => CategoryItem | undefined;
+  getCategories: (gender: 'men' | 'women' | 'perfumes') => CategoryItem[];
+  getCategoryBySlug: (gender: 'men' | 'women' | 'perfumes', slug: string) => CategoryItem | undefined;
   getProductById: (id: string) => Product | undefined;
 
   // Cart
   cart: CartItem[];
-  addToCart: (product: Product, size: string, color: string, quantity?: number) => void;
+  addToCart: (product: Product, size: string, color: string, quantity?: number, customPrice?: number) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, qty: number) => void;
   clearCart: () => void;
@@ -175,15 +235,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const wasErased = localStorage.getItem('atelier_inventory_erased') === 'true';
       if (wasErased) return [];
-      const saved = localStorage.getItem('atelier_products_v2');
+      const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume);
+      const saved = localStorage.getItem('atelier_products_v4');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const nonPerfumes = parsed.filter(p => !p.isPerfume && p.category !== 'perfumes');
+          return [...defaultPerfumes, ...nonPerfumes];
+        }
       }
+      return PRODUCTS;
     } catch (e) {
       console.error('Failed to load products from storage', e);
     }
-    return [];
+    return PRODUCTS;
   });
 
   // Automatically load real catalog from Supabase cloud on initial mount
@@ -199,11 +264,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!error && data) {
           const existingLocalProducts: Product[] = [];
           try {
-            const saved = localStorage.getItem('atelier_products_v2');
+            const saved = localStorage.getItem('atelier_products_v4');
             if (saved) existingLocalProducts.push(...JSON.parse(saved));
           } catch {}
 
-          const mapped = data.map(row => {
+          let mapped = data.map(row => {
             const prod = mapSupabaseToProduct(row);
             const local = existingLocalProducts.find(lp => lp.id === prod.id);
             if (local && local.returnDays !== undefined && prod.returnDays === undefined) {
@@ -212,8 +277,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return prod;
           });
 
+          // Always merge latest flagship perfumes with latest flacon assets
+          const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume);
+          const nonPerfumes = mapped.filter(p => !p.isPerfume && p.category !== 'perfumes');
+          mapped = [...defaultPerfumes, ...nonPerfumes];
+
           setProducts(mapped);
-          localStorage.setItem('atelier_products_v2', JSON.stringify(mapped));
+          localStorage.setItem('atelier_products_v4', JSON.stringify(mapped));
           if (mapped.length === 0) {
             localStorage.setItem('atelier_inventory_erased', 'true');
           } else {
@@ -230,27 +300,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (wasErased) {
         setProducts([]);
       } else {
-        const saved = localStorage.getItem('atelier_products_v2');
+        const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume);
+        const saved = localStorage.getItem('atelier_products_v4');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            const hydrated = parsed.map(p => {
-              const defaultP = PRODUCTS.find(dp => dp.id === p.id);
-              if (!defaultP) return p;
-              return {
-                ...p,
-                colors: (p.colors || []).map((col: any) => {
-                  const defCol = defaultP.colors?.find(dc => dc.name === col.name);
-                  return {
-                    ...col,
-                    images: (col.images && col.images.length > 0) ? col.images : (defCol?.images || (col.image ? [col.image] : [])),
-                  };
-                }),
-              };
-            });
-            setProducts(hydrated);
+            const nonPerfumes = parsed.filter(p => !p.isPerfume && p.category !== 'perfumes');
+            const merged = [...defaultPerfumes, ...nonPerfumes];
+            setProducts(merged);
+            localStorage.setItem('atelier_products_v4', JSON.stringify(merged));
+            return;
           }
         }
+        setProducts(PRODUCTS);
+        localStorage.setItem('atelier_products_v4', JSON.stringify(PRODUCTS));
       }
     } catch (e) {
       console.error('Failed to load products from cloud:', e);
@@ -267,14 +330,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!error && data && data.length > 0) {
         const cloudWomen: CategoryItem[] = [];
         const cloudMen: CategoryItem[] = [];
+        const cloudPerfumes: CategoryItem[] = [];
 
         for (const row of data) {
+          if ((row.id === 'perfumes' || row.slug === 'perfumes') && row.name === 'Haute Parfumerie & Royal Attar') continue;
+          const gender: 'men' | 'women' | 'perfumes' = row.gender === 'perfumes' ? 'perfumes' : (row.gender === 'men' ? 'men' : 'women');
           const item: CategoryItem = {
             id: row.id,
             slug: row.slug,
             name: row.name,
             shortName: row.short_name || row.name,
-            gender: row.gender === 'men' ? 'men' : 'women',
+            gender,
             eyebrow: row.eyebrow || '',
             description: row.description || '',
             image: row.image || '',
@@ -283,8 +349,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           };
           if (item.gender === 'women') {
             cloudWomen.push(item);
-          } else {
+          } else if (item.gender === 'men') {
             cloudMen.push(item);
+          } else {
+            cloudPerfumes.push(item);
           }
         }
 
@@ -304,7 +372,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 merged.push(cw);
               }
             }
-            return merged;
+            return merged.filter(c => c.slug !== 'perfumes' && c.id !== 'perfumes');
           });
         }
 
@@ -322,6 +390,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 };
               } else {
                 merged.push(cm);
+              }
+            }
+            return merged.filter(c => c.slug !== 'perfumes' && c.id !== 'perfumes');
+          });
+        }
+
+        if (cloudPerfumes.length > 0) {
+          setPerfumeCategories(prev => {
+            const merged = [...prev];
+            for (const cp of cloudPerfumes) {
+              const idx = merged.findIndex(c => c.id === cp.id || c.slug === cp.slug);
+              if (idx >= 0) {
+                merged[idx] = {
+                  ...merged[idx],
+                  ...cp,
+                  image: cp.image || merged[idx].image,
+                  images: (cp.images && cp.images.length > 0) ? cp.images : merged[idx].images,
+                };
+              } else {
+                merged.push(cp);
               }
             }
             return merged;
@@ -364,7 +452,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((c) => cleanCategoryImages(c));
+          const filtered = parsed.filter((c: CategoryItem) => c.slug !== 'perfumes' && c.id !== 'perfumes');
+          return filtered.map((c) => cleanCategoryImages(c));
         }
       }
     } catch (e) {
@@ -379,13 +468,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((c) => cleanCategoryImages(c));
+          const filtered = parsed.filter((c: CategoryItem) => c.slug !== 'perfumes' && c.id !== 'perfumes');
+          return filtered.map((c) => cleanCategoryImages(c));
         }
       }
     } catch (e) {
       console.error('Failed to load men categories', e);
     }
     return MEN_CATEGORIES.map(cleanCategoryImages);
+  });
+
+  const [perfumeCategories, setPerfumeCategories] = useState<CategoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('atelier_perfume_categories_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((c) => cleanCategoryImages(c));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load perfume categories', e);
+    }
+    return PERFUME_CATEGORIES.map(cleanCategoryImages);
   });
 
   // Sync catalog updates to localStorage
@@ -412,6 +517,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Failed to persist men categories', e);
     }
   }, [menCategories]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('atelier_perfume_categories_v2', JSON.stringify(perfumeCategories));
+    } catch (e) {
+      console.error('Failed to persist perfume categories', e);
+    }
+  }, [perfumeCategories]);
 
   // Theme: 'noir' (Midnight Obsidian) vs 'alabaster' (Warm Ivory Haute Couture)
   const [theme, setThemeState] = useState<'noir' | 'alabaster'>(() => {
@@ -833,8 +946,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addCategory = async (category: CategoryItem) => {
     if (category.gender === 'women') {
       setWomenCategories(prev => [...prev, category]);
-    } else {
+    } else if (category.gender === 'men') {
       setMenCategories(prev => [...prev, category]);
+    } else {
+      setPerfumeCategories(prev => [...prev, category]);
     }
     showToast(`Created category "${category.name}"`);
 
@@ -862,14 +977,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const effectiveOldSlug = oldSlug || updatedCat.slug;
     if (updatedCat.gender === 'women') {
       setWomenCategories(prev => prev.map(c => (c.slug === effectiveOldSlug || c.id === updatedCat.id) ? updatedCat : c));
-    } else {
+    } else if (updatedCat.gender === 'men') {
       setMenCategories(prev => prev.map(c => (c.slug === effectiveOldSlug || c.id === updatedCat.id) ? updatedCat : c));
+    } else {
+      setPerfumeCategories(prev => prev.map(c => (c.slug === effectiveOldSlug || c.id === updatedCat.id) ? updatedCat : c));
     }
 
     // Auto-migrate products with the old category slug
     if (effectiveOldSlug && effectiveOldSlug !== updatedCat.slug) {
       setProducts(prev => prev.map(p => {
-        if (p.gender === updatedCat.gender && (p.category === effectiveOldSlug || p.category === updatedCat.id)) {
+        if (updatedCat.gender === 'perfumes' && (p.isPerfume || p.category === 'perfumes')) {
+          if (p.perfumeFamily === effectiveOldSlug || p.category === effectiveOldSlug) {
+            return { ...p, perfumeFamily: updatedCat.name };
+          }
+        } else if (p.gender === updatedCat.gender && (p.category === effectiveOldSlug || p.category === updatedCat.id)) {
           return { ...p, category: updatedCat.slug };
         }
         return p;
@@ -897,11 +1018,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const deleteCategory = async (genderChoice: 'men' | 'women', slug: string) => {
+  const deleteCategory = async (genderChoice: 'men' | 'women' | 'perfumes', slug: string) => {
     if (genderChoice === 'women') {
       setWomenCategories(prev => prev.filter(c => c.slug !== slug && c.id !== slug));
-    } else {
+    } else if (genderChoice === 'men') {
       setMenCategories(prev => prev.filter(c => c.slug !== slug && c.id !== slug));
+    } else {
+      setPerfumeCategories(prev => prev.filter(c => c.slug !== slug && c.id !== slug));
     }
     showToast(`Category removed from catalog`);
 
@@ -919,10 +1042,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(PRODUCTS);
     setWomenCategories(WOMEN_CATEGORIES);
     setMenCategories(MEN_CATEGORIES);
+    setPerfumeCategories(PERFUME_CATEGORIES);
     localStorage.removeItem('atelier_inventory_erased');
     localStorage.setItem('atelier_products_v2', JSON.stringify(PRODUCTS));
     localStorage.removeItem('atelier_women_categories_v2');
     localStorage.removeItem('atelier_men_categories_v2');
+    localStorage.removeItem('atelier_perfume_categories_v2');
     showToast('Catalog restored to runway drop factory defaults');
   };
 
@@ -933,6 +1058,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       products,
       womenCategories,
       menCategories,
+      perfumeCategories,
     }, null, 2);
   };
 
@@ -951,6 +1077,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (Array.isArray(parsed.menCategories)) {
         setMenCategories(parsed.menCategories);
       }
+      if (Array.isArray(parsed.perfumeCategories)) {
+        setPerfumeCategories(parsed.perfumeCategories);
+      }
       showToast('Catalog imported successfully');
       return { success: true, message: 'Catalog imported successfully' };
     } catch (err: any) {
@@ -958,12 +1087,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const getCategories = (g: 'men' | 'women'): CategoryItem[] => {
-    return g === 'women' ? womenCategories : menCategories;
+  const getCategories = (g: 'men' | 'women' | 'perfumes'): CategoryItem[] => {
+    if (g === 'women') return womenCategories;
+    if (g === 'men') return menCategories;
+    return perfumeCategories;
   };
 
-  const getCategoryBySlug = (g: 'men' | 'women', slug: string): CategoryItem | undefined => {
-    const list = g === 'women' ? womenCategories : menCategories;
+  const getCategoryBySlug = (g: 'men' | 'women' | 'perfumes', slug: string): CategoryItem | undefined => {
+    const list = g === 'women' ? womenCategories : g === 'men' ? menCategories : perfumeCategories;
     return list.find(c => c.slug.toLowerCase() === slug.toLowerCase() || c.id.toLowerCase() === slug.toLowerCase());
   };
 
@@ -971,7 +1102,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return products.find(p => p.id === id);
   };
 
-  const addToCart = (product: Product, size: string, color: string, quantity = 1) => {
+  const addToCart = (product: Product, size: string, color: string, quantity = 1, customPrice?: number) => {
+    // Resolve dynamic price for perfume volume option if configured
+    let effectivePrice = customPrice !== undefined ? customPrice : product.price;
+    if (customPrice === undefined && product.volumeOptions && product.volumeOptions.length > 0) {
+      const match = product.volumeOptions.find(v => v.ml === size || size.startsWith(v.ml));
+      if (match && match.price > 0) {
+        effectivePrice = match.price;
+      }
+    }
+
     const existingIndex = cart.findIndex(
       item => item.productId === product.id && item.size === size && item.color === color
     );
@@ -981,21 +1121,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updated[existingIndex].quantity += quantity;
       setCart(updated);
     } else {
+      const isPerfume = Boolean(product.isPerfume || product.category === 'perfumes');
       const newItem: CartItem = {
         id: `${product.id}-${size}-${color}-${Date.now()}`,
         productId: product.id,
         name: product.name,
-        price: product.price,
+        price: effectivePrice,
         image: product.images[0] || '',
         size,
         color,
         quantity,
+        isPerfume,
+        volumeMl: isPerfume ? size : undefined,
       };
       setCart(prev => [newItem, ...prev]);
     }
 
     setIsCartOpen(true);
-    showToast(`Added "${product.name}" to your bag.`);
+    showToast(`Added "${product.name} (${size})" to your bag.`);
   };
 
   const removeFromCart = (id: string) => {
@@ -1093,6 +1236,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isProductsLoading,
         womenCategories,
         menCategories,
+        perfumeCategories,
         addProduct,
         updateProduct,
         deleteProduct,

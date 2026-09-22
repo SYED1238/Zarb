@@ -33,14 +33,28 @@ const ScrollToTop: React.FC = () => {
   return null;
 };
 
+import { ParfumerieSection } from './components/ParfumerieSection';
+import { PerfumeCardShowcase } from './components/PerfumeCardShowcase';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 // Homepage Content Component
 const HomePage: React.FC<{
   onQuickView: (p: Product) => void;
 }> = ({ onQuickView }) => {
   const { setGender } = useStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeFilter] = useState<string | null>(null);
+
+  // Smooth scroll to perfume section if navigating to /perfumes
+  useEffect(() => {
+    if (location.pathname === '/perfumes' || location.pathname === '/haute-parfumerie' || location.hash === '#haute-parfumerie') {
+      setTimeout(() => {
+        document.getElementById('haute-parfumerie')?.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+    }
+  }, [location.pathname, location.hash]);
 
   const handleShopHeroClick = (genderChoice: GenderType) => {
     setGender(genderChoice);
@@ -63,10 +77,15 @@ const HomePage: React.FC<{
         onQuickView={onQuickView}
       />
 
-      {/* 4. Editorial Lookbook & Brand Story */}
+      {/* 4. Haute Parfumerie & Royal Attar Showcase */}
+      <ErrorBoundary fallbackTitle="Haute Parfumerie Atelier">
+        <ParfumerieSection onQuickView={onQuickView} />
+      </ErrorBoundary>
+
+      {/* 5. Editorial Lookbook & Brand Story */}
       <EditorialSection onShopCollection={(g) => handleShopHeroClick(g)} />
 
-      {/* 5. VIP Newsletter */}
+      {/* 6. VIP Newsletter */}
       <Newsletter />
     </main>
   );
@@ -171,6 +190,22 @@ const StoreFront: React.FC = () => {
     );
   }
 
+  // Dedicated Single Card Showcase Shell (Focus entirely on ONE product card)
+  const isCardShowcaseRoute =
+    location.pathname === '/perfume-card' ||
+    location.pathname === '/card' ||
+    location.pathname === '/card-preview';
+
+  if (isCardShowcaseRoute) {
+    return (
+      <div className="relative min-h-screen">
+        <ScrollToTop />
+        <PerfumeCardShowcase />
+        <Toast />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative min-h-screen transition-colors duration-500 ${theme === 'alabaster' ? 'bg-[#f6f5f0] text-[#141416]' : 'bg-[#09090b] text-[#f5f5f3]'}`}>
       <ScrollToTop />
@@ -183,6 +218,16 @@ const StoreFront: React.FC = () => {
         {/* Homepage Route */}
         <Route
           path="/"
+          element={<HomePage onQuickView={(p) => setActiveProduct(p)} />}
+        />
+
+        {/* Dedicated Haute Parfumerie Showcase Routes */}
+        <Route
+          path="/perfumes"
+          element={<HomePage onQuickView={(p) => setActiveProduct(p)} />}
+        />
+        <Route
+          path="/haute-parfumerie"
           element={<HomePage onQuickView={(p) => setActiveProduct(p)} />}
         />
 
@@ -215,11 +260,13 @@ const StoreFront: React.FC = () => {
 
       {/* Interactive Overlays & Modals */}
       <InstagramBrowserChoiceModal />
-      <ProductDetailModal
-        product={activeProduct}
-        onClose={() => setActiveProduct(null)}
-        onSelectProduct={(p: Product) => setActiveProduct(p)}
-      />
+      <ErrorBoundary fallbackTitle="Product Details">
+        <ProductDetailModal
+          product={activeProduct}
+          onClose={() => setActiveProduct(null)}
+          onSelectProduct={(p: Product) => setActiveProduct(p)}
+        />
+      </ErrorBoundary>
       <SizeGuideModal />
       <CartDrawer />
       <CheckoutModal />
@@ -239,7 +286,9 @@ export function App() {
     <BrowserRouter>
       <StoreProvider>
         <AuthProvider>
-          <StoreFront />
+          <ErrorBoundary>
+            <StoreFront />
+          </ErrorBoundary>
         </AuthProvider>
       </StoreProvider>
     </BrowserRouter>

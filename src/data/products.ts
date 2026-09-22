@@ -790,5 +790,270 @@ export const PRODUCTS: Product[] = [
     materials: 'Upper & Insole: 100% Lambskin Nappa. Sole: Leather & Rubber.',
     fit: 'True to European size. Half sizes should size up.',
     season: 'CORE'
+  },
+
+  // ==================== HAUTE PARFUMERIE & ROYAL ATTAR ====================
+  {
+    id: 'perfume-01',
+    name: 'Royal Dehn Al Oud Kalakassi',
+    slug: 'royal-dehn-al-oud-kalakassi',
+    gender: 'men',
+    category: 'perfumes',
+    description: 'A sovereign distillation of 30-year aged wild Cambodian agarwood and celestial ambergris. Dark, resinous, honeyed wood with an opulent royal trail revered across royal courts.',
+    price: 4500,
+    compareAtPrice: 5500,
+    images: [
+      '/images/perfumes/royal_oud_flacon.jpg'
+    ],
+    colors: [
+      { name: 'Crystal Gold Flacon', hex: '#d4af37' },
+      { name: 'Obsidian Noir Edition', hex: '#111113' }
+    ],
+    sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
+    stock: 18,
+    sku: 'AT-PARF-01',
+    rating: 5.0,
+    reviews: 48,
+    featured: true,
+    newArrival: true,
+    bestSeller: true,
+    details: [
+      'Hand-distilled 100% pure organic wild agarwood (Aquilaria crassna)',
+      'Aged for three decades in French glass demijohns',
+      'Non-alcoholic pure attar concentration; safe for sensitive skin',
+      'Housed in heavy hand-cut facet crystal flacon with gold-plated rod wand'
+    ],
+    materials: 'Pure Aged Cambodian Dehn Al Oud, Golden Ambergris, Mysore Santalum Album',
+    fit: 'Concentrated Elixir · Apply 1-2 droplets to pulse points',
+    season: 'HAUTE PARFUMERIE',
+    returnDays: 0,
+    isPerfume: true,
+    perfumeFamily: 'Royal Oud & Oriental',
+    concentration: 'Pure Concentrated Attar & Extrait (100% Pure Oil)',
+    longevity: '24+ Hours · Eternal',
+    sillage: 'Majestic & Enveloping',
+    volumeMl: ['6ml', '12ml', '50ml', '100ml'],
+    volumeOptions: [
+      { ml: '6ml', price: 4500, compareAtPrice: 5500, inStock: true },
+      { ml: '12ml', price: 8500, compareAtPrice: 10500, inStock: true },
+      { ml: '50ml', price: 18500, compareAtPrice: 22000, inStock: true },
+      { ml: '100ml', price: 29000, compareAtPrice: 35000, inStock: true }
+    ],
+    perfumeNotes: {
+      top: ['Wild Bergamot', 'Kashmiri Saffron', 'Pink Pepper'],
+      heart: ['Smoky Cedar', 'Cambodian Frankincense', 'Nutmeg Blossom'],
+      base: ['30-Year Aged Dehn Al Oud', 'Black Ambergris', 'Mysore Sandalwood']
+    }
+  },
+  {
+    id: 'perfume-02',
+    name: 'Rose Taif & Damascena Imperial',
+    slug: 'rose-taif-damascena-imperial',
+    gender: 'women',
+    category: 'perfumes',
+    description: 'An ethereal crown jewel of Saudi Arabian Taif rose petals harvested before sunrise, blended with Turkish Damascena absolute and creamy Mysore sandalwood.',
+    price: 3200,
+    compareAtPrice: 4000,
+    images: [
+      '/images/perfumes/taif_rose_flacon.jpg'
+    ],
+    colors: [
+      { name: 'Rose Gold Flacon', hex: '#b76e79' },
+      { name: 'Pure Crystal', hex: '#fdfbf7' }
+    ],
+    sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
+    stock: 24,
+    sku: 'AT-PARF-02',
+    rating: 4.96,
+    reviews: 62,
+    featured: true,
+    newArrival: true,
+    bestSeller: true,
+    details: [
+      'Single-estate 3,000 Taif roses required per tola flacon',
+      'Cold hydro-distillation in copper alembics for crystalline floral purity',
+      'Alcohol-free silky oil matrix that blooms with natural body temperature',
+      'Finished with satin ribbon and embossed Atelier monogram wax seal'
+    ],
+    materials: 'Taif Rose Otto, Damascena Absolute, Bourbon Vanilla Pods, White Musk',
+    fit: 'Velvet Floral Veil · Apply to wrist, collarbone, and neckline',
+    season: 'HAUTE PARFUMERIE',
+    returnDays: 0,
+    isPerfume: true,
+    perfumeFamily: 'Floral & Taif Rose',
+    concentration: 'Extrait de Parfum (35% Fragrance Concentration)',
+    longevity: '18+ Hours · Enduring',
+    sillage: 'Intoxicating & Radiating',
+    volumeMl: ['6ml', '12ml', '50ml', '100ml'],
+    volumeOptions: [
+      { ml: '6ml', price: 3200, compareAtPrice: 4000, inStock: true },
+      { ml: '12ml', price: 5900, compareAtPrice: 7200, inStock: true },
+      { ml: '50ml', price: 12500, compareAtPrice: 15000, inStock: true },
+      { ml: '100ml', price: 19500, compareAtPrice: 24000, inStock: true }
+    ],
+    perfumeNotes: {
+      top: ['Morning Taif Rosewater', 'Sparkling Mandora', 'Pink Pepper'],
+      heart: ['Taif Rose Petals', 'Damascena Absolute', 'Royal Jasmine Sambac'],
+      base: ['Cashmere Wood', 'White Golden Amber', 'Bourbon Vanilla']
+    }
+  },
+  {
+    id: 'perfume-03',
+    name: 'Midnight Ambergris & Smoked Leather',
+    slug: 'midnight-ambergris-smoked-leather',
+    gender: 'men',
+    category: 'perfumes',
+    description: 'Nocturnal mystery in liquid form. Rich Tuscan leather steeped in aged golden marine ambergris, dark tonka bean, and spiced Indonesian patchouli leaves.',
+    price: 3800,
+    compareAtPrice: 4600,
+    images: [
+      '/images/perfumes/bleu_flacon.jpg'
+    ],
+    colors: [
+      { name: 'Smoked Obsidian Flacon', hex: '#1c1b1a' },
+      { name: 'Cognac Bronze', hex: '#8a4b2a' }
+    ],
+    sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
+    stock: 15,
+    sku: 'AT-PARF-03',
+    rating: 4.93,
+    reviews: 37,
+    featured: true,
+    newArrival: false,
+    bestSeller: true,
+    details: [
+      'Authentic certified ethical marine ambergris from Oman coastlines',
+      'Tuscan saddle leather accord crafted via botanical birch tar distillation',
+      'Deep, velvety projection with magnetic evening presence',
+      'Heavy magnetic zamak cap with brass engraving'
+    ],
+    materials: 'Marine Ambergris, Birch Tar Leather, Bourbon Tonka, Aged Patchouli',
+    fit: 'Commanding Evening Scent · Spray or dab on chest and lapels',
+    season: 'HAUTE PARFUMERIE',
+    returnDays: 0,
+    isPerfume: true,
+    perfumeFamily: 'Smoked Amber & Leather',
+    concentration: 'Extrait de Parfum (32% Fragrance Concentration)',
+    longevity: '20+ Hours · Persistent',
+    sillage: 'Commanding & Enveloping',
+    volumeMl: ['6ml', '12ml', '50ml', '100ml'],
+    volumeOptions: [
+      { ml: '6ml', price: 3800, compareAtPrice: 4600, inStock: true },
+      { ml: '12ml', price: 6800, compareAtPrice: 8200, inStock: true },
+      { ml: '50ml', price: 15000, compareAtPrice: 18000, inStock: true },
+      { ml: '100ml', price: 23500, compareAtPrice: 28000, inStock: true }
+    ],
+    perfumeNotes: {
+      top: ['Green Cardamom', 'Bitter Orange Peel', 'Nutmeg'],
+      heart: ['Tuscan Saddle Leather', 'Smoked Frankincense', 'Tobacco Blossom'],
+      base: ['Natural Ambergris', 'Sumatran Patchouli', 'Smoked Labdanum']
+    }
+  },
+  {
+    id: 'perfume-04',
+    name: 'Musk Al Ghazal & White Lotus',
+    slug: 'musk-al-ghazal-white-lotus',
+    gender: 'women',
+    category: 'perfumes',
+    description: 'The epitome of purity and serenity. A sublime blend of cruelty-free crystalline white musk, sacred morning lotus petals, powdery Florentine orris, and clean linen.',
+    price: 2800,
+    compareAtPrice: 3500,
+    images: [
+      '/images/perfumes/white_musk_flacon.jpg'
+    ],
+    colors: [
+      { name: 'Opal White Crystal', hex: '#f4f4f4' },
+      { name: 'Chalk Ivory', hex: '#ede8dd' }
+    ],
+    sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
+    stock: 22,
+    sku: 'AT-PARF-04',
+    rating: 4.97,
+    reviews: 51,
+    featured: false,
+    newArrival: true,
+    bestSeller: false,
+    details: [
+      'Cruelty-free botanical and macrocyclic musk synthesis of peerless clarity',
+      'Infused with rare Florentine Iris Pallida rhizome extract aged 3 years',
+      'Clean, intimate second-skin aura that lasts all day without overwhelming',
+      'Faceted frosted glass flacon with brushed platinum collar'
+    ],
+    materials: 'Botanical White Musk, Egyptian White Lotus, Florentine Orris, Ambrette',
+    fit: 'Intimate Second-Skin · Ideal for daily prayers, meditation, and daily wear',
+    season: 'HAUTE PARFUMERIE',
+    returnDays: 0,
+    isPerfume: true,
+    perfumeFamily: 'Pure White Musk',
+    concentration: 'Pure Attar Oil & Eau de Parfum (100% Non-Alcoholic)',
+    longevity: '16+ Hours · Subtle & Lingering',
+    sillage: 'Intimate & Sensual',
+    volumeMl: ['6ml', '12ml', '50ml', '100ml'],
+    volumeOptions: [
+      { ml: '6ml', price: 2800, compareAtPrice: 3500, inStock: true },
+      { ml: '12ml', price: 4900, compareAtPrice: 6000, inStock: true },
+      { ml: '50ml', price: 9800, compareAtPrice: 12000, inStock: true },
+      { ml: '100ml', price: 15500, compareAtPrice: 19000, inStock: true }
+    ],
+    perfumeNotes: {
+      top: ['Egyptian White Lotus', 'Morning Aldehydes', 'Ambrette Seed'],
+      heart: ['Florentine Orris', 'Lily of the Valley', 'White Peach Skin'],
+      base: ['Royal White Musk', 'Soft Cashmere Silk', 'Dry Sandalwood']
+    }
+  },
+  {
+    id: 'perfume-05',
+    name: 'Santal Imperial & Spiced Saffron',
+    slug: 'santal-imperial-spiced-saffron',
+    gender: 'men',
+    category: 'perfumes',
+    description: 'Ancient royal luxury distilled. Vintage creamy Mysore sandalwood blended with precious Kashmiri red gold saffron threads, cedarwood, and balsamic amber.',
+    price: 3600,
+    compareAtPrice: 4400,
+    images: [
+      '/images/perfumes/santal_flacon.jpg'
+    ],
+    colors: [
+      { name: 'Amber Gold Flacon', hex: '#d99036' },
+      { name: 'Sandalwood Brun', hex: '#634427' }
+    ],
+    sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
+    stock: 20,
+    sku: 'AT-PARF-05',
+    rating: 4.91,
+    reviews: 29,
+    featured: false,
+    newArrival: true,
+    bestSeller: false,
+    details: [
+      'Government-certified mature Mysore Sandalwood heartwood oil',
+      'Pampore Grade-1 Kashmiri saffron threads macerated for 90 days',
+      'Creamy, buttery wood depth with hypnotic spicy sweetness',
+      'Heavy octagonal crystal flacon in silk-lined presentation coffret'
+    ],
+    materials: 'Mysore Sandalwood Heartwood, Kashmiri Saffron, Gurjum Balsam, Amber',
+    fit: 'Warm Regal Presence · Apply to neck, palms, and beard',
+    season: 'HAUTE PARFUMERIE',
+    returnDays: 0,
+    isPerfume: true,
+    perfumeFamily: 'Woody & Smoky',
+    concentration: 'Extrait de Parfum (30% Fragrance Concentration)',
+    longevity: '18+ Hours · Enduring',
+    sillage: 'Warm & Aristocratic',
+    volumeMl: ['6ml', '12ml', '50ml', '100ml'],
+    volumeOptions: [
+      { ml: '6ml', price: 3600, compareAtPrice: 4400, inStock: true },
+      { ml: '12ml', price: 6500, compareAtPrice: 7800, inStock: true },
+      { ml: '50ml', price: 14000, compareAtPrice: 17000, inStock: true },
+      { ml: '100ml', price: 21500, compareAtPrice: 26000, inStock: true }
+    ],
+    perfumeNotes: {
+      top: ['Kashmiri Saffron Threads', 'Nutmeg', 'Cardamom Pods'],
+      heart: ['Atlas Cedarwood', 'Gurjum Balsam', 'Cinnamon Bark'],
+      base: ['Aged Mysore Sandalwood', 'Tonka Bean', 'Golden Amber Resins']
+    }
   }
 ];
+
+export const HAUTE_PERFUMES_PRESETS: Product[] = PRODUCTS.filter(p => p.isPerfume || p.category === 'perfumes');
+

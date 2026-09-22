@@ -3,7 +3,7 @@ export interface CategoryItem {
   slug: string;
   name: string;
   shortName: string;
-  gender: 'men' | 'women';
+  gender: 'men' | 'women' | 'perfumes';
   eyebrow: string;
   description: string;
   image: string;
@@ -209,13 +209,106 @@ export const MEN_CATEGORIES: CategoryItem[] = [
   },
 ];
 
-export const ALL_CATEGORIES = [...WOMEN_CATEGORIES, ...MEN_CATEGORIES];
+export const PERFUME_CATEGORIES: CategoryItem[] = [
+  {
+    id: 'royal-oud',
+    slug: 'royal-oud',
+    name: 'Royal Oud & Oriental',
+    shortName: 'Royal Oud',
+    gender: 'perfumes',
+    eyebrow: 'HAUTE PARFUMERIE · OUD & AMBER',
+    description: 'Rare aged Cambodian and Kalakassi Dehn Al Oud, frankincense resins, and majestic sacred oriental woods.',
+    image: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?q=80&w=1200&auto=format&fit=crop',
+    images: ['https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?q=80&w=1200&auto=format&fit=crop'],
+    metaDescription: 'Discover Royal Oud & Oriental artisanal perfumes and pure attars from Zarb.',
+  },
+  {
+    id: 'floral-taif-rose',
+    slug: 'floral-taif-rose',
+    name: 'Floral & Taif Rose',
+    shortName: 'Taif Rose',
+    gender: 'perfumes',
+    eyebrow: 'HAUTE PARFUMERIE · FLORAL DISTILLATIONS',
+    description: 'Hand-harvested 30-petal Taif Mountain roses distilled at dawn in copper alembics with sparkling crystalline white musks.',
+    image: 'https://images.unsplash.com/photo-1547887537-6158d64c35b3?q=80&w=1200&auto=format&fit=crop',
+    images: ['https://images.unsplash.com/photo-1547887537-6158d64c35b3?q=80&w=1200&auto=format&fit=crop'],
+    metaDescription: 'Explore rare Taif Rose and floral nectar distillations.',
+  },
+  {
+    id: 'smoked-amber-leather',
+    slug: 'smoked-amber-leather',
+    name: 'Smoked Amber & Leather',
+    shortName: 'Amber & Leather',
+    gender: 'perfumes',
+    eyebrow: 'HAUTE PARFUMERIE · CUIR & AMBRE',
+    description: 'Warm Baltic ambergris enveloped in dark Spanish leather, birch tar, tonka bean, and golden labdanum.',
+    image: 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?q=80&w=1200&auto=format&fit=crop',
+    images: ['https://images.unsplash.com/photo-1523293182086-7651a899d37f?q=80&w=1200&auto=format&fit=crop'],
+    metaDescription: 'Smoked amber, dark cuir leather, and golden resin extrait creations.',
+  },
+  {
+    id: 'pure-white-musk',
+    slug: 'pure-white-musk',
+    name: 'Pure White Musk',
+    shortName: 'White Musk',
+    gender: 'perfumes',
+    eyebrow: 'HAUTE PARFUMERIE · CELESTIAL MUSKS',
+    description: 'Silken second-skin white musk blended with morning dew drops, lotus blossoms, and powdery Florentine iris.',
+    image: 'https://images.unsplash.com/photo-1588405748880-12d1d2a59f75?q=80&w=1200&auto=format&fit=crop',
+    images: ['https://images.unsplash.com/photo-1588405748880-12d1d2a59f75?q=80&w=1200&auto=format&fit=crop'],
+    metaDescription: 'Velvety pure white musks and delicate skin scent attars.',
+  },
+  {
+    id: 'woody-smoky',
+    slug: 'woody-smoky',
+    name: 'Woody & Smoky',
+    shortName: 'Woody & Smoky',
+    gender: 'perfumes',
+    eyebrow: 'HAUTE PARFUMERIE · WOODS & INCENSE',
+    description: 'Vintage Mysore sandalwood, charred cedarwood, smoky patchouli, and earthy Haitian vetiver.',
+    image: 'https://images.unsplash.com/photo-1594035910387-fea47794261f?q=80&w=1200&auto=format&fit=crop',
+    images: ['https://images.unsplash.com/photo-1594035910387-fea47794261f?q=80&w=1200&auto=format&fit=crop'],
+    metaDescription: 'Earthy sandalwood, vetiver, and smoky dark woods from the royal vault.',
+  },
+  {
+    id: 'fresh-citrus-aquatic',
+    slug: 'fresh-citrus-aquatic',
+    name: 'Fresh & Citrus Aquatic',
+    shortName: 'Citrus Aquatic',
+    gender: 'perfumes',
+    eyebrow: 'HAUTE PARFUMERIE · SOLAR CITRUS',
+    description: 'Calabrian bergamot, Mediterranean sea salt, green mandarin, and crisp marine notes.',
+    image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?q=80&w=1200&auto=format&fit=crop',
+    images: ['https://images.unsplash.com/photo-1541643600914-78b084683601?q=80&w=1200&auto=format&fit=crop'],
+    metaDescription: 'Invigorating sun-drenched citrus and aquatic haute creations.',
+  },
+];
 
-export function getCategoryBySlug(gender: 'men' | 'women', slug: string): CategoryItem | undefined {
-  const list = gender === 'women' ? WOMEN_CATEGORIES : MEN_CATEGORIES;
+export const PERFUME_CATEGORY: CategoryItem = {
+  id: 'perfumes',
+  slug: 'perfumes',
+  name: 'Haute Parfumerie & Royal Attar',
+  shortName: 'Parfums & Attar',
+  gender: 'perfumes',
+  eyebrow: 'HAUTE PARFUMERIE · SACRED DISTILLATIONS',
+  description: 'Artisanal non-alcoholic pure attars, aged Dehn Al Oud, Damask rose distillations, and grand extrait de parfum flacons.',
+  image: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?q=80&w=1200&auto=format&fit=crop',
+  images: [
+    'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?q=80&w=1200&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1547887537-6158d64c35b3?q=80&w=1200&auto=format&fit=crop',
+  ],
+  metaDescription: 'Discover luxury haute parfumerie, artisanal pure attars, and aged oud extraits from Zarb.',
+};
+
+export const ALL_CATEGORIES = [...WOMEN_CATEGORIES, ...MEN_CATEGORIES, ...PERFUME_CATEGORIES];
+
+export function getCategoryBySlug(gender: 'men' | 'women' | 'perfumes', slug: string): CategoryItem | undefined {
+  const list = gender === 'women' ? WOMEN_CATEGORIES : gender === 'men' ? MEN_CATEGORIES : PERFUME_CATEGORIES;
   return list.find((c) => c.slug.toLowerCase() === slug.toLowerCase() || c.id.toLowerCase() === slug.toLowerCase());
 }
 
-export function getCategoriesByGender(gender: 'men' | 'women'): CategoryItem[] {
-  return gender === 'women' ? WOMEN_CATEGORIES : MEN_CATEGORIES;
+export function getCategoriesByGender(gender: 'men' | 'women' | 'perfumes'): CategoryItem[] {
+  if (gender === 'women') return WOMEN_CATEGORIES;
+  if (gender === 'men') return MEN_CATEGORIES;
+  return PERFUME_CATEGORIES;
 }

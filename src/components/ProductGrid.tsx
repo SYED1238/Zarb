@@ -22,7 +22,9 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'rating' | 'newest'>('featured');
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
-  const currentCategoryList = getCategories(gender === 'all' ? 'women' : gender);
+  const currentCategoryList = getCategories(gender === 'all' ? 'women' : gender).filter(
+    (c) => c.slug !== 'perfumes' && c.id !== 'perfumes'
+  );
   const categories = [
     { id: 'all', name: 'All Pieces' },
     ...currentCategoryList.map((c) => ({ id: c.slug, name: c.name })),
@@ -31,6 +33,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   // Filter products by current active gender, category, and quick filter flags
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
+      // Garment collection is strictly apparel - exclude perfumes:
+      if (p.isPerfume || p.category === 'perfumes') {
+        return false;
+      }
       // Gender filter
       if (gender !== 'all' && p.gender !== gender) {
         return false;
@@ -195,13 +201,17 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
           ))}
         </div>
       ) : (
-        <div className="text-center py-20 border border-dashed border-white/10 rounded-2xl p-8">
-          <p className="text-stone-400 text-sm tracking-[0.1em] uppercase mb-4">
+        <div className={`text-center py-20 border border-dashed rounded-2xl p-8 ${
+          isAlabaster ? 'border-stone-300 bg-white/60 text-stone-600' : 'border-white/10 text-stone-400'
+        }`}>
+          <p className="text-sm tracking-[0.1em] uppercase mb-4">
             No atelier garments found for this specific filter.
           </p>
           <button
             onClick={() => onSelectCategory('all')}
-            className="px-6 py-2.5 rounded-full bg-white text-black text-xs tracking-[0.2em] uppercase font-medium hover:bg-stone-200 transition-colors"
+            className={`px-6 py-2.5 rounded-full text-xs tracking-[0.2em] uppercase font-medium transition-colors cursor-pointer ${
+              isAlabaster ? 'bg-stone-950 text-white hover:bg-stone-800' : 'bg-white text-black hover:bg-stone-200'
+            }`}
           >
             Reset All Filters
           </button>

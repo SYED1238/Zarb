@@ -148,8 +148,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   useEffect(() => {
     if (product) {
       setActiveImageIndex(0);
-      setSelectedSize(product.sizes[0] || '');
-      setSelectedColor(product.colors[0]?.name || '');
+      const initialSize = (Array.isArray(product.sizes) && product.sizes[0]) || (Array.isArray(product.volumeMl) && product.volumeMl[0]) || 'One Size';
+      const initialColor = (Array.isArray(product.colors) && product.colors[0]?.name) || 'Standard';
+      setSelectedSize(initialSize);
+      setSelectedColor(initialColor);
       setQuantity(1);
 
       // Instantly & smoothly scroll modal container to top when switching products
@@ -169,6 +171,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     };
   }, [product?.id]);
 
+  // Dynamic price calculation if volumeOptions are configured for selected ML
+  const selectedVolumeOption = useMemo(() => {
+    if (!product || !product.volumeOptions || !Array.isArray(product.volumeOptions) || product.volumeOptions.length === 0) return null;
+    const currentSz = String(selectedSize || '');
+    return product.volumeOptions.find(v => v.ml === currentSz || (Boolean(currentSz) && currentSz.startsWith(v.ml)));
+  }, [product, selectedSize]);
+
   // Step-back history integration for product modal and fullscreen lightbox
   useModalBackHandler(!!product, onClose, `product-detail-${product?.id || 'active'}`);
   useModalBackHandler(
@@ -180,23 +189,60 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     'product-fullscreen-lightbox'
   );
 
+  const isPerfume = Boolean(product?.isPerfume || product?.category === 'perfumes');
+
+  const relatedProducts = useMemo(() => {
+    if (!product) return [];
+    if (isPerfume) {
+      // For perfume dossiers: suggest strictly other pure attars & extraits
+      return products
+        .filter((p) => (p.isPerfume || p.category === 'perfumes') && p.id !== product.id)
+        .slice(0, 4);
+    }
+    // For dresses, jackets & garments: strictly NEVER show perfumes, only clothing
+    return products
+      .filter(
+        (p) =>
+          !p.isPerfume &&
+          p.category !== 'perfumes' &&
+          p.gender === product.gender &&
+          p.id !== product.id
+      )
+      .slice(0, 4);
+  }, [products, product, isPerfume]);
+
   if (!product) return null;
 
   const isAlabaster = theme === 'alabaster';
   const isSaved = wishlist.includes(product.id);
 
+  const formatNotes = (val: unknown): string => {
+    if (!val) return '—';
+    if (Array.isArray(val)) return val.filter(Boolean).join(', ') || '—';
+    if (typeof val === 'string') return val.trim() || '—';
+    return '—';
+  };
+
+  const activeDisplayPrice = selectedVolumeOption?.price && selectedVolumeOption.price > 0
+    ? selectedVolumeOption.price
+    : product.price;
+
+  const activeDisplayComparePrice = selectedVolumeOption?.compareAtPrice
+    ? selectedVolumeOption.compareAtPrice
+    : product.compareAtPrice;
+
   const formattedPrice = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(product.price);
+  }).format(activeDisplayPrice);
 
-  const formattedComparePrice = product.compareAtPrice
+  const formattedComparePrice = activeDisplayComparePrice
     ? new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
         maximumFractionDigits: 0,
-      }).format(product.compareAtPrice)
+      }).format(activeDisplayComparePrice)
     : null;
 
   const productReviews = getProductReviews(product.id, product.name);
@@ -226,11 +272,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   const handleAddToBag = () => {
-    addToCart(product, selectedSize, selectedColor, quantity);
+    addToCart(product, selectedSize, selectedColor, quantity, activeDisplayPrice);
   };
 
   const handleBuyNow = () => {
-    addToCart(product, selectedSize, selectedColor, quantity);
+    addToCart(product, selectedSize, selectedColor, quantity, activeDisplayPrice);
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
     onClose();
@@ -263,10 +309,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       }
     }
   };
-
-  const relatedProducts = products.filter(
-    (p) => p.gender === product.gender && p.id !== product.id
-  ).slice(0, 4);
 
   const toggleAccordion = (key: 'materials' | 'fit' | 'shipping' | 'reviews') => {
     setOpenAccordion(openAccordion === key ? null : key);
@@ -530,33 +572,99 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </div>
                 </div>
 
-                {/* Size Selector & Size Guide Link */}
+                {/* Olfactory Notes Pyramid & Fragrance Specs (Perfumes Only) */}
+                {isPerfume && (
+                  <div className={`mb-6 p-4 rounded-2xl border space-y-3 ${
+                    isAlabaster ? 'bg-stone-50 border-stone-200 text-stone-900' : 'bg-white/[0.03] border-white/10 text-white'
+                  }`}>
+                    <div className="flex items-center justify-between border-b pb-2 border-white/10">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-amber-500 font-bold flex items-center space-x-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Olfactory Notes Pyramid</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-stone-400">
+                        {product.concentration || 'Pure Extrait'}
+                      </span>
+                    </div>
+
+                    {product.perfumeNotes && (
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase font-mono text-amber-500 block mb-1">🌿 Top</span>
+                          <span className="text-[11px] text-stone-400 leading-tight block">
+                            {formatNotes(product.perfumeNotes.top)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-mono text-rose-400 block mb-1">🌹 Heart</span>
+                          <span className="text-[11px] text-stone-400 leading-tight block">
+                            {formatNotes(product.perfumeNotes.heart)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-mono text-amber-400 block mb-1">🪵 Base</span>
+                          <span className="text-[11px] text-stone-300 font-medium leading-tight block">
+                            {formatNotes(product.perfumeNotes.base)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {(product.longevity || product.sillage) && (
+                      <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10px] font-mono text-stone-400">
+                        {product.longevity && <span>Longevity: <strong className="text-amber-400 font-normal">{product.longevity}</strong></span>}
+                        {product.sillage && <span>Sillage: <strong className="text-amber-400 font-normal">{product.sillage}</strong></span>}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Size / Flacon Volume Selector */}
                 <div className="mb-8">
                   <div className="pdp-size-header flex items-center justify-between text-xs tracking-[0.15em] uppercase text-stone-300 mb-2.5">
-                    <span>Size</span>
-                    <button
-                      onClick={() => setIsSizeGuideOpen(true)}
-                      className="pdp-size-guide-btn text-stone-400 hover:text-white flex items-center space-x-1 underline underline-offset-4 cursor-pointer"
-                    >
-                      <Ruler className="w-3.5 h-3.5" />
-                      <span>Size Guide</span>
-                    </button>
+                    <span>{isPerfume ? 'Flacon Volume (ML)' : 'Size'}</span>
+                    {!isPerfume ? (
+                      <button
+                        onClick={() => setIsSizeGuideOpen(true)}
+                        className="pdp-size-guide-btn text-stone-400 hover:text-white flex items-center space-x-1 underline underline-offset-4 cursor-pointer"
+                      >
+                        <Ruler className="w-3.5 h-3.5" />
+                        <span>Size Guide</span>
+                      </button>
+                    ) : (
+                      <span className="text-amber-500 font-mono text-[10px] font-semibold tracking-wider">
+                        100% Pure Non-Alcoholic
+                      </span>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
-                    {product.sizes.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => setSelectedSize(size)}
-                        className={`pdp-size-btn py-3 px-2 rounded-lg text-xs tracking-[0.1em] font-sans font-medium uppercase border transition-all cursor-pointer ${
-                          selectedSize === size
-                            ? 'pdp-size-active'
-                            : 'pdp-size-inactive'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                  <div className={`grid gap-2 ${(product.sizes || []).length <= 4 ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-4'}`}>
+                    {(Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes : (product.volumeMl || ['One Size'])).map((size) => {
+                      const isSelected = selectedSize === size;
+                      const volOpt = Array.isArray(product.volumeOptions)
+                        ? product.volumeOptions.find(v => v.ml === size || (Boolean(size) && String(size).startsWith(v.ml)))
+                        : undefined;
+                      const volPrice = volOpt?.price;
+
+                      return (
+                        <button
+                          key={size}
+                          onClick={() => setSelectedSize(size)}
+                          className={`pdp-size-btn py-2.5 px-2 rounded-xl text-xs tracking-[0.05em] font-mono uppercase border transition-all cursor-pointer flex flex-col items-center justify-center ${
+                            isSelected
+                              ? 'pdp-size-active'
+                              : 'pdp-size-inactive'
+                          }`}
+                        >
+                          <span className="font-semibold">{size}</span>
+                          {volPrice && volPrice > 0 && (
+                            <span className="text-[10px] font-normal opacity-80 mt-0.5">
+                              ₹{volPrice.toLocaleString('en-IN')}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1000,10 +1108,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
 
           {/* Related / Recommended Atelier Pieces */}
-          <div className="pdp-related-section mt-16 pt-12 border-t border-white/10">
-            <h3 className="pdp-related-heading text-xl sm:text-2xl font-serif text-white mb-6 tracking-[0.03em]">
-              COMPLETE THE SILHOUETTE
-            </h3>
+          {relatedProducts.length > 0 && (
+            <div className="pdp-related-section mt-16 pt-12 border-t border-white/10">
+              <h3 className="pdp-related-heading text-xl sm:text-2xl font-serif text-white mb-6 tracking-[0.03em]">
+                {isPerfume ? 'HARMONIOUS OLFACTORY CREATIONS' : 'COMPLETE THE SILHOUETTE'}
+              </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {relatedProducts.map((rel) => (
                 <div
@@ -1043,6 +1152,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               ))}
             </div>
           </div>
+          )}
         </div>
       </div>
 

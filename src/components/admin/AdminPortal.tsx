@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
-import type { Product, ProductColor } from '../../types/product';
+import type { Product, ProductColor, PerfumeVolumeOption } from '../../types/product';
 import type { CategoryItem } from '../../data/categories';
+import { HAUTE_PERFUMES_PRESETS } from '../../data/products';
 import {
   Lock,
   Unlock,
@@ -46,6 +47,7 @@ import {
   CheckCircle2,
   Info,
   Loader2,
+  Droplets,
 } from 'lucide-react';
 import {
   isSupabaseConfigured,
@@ -90,12 +92,17 @@ const LUXURY_COLOR_PRESETS = [
 ];
 
 interface SizeCategoryDef {
-  id: 'all' | 'alpha' | 'suit' | 'waist' | 'special';
+  id: 'all' | 'alpha' | 'suit' | 'waist' | 'special' | 'perfume';
   label: string;
   sizes: string[];
 }
 
 const SIZE_CATEGORIES: SizeCategoryDef[] = [
+  {
+    id: 'perfume',
+    label: 'Flacon Volume (ML)',
+    sizes: ['6ml (Attar)', '12ml (1 Tola)', '30ml', '50ml (Extrait)', '100ml (Grand Flacon)', '200ml'],
+  },
   {
     id: 'alpha',
     label: 'Standard (XS - 5XL)',
@@ -119,6 +126,7 @@ const SIZE_CATEGORIES: SizeCategoryDef[] = [
 ];
 
 const STANDARD_SIZES = [
+  '6ml (Attar)', '12ml (1 Tola)', '30ml', '50ml (Extrait)', '100ml (Grand Flacon)', '200ml',
   'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL', '5XL',
   '44 (XS)', '46 (S)', '48 (M)', '50 (L)', '52 (XL)', '54 (XXL)', '56 (XXXL)', '58 (XXXXL)',
   '26', '28', '30', '32', '34', '36', '38', '40', '42', '44',
@@ -132,6 +140,7 @@ export const AdminPortal: React.FC = () => {
     isProductsLoading,
     womenCategories,
     menCategories,
+    perfumeCategories,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -273,7 +282,7 @@ export const AdminPortal: React.FC = () => {
   }, [rememberDevice]);
 
   // Active Management Tab
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'reviews' | 'pricing' | 'backup' | 'shipping'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'perfumes' | 'orders' | 'reviews' | 'pricing' | 'backup' | 'shipping'>('products');
 
   // Orders State & Handlers
   const [orders, setOrders] = useState<any[]>(() => {
@@ -619,6 +628,16 @@ export const AdminPortal: React.FC = () => {
     fit: string;
     season: string;
     returnDays?: number;
+    // Haute Parfumerie extensions
+    isPerfume: boolean;
+    perfumeFamily: string;
+    concentration: string;
+    longevity: string;
+    sillage: string;
+    topNotes: string;
+    heartNotes: string;
+    baseNotes: string;
+    volumeOptions: PerfumeVolumeOption[];
   }>({
     name: '',
     slug: '',
@@ -641,11 +660,20 @@ export const AdminPortal: React.FC = () => {
     fit: 'Tailored Silhouette',
     season: 'Autumn / Winter 2026',
     returnDays: undefined,
+    isPerfume: false,
+    perfumeFamily: 'Royal Oud & Oriental',
+    concentration: 'Pure Concentrated Attar & Extrait (100% Pure Oil)',
+    longevity: '24+ Hours · Eternal',
+    sillage: 'Majestic & Enveloping',
+    topNotes: '',
+    heartNotes: '',
+    baseNotes: '',
+    volumeOptions: [],
   });
 
   // Size Management in Product Drawer
   const [customSizeInput, setCustomSizeInput] = useState('');
-  const [sizeCategoryTab, setSizeCategoryTab] = useState<'all' | 'alpha' | 'suit' | 'waist' | 'special' | 'custom'>('all');
+  const [sizeCategoryTab, setSizeCategoryTab] = useState<'all' | 'alpha' | 'suit' | 'waist' | 'special' | 'perfume' | 'custom'>('all');
   const [customSizesList, setCustomSizesList] = useState<string[]>(['XXXL', 'XXXXL', '5XL', 'Custom Fit']);
 
   // Product Image input URL temporary
@@ -838,7 +866,7 @@ export const AdminPortal: React.FC = () => {
     type: 'product' | 'category' | 'erase_all';
     id: string;
     name: string;
-    gender?: 'men' | 'women';
+    gender?: 'men' | 'women' | 'perfumes';
   } | null>(null);
 
   const [isSavingProduct, setIsSavingProduct] = useState(false);
@@ -928,8 +956,8 @@ export const AdminPortal: React.FC = () => {
 
   // All Categories Combined
   const allCategories = useMemo(() => {
-    return [...womenCategories, ...menCategories];
-  }, [womenCategories, menCategories]);
+    return [...womenCategories, ...menCategories, ...perfumeCategories];
+  }, [womenCategories, menCategories, perfumeCategories]);
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
@@ -977,6 +1005,100 @@ export const AdminPortal: React.FC = () => {
     };
   }, [products, allCategories]);
 
+  // Perfume Filtering & Live State
+  const [perfumeSearch, setPerfumeSearch] = useState('');
+  const [perfumeFamilyFilter, setPerfumeFamilyFilter] = useState('all');
+
+  const perfumeProducts = useMemo(() => {
+    return products.filter(p => p.isPerfume || p.category === 'perfumes');
+  }, [products]);
+
+  const filteredPerfumeProducts = useMemo(() => {
+    return perfumeProducts.filter((p) => {
+      if (perfumeSearch) {
+        const q = perfumeSearch.toLowerCase();
+        const matchesName = p.name.toLowerCase().includes(q);
+        const matchesSku = p.sku.toLowerCase().includes(q);
+        const matchesFamily = p.perfumeFamily?.toLowerCase().includes(q);
+        const matchesNotes =
+          (Array.isArray(p.perfumeNotes?.top) && p.perfumeNotes.top.some(n => String(n).toLowerCase().includes(q))) ||
+          (Array.isArray(p.perfumeNotes?.heart) && p.perfumeNotes.heart.some(n => String(n).toLowerCase().includes(q))) ||
+          (Array.isArray(p.perfumeNotes?.base) && p.perfumeNotes.base.some(n => String(n).toLowerCase().includes(q)));
+        if (!matchesName && !matchesSku && !matchesFamily && !matchesNotes) return false;
+      }
+      if (perfumeFamilyFilter !== 'all' && p.perfumeFamily !== perfumeFamilyFilter) return false;
+      return true;
+    });
+  }, [perfumeProducts, perfumeSearch, perfumeFamilyFilter]);
+
+  const [isSeedingPerfumes, setIsSeedingPerfumes] = useState(false);
+
+  const handleSeedPerfumes = async () => {
+    setIsSeedingPerfumes(true);
+    try {
+      let count = 0;
+      for (const p of HAUTE_PERFUMES_PRESETS) {
+        if (!products.some(existing => existing.id === p.id || existing.slug === p.slug)) {
+          await addProduct(p);
+          count++;
+        }
+      }
+      showToast(`Royal Haute Parfumerie collection seeded successfully (${count} pieces added)!`);
+    } catch (err: any) {
+      console.error('Failed to seed perfumes', err);
+      showToast(`Seeding notice: ${err.message || 'Error occurred'}`);
+    } finally {
+      setIsSeedingPerfumes(false);
+    }
+  };
+
+  const handleOpenCreatePerfume = () => {
+    setEditingProduct(null);
+    setProductForm({
+      name: '',
+      slug: '',
+      gender: 'men',
+      category: 'perfumes',
+      description: '',
+      price: 4500,
+      compareAtPrice: 5500,
+      images: ['https://images.unsplash.com/photo-1547887537-6158d64c35b3?q=80&w=1200&auto=format&fit=crop'],
+      colors: [{ name: 'Crystal Gold Flacon', hex: '#d4af37', images: [] }],
+      sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
+      stock: 15,
+      sku: `AT-PARF-${Date.now().toString().slice(-4)}`,
+      rating: 5.0,
+      reviews: 1,
+      featured: true,
+      newArrival: true,
+      bestSeller: false,
+      materials: 'Pure Aged Agarwood, Ambergris, Mysore Sandalwood',
+      fit: 'Concentrated Elixir · Apply to pulse points',
+      season: 'HAUTE PARFUMERIE',
+      returnDays: 0,
+      isPerfume: true,
+      perfumeFamily: 'Royal Oud & Oriental',
+      concentration: 'Pure Concentrated Attar & Extrait (100% Pure Oil)',
+      longevity: '24+ Hours · Eternal',
+      sillage: 'Majestic & Enveloping',
+      topNotes: 'Wild Bergamot, Saffron, Pink Pepper',
+      heartNotes: 'Smoky Cedar, Frankincense',
+      baseNotes: 'Aged Dehn Al Oud, Ambergris, Sandalwood',
+      volumeOptions: [
+        { ml: '6ml (Attar)', price: 4500, compareAtPrice: 5500, inStock: true },
+        { ml: '12ml (1 Tola)', price: 8500, compareAtPrice: 10500, inStock: true },
+        { ml: '50ml (Extrait)', price: 18500, compareAtPrice: 22000, inStock: true },
+        { ml: '100ml (Grand Flacon)', price: 29000, compareAtPrice: 35000, inStock: true },
+      ],
+    });
+    setCustomSizeInput('');
+    setSizeCategoryTab('perfume');
+    setNewImageUrl('');
+    setActiveColorImageIndex(null);
+    setNewColorImageUrl('');
+    setIsProductModalOpen(true);
+  };
+
   // Open Create Product Modal
   const handleOpenCreateProduct = () => {
     setEditingProduct(null);
@@ -1004,6 +1126,15 @@ export const AdminPortal: React.FC = () => {
       fit: 'Relaxed Architectural Silhouette',
       season: 'Autumn / Winter 2026',
       returnDays: undefined,
+      isPerfume: false,
+      perfumeFamily: 'Royal Oud & Oriental',
+      concentration: 'Extrait de Parfum',
+      longevity: '18+ Hours · Eternal',
+      sillage: 'Majestic & Enveloping',
+      topNotes: '',
+      heartNotes: '',
+      baseNotes: '',
+      volumeOptions: [],
     });
     setCustomSizeInput('');
     setSizeCategoryTab('all');
@@ -1016,6 +1147,7 @@ export const AdminPortal: React.FC = () => {
   // Open Edit Product Modal
   const handleOpenEditProduct = (p: Product) => {
     setEditingProduct(p);
+    const isPerf = Boolean(p.isPerfume || p.category === 'perfumes');
     setProductForm({
       id: p.id,
       name: p.name,
@@ -1044,11 +1176,22 @@ export const AdminPortal: React.FC = () => {
       fit: p.fit || '',
       season: p.season || 'Autumn / Winter 2026',
       returnDays: p.returnDays,
+      isPerfume: isPerf,
+      perfumeFamily: p.perfumeFamily || 'Royal Oud & Oriental',
+      concentration: p.concentration || 'Extrait de Parfum',
+      longevity: p.longevity || '18+ Hours · Eternal',
+      sillage: p.sillage || 'Majestic & Enveloping',
+      topNotes: Array.isArray(p.perfumeNotes?.top) ? p.perfumeNotes.top.join(', ') : (typeof p.perfumeNotes?.top === 'string' ? p.perfumeNotes.top : ''),
+      heartNotes: Array.isArray(p.perfumeNotes?.heart) ? p.perfumeNotes.heart.join(', ') : (typeof p.perfumeNotes?.heart === 'string' ? p.perfumeNotes.heart : ''),
+      baseNotes: Array.isArray(p.perfumeNotes?.base) ? p.perfumeNotes.base.join(', ') : (typeof p.perfumeNotes?.base === 'string' ? p.perfumeNotes.base : ''),
+      volumeOptions: Array.isArray(p.volumeOptions) && p.volumeOptions.length > 0
+        ? [...p.volumeOptions]
+        : (Array.isArray(p.sizes) ? p.sizes : []).map(sz => ({ ml: sz, price: p.price, compareAtPrice: p.compareAtPrice, inStock: true })),
     });
     setCustomSizeInput('');
-    setSizeCategoryTab('all');
+    setSizeCategoryTab(isPerf ? 'perfume' : 'all');
     // Ensure any sizes on the product not in STANDARD_SIZES appear in customSizesList
-    const extra = p.sizes.filter(s => !STANDARD_SIZES.includes(s));
+    const extra = (Array.isArray(p.sizes) ? p.sizes : []).filter(s => !STANDARD_SIZES.includes(s));
     if (extra.length > 0) {
       setCustomSizesList(prev => Array.from(new Set([...prev, ...extra])));
     }
@@ -1089,6 +1232,23 @@ export const AdminPortal: React.FC = () => {
 
     const slug = productForm.slug.trim() || productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
+    const isPerfumeItem = Boolean(productForm.isPerfume || productForm.category === 'perfumes');
+    const topArr = productForm.topNotes ? productForm.topNotes.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const heartArr = productForm.heartNotes ? productForm.heartNotes.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const baseArr = productForm.baseNotes ? productForm.baseNotes.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    const validVolumeOptions: PerfumeVolumeOption[] = isPerfumeItem
+      ? productForm.sizes.map(sz => {
+          const existing = productForm.volumeOptions.find(vo => vo.ml === sz);
+          return {
+            ml: sz,
+            price: existing && existing.price > 0 ? Number(existing.price) : Number(productForm.price),
+            compareAtPrice: existing?.compareAtPrice ? Number(existing.compareAtPrice) : undefined,
+            inStock: existing?.inStock !== undefined ? existing.inStock : true,
+          };
+        })
+      : [];
+
     const productPayload: Product = {
       id: editingProduct ? editingProduct.id : `prod-${Date.now()}`,
       name: productForm.name.trim(),
@@ -1106,7 +1266,7 @@ export const AdminPortal: React.FC = () => {
             image: (c.images && c.images.length > 0) ? c.images[0] : c.image,
             images: (c.images && c.images.length > 0) ? c.images : (c.image ? [c.image] : []),
           }))
-        : [{ name: 'Standard', hex: '#111113', images: [] }],
+        : [{ name: isPerfumeItem ? 'Crystal Gold Flacon' : 'Standard', hex: isPerfumeItem ? '#d4af37' : '#111113', images: [] }],
       sizes: productForm.sizes.length > 0 ? productForm.sizes : ['One Size'],
       stock: Math.max(0, Number(productForm.stock)),
       sku: productForm.sku.trim() || `AT-${Date.now().toString().slice(-4)}`,
@@ -1119,6 +1279,18 @@ export const AdminPortal: React.FC = () => {
       fit: productForm.fit.trim(),
       season: productForm.season.trim(),
       returnDays: productForm.returnDays !== undefined && productForm.returnDays !== null ? Number(productForm.returnDays) : undefined,
+      isPerfume: isPerfumeItem,
+      perfumeFamily: isPerfumeItem ? productForm.perfumeFamily : undefined,
+      concentration: isPerfumeItem ? productForm.concentration : undefined,
+      longevity: isPerfumeItem ? productForm.longevity : undefined,
+      sillage: isPerfumeItem ? productForm.sillage : undefined,
+      perfumeNotes: isPerfumeItem && (topArr.length || heartArr.length || baseArr.length) ? {
+        top: topArr,
+        heart: heartArr,
+        base: baseArr,
+      } : undefined,
+      volumeOptions: isPerfumeItem && validVolumeOptions.length > 0 ? validVolumeOptions : undefined,
+      volumeMl: isPerfumeItem ? productForm.sizes : undefined,
     };
 
     setIsSavingProduct(true);
@@ -1138,16 +1310,19 @@ export const AdminPortal: React.FC = () => {
   };
 
   // Open Category Edit/Create
-  const handleOpenCreateCategory = (genderChoice: 'women' | 'men') => {
+  const handleOpenCreateCategory = (genderChoice: 'women' | 'men' | 'perfumes') => {
     setEditingCategory(null);
     setCategoryOriginalSlug('');
+    const defaultEyebrow = genderChoice === 'perfumes'
+      ? 'HAUTE PARFUMERIE · '
+      : `${genderChoice.toUpperCase()}'S WARDROBE · `;
     setCategoryForm({
       id: '',
       slug: '',
       name: '',
       shortName: '',
       gender: genderChoice,
-      eyebrow: `${genderChoice.toUpperCase()}'S WARDROBE · `,
+      eyebrow: defaultEyebrow,
       description: '',
       image: '',
       images: [],
@@ -1194,17 +1369,24 @@ export const AdminPortal: React.FC = () => {
     }
     const primaryCover = validImages[0] || (categoryForm.image && !categoryForm.image.includes('images.unsplash.com') ? categoryForm.image.trim() : '');
 
+    const defaultEyebrow = categoryForm.gender === 'perfumes'
+      ? `HAUTE PARFUMERIE · ${shortName.toUpperCase()}`
+      : `${categoryForm.gender.toUpperCase()}'S WARDROBE · ${shortName.toUpperCase()}`;
+    const defaultMeta = categoryForm.gender === 'perfumes'
+      ? `Explore luxury ${shortName} artisanal perfumes and pure attars from Zarb.`
+      : `Explore luxury ${shortName} collection from Zarb.`;
+
     const payload: CategoryItem = {
       ...categoryForm,
       id,
       slug,
       shortName,
       name: categoryForm.name.trim(),
-      eyebrow: categoryForm.eyebrow.trim() || `${categoryForm.gender.toUpperCase()}'S WARDROBE · ${shortName.toUpperCase()}`,
+      eyebrow: categoryForm.eyebrow.trim() || defaultEyebrow,
       description: categoryForm.description.trim(),
       image: primaryCover,
       images: validImages,
-      metaDescription: categoryForm.metaDescription.trim() || `Explore luxury ${shortName} collection from Zarb.`,
+      metaDescription: categoryForm.metaDescription.trim() || defaultMeta,
     };
 
     if (editingCategory) {
@@ -1839,6 +2021,19 @@ export const AdminPortal: React.FC = () => {
             <span>Categories & Silhouettes ({allCategories.length})</span>
           </button>
 
+          {/* Tab: Haute Parfumerie & Royal Attar */}
+          <button
+            onClick={() => setActiveTab('perfumes')}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-sans tracking-[0.15em] uppercase transition-all cursor-pointer ${
+              activeTab === 'perfumes'
+                ? (theme === 'alabaster' ? 'bg-[#121214] text-white shadow-md' : 'bg-white text-black font-semibold shadow-lg')
+                : (theme === 'alabaster' ? 'text-stone-600 hover:text-black hover:bg-stone-100' : 'text-stone-400 hover:text-white hover:bg-white/5')
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>Haute Parfumerie ({perfumeProducts.length})</span>
+          </button>
+
           {/* Tab 3: Client Orders */}
           <button
             onClick={() => setActiveTab('orders')}
@@ -2439,6 +2634,733 @@ export const AdminPortal: React.FC = () => {
                 })}
               </div>
             </div>
+
+            {/* Haute Parfumerie & Royal Attar Categories */}
+            <div className="space-y-4 pt-6 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-xl font-serif">Haute Parfumerie & Royal Attar Categories</h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold">
+                      {perfumeCategories.length} Families
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-400">Sacred distillations, olfactory classifications, and pure attar notes pyramids.</p>
+                </div>
+                <button
+                  onClick={() => handleOpenCreateCategory('perfumes')}
+                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase cursor-pointer transition-transform active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Fragrance Category</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {perfumeCategories.map((cat) => {
+                  const itemCount = products.filter(p => (p.isPerfume || p.category === 'perfumes') && (p.perfumeFamily === cat.name || p.category === cat.slug)).length;
+                  const catSlides = (cat.images && cat.images.length > 0) ? cat.images : (cat.image ? [cat.image] : []);
+                  return (
+                    <div
+                      key={cat.slug}
+                      className={`rounded-2xl border p-4 flex flex-col justify-between space-y-4 transition-all ${
+                        theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3.5">
+                        {cat.image ? (
+                          <img
+                            src={cat.image}
+                            alt={cat.name}
+                            className="w-16 h-20 object-cover rounded-xl bg-stone-900 border border-white/10 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-20 rounded-xl bg-stone-900/80 border border-white/10 flex flex-col items-center justify-center text-stone-500 shrink-0 p-1">
+                            <Droplets className="w-4 h-4 text-amber-500/60 mb-1" />
+                            <span className="text-[8px] font-mono uppercase text-center leading-tight">Attar Vault</span>
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
+                            /{cat.slug}
+                          </span>
+                          <h3 className="font-serif text-base font-normal truncate mt-0.5">
+                            {cat.name}
+                          </h3>
+                          <span className="text-[10px] text-stone-400 block mb-1">
+                            Pill Label: <strong className="text-stone-300">{cat.shortName}</strong>
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                              {itemCount} {itemCount === 1 ? 'Creation' : 'Creations'}
+                            </span>
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+                              catSlides.length > 1
+                                ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                                : 'bg-white/5 border-white/10 text-stone-400'
+                            }`}>
+                              {catSlides.length} {catSlides.length === 1 ? 'Card Slide' : 'Card Slides'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mini Preview of Slides if Multiple */}
+                      {catSlides.length > 1 && (
+                        <div className="flex items-center space-x-1.5 overflow-x-auto py-1 px-2 rounded-xl bg-black/30 border border-white/5 scrollbar-none">
+                          <span className="text-[9px] font-mono uppercase text-stone-500 shrink-0 pr-1">Slides:</span>
+                          {catSlides.map((sImg, sIdx) => (
+                            <img
+                              key={sIdx}
+                              src={sImg}
+                              alt={`Slide ${sIdx + 1}`}
+                              className="w-6 h-8 object-cover rounded border border-white/20 shrink-0"
+                              title={`Slide #${sIdx + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-stone-400 font-light line-clamp-2 leading-relaxed">
+                        {cat.description || 'Artisanal sacred distillation from the Royal Vault.'}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                        <button
+                          onClick={() => navigate('/haute-parfumerie')}
+                          className="text-[11px] text-stone-400 hover:text-white flex items-center space-x-1"
+                        >
+                          <span>View Vault</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={() => handleOpenEditCategory(cat)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              theme === 'alabaster' ? 'hover:bg-stone-200 text-stone-700 border-stone-300' : 'hover:bg-white/10 text-stone-300 border-white/10'
+                            }`}
+                            title="Edit Fragrance Category"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmTarget({
+                              type: 'category',
+                              id: cat.slug,
+                              name: cat.name,
+                              gender: 'perfumes',
+                            })}
+                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer"
+                            title="Delete Fragrance Category"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: HAUTE PARFUMERIE & ROYAL ATTAR                                 */}
+        {/* =================================================================== */}
+        {activeTab === 'perfumes' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Parfumerie Atelier Banner & Actions */}
+            <div className={`p-6 rounded-3xl border relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 ${
+              theme === 'alabaster'
+                ? 'bg-gradient-to-br from-amber-50/80 via-white to-stone-50 border-amber-200/80 shadow-sm'
+                : 'bg-gradient-to-br from-amber-950/20 via-[#121216] to-black border-amber-500/20 shadow-2xl'
+            }`}>
+              <div className="relative z-10 space-y-2">
+                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 text-[10px] font-mono uppercase tracking-[0.25em]">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Royal Atelier Olfactory Control</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-serif tracking-tight">
+                  Haute Parfumerie & Royal Attar
+                </h2>
+                <p className={`text-xs sm:text-sm max-w-xl font-light leading-relaxed ${
+                  theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                }`}>
+                  Control the royal fragrance vault: configure multi-volume ML pricing (6ml, 12ml, 50ml, 100ml), olfactory notes pyramids (Top, Heart, Base), concentration, longevity, and sillage.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+                <button
+                  type="button"
+                  onClick={handleOpenCreatePerfume}
+                  className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-lg shadow-amber-500/20 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Add New Fragrance</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenCreateCategory('perfumes')}
+                  className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${
+                    theme === 'alabaster'
+                      ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900 shadow-sm'
+                      : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300'
+                  }`}
+                  title="Add or configure a new Olfactory Family or Fragrance Category"
+                >
+                  <Layers className="w-4 h-4 text-amber-400" />
+                  <span>+ Add Fragrance Category</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSeedPerfumes}
+                  disabled={isSeedingPerfumes}
+                  className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-mono uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 ${
+                    theme === 'alabaster'
+                      ? 'bg-stone-100 hover:bg-stone-200 border-stone-300 text-stone-800'
+                      : 'bg-white/5 hover:bg-white/10 border-white/15 text-stone-200 hover:text-white'
+                  }`}
+                  title="Seed pre-formulated royal fragrances (Kalakassi Oud, Taif Rose, Midnight Ambergris, etc.)"
+                >
+                  <Sparkles className={`w-4 h-4 text-amber-400 ${isSeedingPerfumes ? 'animate-spin' : ''}`} />
+                  <span>{isSeedingPerfumes ? 'Seeding Vault...' : 'Seed Collection'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/haute-parfumerie')}
+                  className={`flex items-center space-x-2 px-3.5 py-2.5 rounded-xl border text-xs tracking-wider uppercase transition-colors cursor-pointer ${
+                    theme === 'alabaster'
+                      ? 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                      : 'bg-black/40 border-white/10 text-stone-300 hover:text-white'
+                  }`}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Storefront View</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Fragrance Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+              <div className={`p-4 rounded-2xl border transition-all ${
+                theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+              }`}>
+                <span className="text-[10px] font-mono tracking-widest uppercase text-stone-400 block mb-1">
+                  Vault Collection
+                </span>
+                <div className="text-2xl font-serif text-amber-400">
+                  {perfumeProducts.length}
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1 block">
+                  Active Royal Fragrances
+                </span>
+              </div>
+
+              <div className={`p-4 rounded-2xl border transition-all ${
+                theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+              }`}>
+                <span className="text-[10px] font-mono tracking-widest uppercase text-stone-400 block mb-1">
+                  In Stock Vault
+                </span>
+                <div className="text-2xl font-serif text-emerald-400">
+                  {perfumeProducts.filter(p => p.stock > 0).length}
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1 block">
+                  Available for Immediate Dispatch
+                </span>
+              </div>
+
+              <div className={`p-4 rounded-2xl border transition-all ${
+                theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+              }`}>
+                <span className="text-[10px] font-mono tracking-widest uppercase text-stone-400 block mb-1">
+                  Pure Concentrates
+                </span>
+                <div className="text-2xl font-serif text-amber-500">
+                  {perfumeProducts.filter(p => p.concentration?.toLowerCase().includes('attar') || p.category === 'perfumes').length}
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1 block">
+                  100% Oil & Extrait Formulations
+                </span>
+              </div>
+
+              <div className={`p-4 rounded-2xl border transition-all ${
+                theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+              }`}>
+                <span className="text-[10px] font-mono tracking-widest uppercase text-stone-400 block mb-1">
+                  Flacon Sizes Configured
+                </span>
+                <div className="text-2xl font-serif text-sky-400">
+                  {perfumeProducts.reduce((sum, p) => sum + (p.volumeOptions?.length || p.sizes?.length || 0), 0)}
+                </div>
+                <span className="text-[10px] text-stone-400 mt-1 block">
+                  Active Multi-ML Price Tiers
+                </span>
+              </div>
+            </div>
+
+            {/* Fragrance Categories & Olfactory Families Manager */}
+            <div className={`p-5 sm:p-6 rounded-3xl border transition-all ${
+              theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/5">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-lg font-serif">Fragrance Categories & Olfactory Families</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold">
+                      {perfumeCategories.length} Active Families
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Configure olfactory classifications, notes profiles, and storefront fragrance showcases.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateCategory('perfumes')}
+                    className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase cursor-pointer transition-transform active:scale-95 shadow-md shadow-amber-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>New Fragrance Category</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid of Fragrance Categories */}
+              {perfumeCategories.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                  {perfumeCategories.map((cat) => {
+                    const itemCount = perfumeProducts.filter(p => p.perfumeFamily === cat.name || p.category === cat.slug).length;
+                    const catSlides = (cat.images && cat.images.length > 0) ? cat.images : (cat.image ? [cat.image] : []);
+                    const isFilteringThis = perfumeFamilyFilter === cat.name;
+
+                    return (
+                      <div
+                        key={cat.slug}
+                        className={`rounded-2xl border p-4 flex flex-col justify-between space-y-3.5 transition-all ${
+                          isFilteringThis
+                            ? 'border-amber-500/60 ring-1 ring-amber-500/30 shadow-md'
+                            : theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-black/30 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <div className="flex items-start space-x-3.5">
+                          {cat.image ? (
+                            <img
+                              src={cat.image}
+                              alt={cat.name}
+                              className="w-16 h-20 object-cover rounded-xl bg-stone-900 border border-white/10 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-16 h-20 rounded-xl bg-stone-900/80 border border-white/10 flex flex-col items-center justify-center text-stone-500 shrink-0 p-1">
+                              <Droplets className="w-4 h-4 text-amber-500/60 mb-1" />
+                              <span className="text-[8px] font-mono uppercase text-center leading-tight">Attar Vault</span>
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
+                              /{cat.slug}
+                            </span>
+                            <h4 className="font-serif text-base font-normal truncate mt-0.5" title={cat.name}>
+                              {cat.name}
+                            </h4>
+                            <span className="text-[10px] text-stone-400 block mb-1">
+                              Pill: <strong className="text-stone-300">{cat.shortName}</strong>
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                                {itemCount} {itemCount === 1 ? 'Fragrance' : 'Fragrances'}
+                              </span>
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+                                catSlides.length > 1
+                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                                  : 'bg-white/5 border-white/10 text-stone-400'
+                              }`}>
+                                {catSlides.length} {catSlides.length === 1 ? 'Slide' : 'Slides'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Slide thumbnails */}
+                        {catSlides.length > 1 && (
+                          <div className="flex items-center space-x-1.5 overflow-x-auto py-1 px-2 rounded-xl bg-black/40 border border-white/5 scrollbar-none">
+                            <span className="text-[9px] font-mono uppercase text-stone-500 shrink-0 pr-1">Slides:</span>
+                            {catSlides.map((sImg, sIdx) => (
+                              <img
+                                key={sIdx}
+                                src={sImg}
+                                alt={`Slide ${sIdx + 1}`}
+                                className="w-6 h-8 object-cover rounded border border-white/20 shrink-0"
+                                title={`Slide #${sIdx + 1}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="text-xs text-stone-400 font-light line-clamp-2 leading-relaxed">
+                          {cat.description || 'Artisanal sacred distillation from the Royal Vault.'}
+                        </p>
+
+                        <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isFilteringThis) {
+                                setPerfumeFamilyFilter('all');
+                              } else {
+                                setPerfumeFamilyFilter(cat.name);
+                              }
+                            }}
+                            className={`text-[11px] flex items-center space-x-1 font-mono uppercase transition-colors cursor-pointer ${
+                              isFilteringThis ? 'text-amber-400 font-bold' : 'text-stone-400 hover:text-white'
+                            }`}
+                          >
+                            <span>{isFilteringThis ? '✓ Active Filter' : 'Filter Vault'}</span>
+                          </button>
+
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditCategory(cat)}
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                theme === 'alabaster' ? 'hover:bg-stone-200 text-stone-700 border-stone-300' : 'hover:bg-white/10 text-stone-300 border-white/10'
+                              }`}
+                              title="Edit Fragrance Category"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmTarget({
+                                type: 'category',
+                                id: cat.slug,
+                                name: cat.name,
+                                gender: 'perfumes',
+                              })}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors"
+                              title="Remove Fragrance Category"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 text-center border border-dashed border-white/10 rounded-2xl my-3">
+                  <Droplets className="w-8 h-8 text-amber-500/40 mx-auto mb-2" />
+                  <p className="text-sm font-serif text-stone-300">No Fragrance Categories Configured</p>
+                  <p className="text-xs text-stone-500 mt-1">Create your first olfactory family or attar category to organize creations.</p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateCategory('perfumes')}
+                    className="mt-3 px-3.5 py-1.5 rounded-xl bg-amber-500 text-black text-xs font-semibold uppercase tracking-wider inline-flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Fragrance Category</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 ${
+              theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#121216] border-white/10'
+            }`}>
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input
+                  type="text"
+                  value={perfumeSearch}
+                  onChange={(e) => setPerfumeSearch(e.target.value)}
+                  placeholder="Search perfumes by name, notes (Oud, Rose, Saffron), SKU, or family..."
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-xs tracking-wider focus:outline-none border ${
+                    theme === 'alabaster'
+                      ? 'bg-stone-100 border-stone-300 text-stone-900 placeholder:text-stone-400'
+                      : 'bg-black/50 border-white/10 text-white placeholder:text-stone-500'
+                  }`}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={perfumeFamilyFilter}
+                  onChange={(e) => setPerfumeFamilyFilter(e.target.value)}
+                  className={`px-3.5 py-2.5 rounded-xl text-xs tracking-wider uppercase border focus:outline-none cursor-pointer ${
+                    theme === 'alabaster' ? 'bg-stone-100 border-stone-300 text-stone-800' : 'bg-black/50 border-white/10 text-stone-200'
+                  }`}
+                >
+                  <option value="all">All Olfactory Families ({perfumeProducts.length})</option>
+                  {perfumeCategories.map((fc) => {
+                    const count = perfumeProducts.filter(p => p.perfumeFamily === fc.name || p.category === fc.slug).length;
+                    return (
+                      <option key={fc.slug} value={fc.name}>
+                        {fc.name} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {(perfumeSearch || perfumeFamilyFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setPerfumeSearch('');
+                      setPerfumeFamilyFilter('all');
+                    }}
+                    className="px-3 py-2 rounded-xl text-xs font-mono uppercase tracking-wider text-amber-500 hover:text-amber-400"
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Fragrances Showcase Grid */}
+            {filteredPerfumeProducts.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {filteredPerfumeProducts.map((p) => {
+                  const isOut = p.stock <= 0;
+                  const isLow = p.stock <= 3 && p.stock > 0;
+                  const volOptions = p.volumeOptions && p.volumeOptions.length > 0
+                    ? p.volumeOptions
+                    : (p.sizes || []).map(sz => ({ ml: sz, price: p.price, compareAtPrice: p.compareAtPrice, inStock: true }));
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={`rounded-3xl border p-5 flex flex-col justify-between space-y-4 transition-all hover:border-amber-500/40 ${
+                        theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+                      }`}
+                    >
+                      {/* Top: Flacon Photo & Metadata */}
+                      <div className="flex items-start space-x-4">
+                        <div className="relative shrink-0 w-24 h-32 rounded-2xl overflow-hidden bg-stone-900 border border-white/10 shadow-md">
+                          <img
+                            src={p.images[0] || 'https://images.unsplash.com/photo-1547887537-6158d64c35b3?q=80&w=300'}
+                            alt={p.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-1.5 left-1.5">
+                            <span className="px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-md text-[9px] font-mono text-amber-300 font-bold border border-amber-500/30">
+                              {p.stock} pcs
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[9px] font-mono uppercase tracking-widest font-semibold">
+                              {p.perfumeFamily || 'Haute Parfumerie'}
+                            </span>
+                            <span className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded-full border ${
+                              isOut
+                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                : isLow
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              {isOut ? 'Sold Out' : isLow ? 'Low Stock' : 'In Stock'}
+                            </span>
+                          </div>
+
+                          <h3 className="text-base sm:text-lg font-serif tracking-tight truncate" title={p.name}>
+                            {p.name}
+                          </h3>
+
+                          <div className="flex items-center space-x-3 text-[11px] font-mono text-stone-400">
+                            <span>SKU: {p.sku}</span>
+                            <span>·</span>
+                            <span className="text-amber-400 font-semibold">{formatINR(p.price)}</span>
+                            {p.compareAtPrice && (
+                              <span className="line-through text-stone-500">{formatINR(p.compareAtPrice)}</span>
+                            )}
+                          </div>
+
+                          <p className={`text-xs line-clamp-2 leading-relaxed ${
+                            theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'
+                          }`}>
+                            {p.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Olfactory Notes Badges */}
+                      {p.perfumeNotes && (
+                        <div className={`p-3 rounded-2xl border space-y-1.5 text-xs ${
+                          theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-black/30 border-white/5'
+                        }`}>
+                          {Array.isArray(p.perfumeNotes.top) && p.perfumeNotes.top.length > 0 && (
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-500 shrink-0 w-12">Top:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {p.perfumeNotes.top.map((n, i) => (
+                                  <span key={i} className={`px-2 py-0.5 rounded text-[10px] ${
+                                    theme === 'alabaster' ? 'bg-white text-stone-800 border border-stone-200' : 'bg-white/5 text-stone-300'
+                                  }`}>{n}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {Array.isArray(p.perfumeNotes.heart) && p.perfumeNotes.heart.length > 0 && (
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] font-mono uppercase tracking-wider text-rose-400 shrink-0 w-12">Heart:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {p.perfumeNotes.heart.map((n, i) => (
+                                  <span key={i} className={`px-2 py-0.5 rounded text-[10px] ${
+                                    theme === 'alabaster' ? 'bg-white text-stone-800 border border-stone-200' : 'bg-white/5 text-stone-300'
+                                  }`}>{n}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {Array.isArray(p.perfumeNotes.base) && p.perfumeNotes.base.length > 0 && (
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-600 shrink-0 w-12">Base:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {p.perfumeNotes.base.map((n, i) => (
+                                  <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                    theme === 'alabaster' ? 'bg-amber-100 text-amber-900' : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                  }`}>{n}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Configured Flacon ML Volume Prices List */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-mono tracking-wider uppercase text-stone-400 block">
+                          Configured Flacon ML Options ({volOptions.length}):
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {volOptions.map((v, vIdx) => (
+                            <div
+                              key={vIdx}
+                              className={`px-2.5 py-1 rounded-xl border text-[11px] font-mono flex items-center space-x-1.5 ${
+                                theme === 'alabaster'
+                                  ? 'bg-white border-stone-200 text-stone-800 shadow-sm'
+                                  : 'bg-white/5 border-white/10 text-stone-300'
+                              }`}
+                            >
+                              <Droplets className="w-3 h-3 text-amber-400 shrink-0" />
+                              <span className="font-semibold">{v.ml}</span>
+                              <span className="text-amber-500 font-bold">{formatINR(v.price)}</span>
+                              {v.compareAtPrice && (
+                                <span className="line-through text-stone-500 text-[10px]">{formatINR(v.compareAtPrice)}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Longevity & Sillage specs */}
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-400 font-mono border-t border-white/5 pt-3">
+                        {p.concentration && (
+                          <span className="truncate max-w-[200px]" title={p.concentration}>
+                            ✨ {p.concentration}
+                          </span>
+                        )}
+                        {p.longevity && (
+                          <span>⏳ {p.longevity}</span>
+                        )}
+                        {p.sillage && (
+                          <span>💨 {p.sillage}</span>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => window.open(`/product/${p.slug}`, '_blank')}
+                            className="text-xs text-stone-400 hover:text-white flex items-center space-x-1 transition-colors cursor-pointer"
+                          >
+                            <span>Live Page</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateProduct(p)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer text-xs flex items-center space-x-1 ${
+                              theme === 'alabaster' ? 'hover:bg-stone-200 text-stone-700 border-stone-300' : 'hover:bg-white/10 text-stone-300 border-white/10'
+                            }`}
+                            title="Duplicate Fragrance"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span className="hidden sm:inline">Duplicate</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditProduct(p)}
+                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase transition-colors cursor-pointer shadow-md"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Formula & ML</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmTarget({
+                              type: 'product',
+                              id: p.id,
+                              name: p.name,
+                            })}
+                            className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors"
+                            title="Delete Fragrance"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className={`p-12 text-center rounded-3xl border space-y-4 ${
+                theme === 'alabaster' ? 'bg-white border-stone-200' : 'bg-[#121216] border-white/10'
+              }`}>
+                <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+                  <Sparkles className="w-8 h-8 stroke-[1.5]" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xl font-serif">No Fragrances Match Your Filter</h3>
+                  <p className="text-xs text-stone-400 max-w-md mx-auto">
+                    Try clearing your search or seed the store with the official Royal Haute Parfumerie collection.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSeedPerfumes}
+                    disabled={isSeedingPerfumes}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase shadow-md cursor-pointer disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    <Sparkles className={`w-4 h-4 ${isSeedingPerfumes ? 'animate-spin' : ''}`} />
+                    <span>{isSeedingPerfumes ? 'Seeding...' : 'Seed Royal Collection'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreatePerfume}
+                    className="px-4 py-2 rounded-xl border border-white/20 text-xs font-mono uppercase tracking-wider text-stone-300 hover:text-white cursor-pointer"
+                  >
+                    + Create First Piece
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3783,7 +4705,17 @@ export const AdminPortal: React.FC = () => {
                     </label>
                     <select
                       value={productForm.category}
-                      onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                      onChange={(e) => {
+                        const newCat = e.target.value;
+                        const isPerf = newCat === 'perfumes' || productForm.isPerfume;
+                        setProductForm(prev => ({
+                          ...prev,
+                          category: newCat,
+                          isPerfume: isPerf,
+                          sizes: isPerf && prev.sizes.length === 0 ? ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'] : prev.sizes,
+                        }));
+                        if (isPerf) setSizeCategoryTab('perfume');
+                      }}
                       className={`w-full px-3.5 py-2.5 rounded-xl text-xs uppercase border focus:outline-none cursor-pointer ${
                         theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                       }`}
@@ -3795,6 +4727,185 @@ export const AdminPortal: React.FC = () => {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                {/* Haute Parfumerie & Pure Attar Activation Toggle */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  (productForm.isPerfume || productForm.category === 'perfumes')
+                    ? (theme === 'alabaster' ? 'bg-amber-50/80 border-amber-300' : 'bg-amber-500/10 border-amber-500/30')
+                    : (theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-white/[0.02] border-white/10')
+                }`}>
+                  <label className="flex items-center justify-between cursor-pointer select-none">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                        (productForm.isPerfume || productForm.category === 'perfumes')
+                          ? 'bg-amber-500 text-black'
+                          : 'bg-white/10 text-stone-400'
+                      }`}>
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-semibold uppercase tracking-wider block">
+                          Haute Parfumerie & Pure Attar Formula
+                        </span>
+                        <span className={`text-[11px] ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                          Enable olfactory pyramid, pure oil concentration, and multi-volume ML pricing
+                        </span>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={productForm.isPerfume || productForm.category === 'perfumes'}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setProductForm(prev => ({
+                          ...prev,
+                          isPerfume: checked,
+                          category: checked ? 'perfumes' : (prev.category === 'perfumes' ? 'kurtis' : prev.category),
+                          sizes: checked && prev.sizes.length === 0 ? ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'] : prev.sizes,
+                        }));
+                        if (checked) setSizeCategoryTab('perfume');
+                      }}
+                      className="w-4 h-4 rounded text-amber-500 focus:ring-0 cursor-pointer"
+                    />
+                  </label>
+
+                  {/* Olfactory Formula Details when Active */}
+                  {(productForm.isPerfume || productForm.category === 'perfumes') && (
+                    <div className="mt-4 pt-4 border-t border-amber-500/20 space-y-4 animate-fade-in">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[10px] font-mono uppercase tracking-wider text-amber-500">
+                              Olfactory Family
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCreateCategory('perfumes')}
+                              className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 cursor-pointer font-mono"
+                              title="Create and configure a new olfactory category"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>+ New Category</span>
+                            </button>
+                          </div>
+                          <select
+                            value={productForm.perfumeFamily}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, perfumeFamily: e.target.value }))}
+                            className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                              theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                            }`}
+                          >
+                            {perfumeCategories.map((cat) => (
+                              <option key={cat.slug} value={cat.name}>{cat.name}</option>
+                            ))}
+                            {productForm.perfumeFamily && !perfumeCategories.some(c => c.name === productForm.perfumeFamily) && (
+                              <option value={productForm.perfumeFamily}>{productForm.perfumeFamily}</option>
+                            )}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-mono uppercase tracking-wider text-amber-500 mb-1">
+                            Concentration Grade
+                          </label>
+                          <input
+                            type="text"
+                            value={productForm.concentration}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, concentration: e.target.value }))}
+                            placeholder="e.g. Pure Concentrated Attar & Extrait (100% Pure Oil)"
+                            className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                              theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                            }`}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-mono uppercase tracking-wider text-amber-500 mb-1">
+                            Longevity Rating
+                          </label>
+                          <input
+                            type="text"
+                            value={productForm.longevity}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, longevity: e.target.value }))}
+                            placeholder="e.g. 24+ Hours · Eternal"
+                            className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                              theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                            }`}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-mono uppercase tracking-wider text-amber-500 mb-1">
+                            Sillage & Projection
+                          </label>
+                          <input
+                            type="text"
+                            value={productForm.sillage}
+                            onChange={(e) => setProductForm(prev => ({ ...prev, sillage: e.target.value }))}
+                            placeholder="e.g. Majestic & Enveloping"
+                            className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                              theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Olfactory Notes Pyramid Inputs */}
+                      <div className="space-y-2 pt-1">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-stone-400 block">
+                          Olfactory Pyramid Notes (Comma-separated)
+                        </span>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-mono text-amber-400 uppercase mb-1">
+                              Top Notes (First 15 mins)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.topNotes}
+                              onChange={(e) => setProductForm(prev => ({ ...prev, topNotes: e.target.value }))}
+                              placeholder="Wild Bergamot, Saffron..."
+                              className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                                theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                              }`}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-mono text-rose-400 uppercase mb-1">
+                              Heart Notes (1 to 4 hrs)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.heartNotes}
+                              onChange={(e) => setProductForm(prev => ({ ...prev, heartNotes: e.target.value }))}
+                              placeholder="Taif Rose, Frankincense..."
+                              className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                                theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                              }`}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-mono text-amber-600 uppercase mb-1">
+                              Base Notes (Drydown 24h)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.baseNotes}
+                              onChange={(e) => setProductForm(prev => ({ ...prev, baseNotes: e.target.value }))}
+                              placeholder="Kalakassi Oud, Sandalwood..."
+                              className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
+                                theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -4679,6 +5790,7 @@ export const AdminPortal: React.FC = () => {
                 <div className="flex flex-wrap gap-1 border-b border-white/10 pb-2">
                   {[
                     { id: 'all', label: 'All Sizing' },
+                    { id: 'perfume', label: 'Flacon Volume (ML)' },
                     { id: 'alpha', label: 'Standard (XS - 5XL)' },
                     { id: 'suit', label: 'European / Suit' },
                     { id: 'waist', label: 'Waist (26-44)' },
@@ -4738,6 +5850,145 @@ export const AdminPortal: React.FC = () => {
                     });
                   })()}
                 </div>
+
+                {/* Haute Parfumerie ML Individual Volume Pricing Manager */}
+                {(productForm.isPerfume || productForm.category === 'perfumes') && (
+                  <div className={`p-4 rounded-2xl border space-y-3.5 mt-4 ${
+                    theme === 'alabaster' ? 'bg-amber-50/60 border-amber-200' : 'bg-amber-500/[0.04] border-amber-500/25'
+                  }`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2 text-amber-500">
+                        <Droplets className="w-4 h-4" />
+                        <span className="text-xs font-semibold uppercase tracking-wider font-mono">
+                          Flacon ML Individual Volume Pricing Manager
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const attarSizes = ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'];
+                          const attarOptions: PerfumeVolumeOption[] = [
+                            { ml: '6ml (Attar)', price: 4500, compareAtPrice: 5500, inStock: true },
+                            { ml: '12ml (1 Tola)', price: 8500, compareAtPrice: 10500, inStock: true },
+                            { ml: '50ml (Extrait)', price: 18500, compareAtPrice: 22000, inStock: true },
+                            { ml: '100ml (Grand Flacon)', price: 29000, compareAtPrice: 35000, inStock: true },
+                          ];
+                          setProductForm(prev => ({
+                            ...prev,
+                            sizes: Array.from(new Set([...prev.sizes, ...attarSizes])),
+                            volumeOptions: attarOptions,
+                          }));
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[10px] uppercase font-mono bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 cursor-pointer transition-colors"
+                      >
+                        + Reset Attar ML Presets
+                      </button>
+                    </div>
+
+                    <p className={`text-[11px] leading-relaxed ${theme === 'alabaster' ? 'text-stone-600' : 'text-stone-400'}`}>
+                      Set distinct prices and inventory status for each flacon volume. When clients switch between 6ml, 12ml, 50ml, and 100ml on the storefront, the price automatically adjusts in real-time.
+                    </p>
+
+                    {productForm.sizes.length > 0 ? (
+                      <div className="space-y-2 pt-1">
+                        {productForm.sizes.map((sz) => {
+                          const existingVo = productForm.volumeOptions.find(v => v.ml === sz) || {
+                            ml: sz,
+                            price: productForm.price,
+                            compareAtPrice: productForm.compareAtPrice,
+                            inStock: true,
+                          };
+
+                          return (
+                            <div
+                              key={sz}
+                              className={`p-3 rounded-xl border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 ${
+                                theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-black/40 border-white/10'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2 min-w-[130px]">
+                                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                                <span className="font-mono text-xs font-semibold">{sz}</span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-3 flex-1 justify-end">
+                                <div className="flex items-center space-x-1.5">
+                                  <label className="text-[10px] font-mono text-stone-400 uppercase">Price (₹):</label>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={existingVo.price}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, Number(e.target.value) || 0);
+                                      setProductForm(prev => {
+                                        const other = prev.volumeOptions.filter(v => v.ml !== sz);
+                                        return {
+                                          ...prev,
+                                          volumeOptions: [...other, { ...existingVo, price: val }],
+                                        };
+                                      });
+                                    }}
+                                    className={`w-24 px-2 py-1 rounded-lg text-xs font-mono border focus:outline-none ${
+                                      theme === 'alabaster' ? 'bg-stone-50 border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                                    }`}
+                                  />
+                                </div>
+
+                                <div className="flex items-center space-x-1.5">
+                                  <label className="text-[10px] font-mono text-stone-400 uppercase">Compare (₹):</label>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={existingVo.compareAtPrice || ''}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const val = e.target.value ? Math.max(0, Number(e.target.value)) : undefined;
+                                      setProductForm(prev => {
+                                        const other = prev.volumeOptions.filter(v => v.ml !== sz);
+                                        return {
+                                          ...prev,
+                                          volumeOptions: [...other, { ...existingVo, compareAtPrice: val }],
+                                        };
+                                      });
+                                    }}
+                                    className={`w-20 px-2 py-1 rounded-lg text-xs font-mono border focus:outline-none ${
+                                      theme === 'alabaster' ? 'bg-stone-50 border-stone-300 text-black' : 'bg-black/60 border-white/15 text-white'
+                                    }`}
+                                  />
+                                </div>
+
+                                <label className="flex items-center space-x-1.5 text-xs font-mono cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={existingVo.inStock !== false}
+                                    onChange={(e) => {
+                                      const inStock = e.target.checked;
+                                      setProductForm(prev => {
+                                        const other = prev.volumeOptions.filter(v => v.ml !== sz);
+                                        return {
+                                          ...prev,
+                                          volumeOptions: [...other, { ...existingVo, inStock }],
+                                        };
+                                      });
+                                    }}
+                                    className="rounded border-white/20 text-amber-500 focus:ring-0"
+                                  />
+                                  <span className={existingVo.inStock !== false ? 'text-emerald-400' : 'text-stone-500'}>
+                                    {existingVo.inStock !== false ? 'In Stock' : 'Out'}
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-amber-500/80 italic">
+                        Select one or more volume sizes above to configure individual ML prices.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Editorial Copy */}
@@ -4882,10 +6133,14 @@ export const AdminPortal: React.FC = () => {
             }`}>
               <div>
                 <span className="text-[10px] font-mono tracking-[0.2em] text-amber-500 uppercase block">
-                  {editingCategory ? 'Update Category' : 'Create Category'}
+                  {editingCategory
+                    ? (editingCategory.gender === 'perfumes' ? 'Update Fragrance Category' : 'Update Category')
+                    : (categoryForm.gender === 'perfumes' ? 'Create Fragrance Category' : 'Create Category')}
                 </span>
                 <h2 className="text-lg font-serif">
-                  {editingCategory ? editingCategory.name : 'New Silhouette Category'}
+                  {editingCategory
+                    ? editingCategory.name
+                    : (categoryForm.gender === 'perfumes' ? 'New Olfactory Family / Fragrance Category' : 'New Silhouette Category')}
                 </h2>
               </div>
               <button
@@ -4898,16 +6153,59 @@ export const AdminPortal: React.FC = () => {
 
             <form onSubmit={handleSaveCategory} className="flex-1 flex flex-col min-h-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {/* Department / Category Type Selector */}
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5 font-medium">
+                    Department / Category Domain *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'women' as const, label: "Women's Wardrobe" },
+                      { id: 'men' as const, label: "Men's Wardrobe" },
+                      { id: 'perfumes' as const, label: "Haute Parfumerie" },
+                    ].map((dept) => {
+                      const isSel = categoryForm.gender === dept.id;
+                      return (
+                        <button
+                          key={dept.id}
+                          type="button"
+                          onClick={() => {
+                            const newEyebrow = dept.id === 'perfumes'
+                              ? 'HAUTE PARFUMERIE · '
+                              : `${dept.id.toUpperCase()}'S WARDROBE · `;
+                            setCategoryForm(prev => ({
+                              ...prev,
+                              gender: dept.id,
+                              eyebrow: (prev.eyebrow.startsWith("WOMEN'S") || prev.eyebrow.startsWith("MEN'S") || prev.eyebrow.startsWith("HAUTE"))
+                                ? newEyebrow
+                                : prev.eyebrow,
+                            }));
+                          }}
+                          className={`py-2 px-2 rounded-xl text-[11px] font-mono uppercase tracking-wider text-center border transition-all cursor-pointer ${
+                            isSel
+                              ? 'bg-amber-500 text-black font-bold border-amber-400 shadow-sm'
+                              : theme === 'alabaster'
+                              ? 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                              : 'bg-black/40 border-white/10 text-stone-400 hover:text-white'
+                          }`}
+                        >
+                          {dept.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5">
-                    Category Full Name *
+                    {categoryForm.gender === 'perfumes' ? 'Olfactory Family / Category Full Name *' : 'Category Full Name *'}
                   </label>
                 <input
                   type="text"
                   required
                   value={categoryForm.name}
                   onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                  placeholder="e.g. Kurtis & Tunics"
+                  placeholder={categoryForm.gender === 'perfumes' ? 'e.g. Royal Oud & Oriental' : 'e.g. Kurtis & Tunics'}
                   className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none ${
                     theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                   }`}
@@ -4924,7 +6222,7 @@ export const AdminPortal: React.FC = () => {
                     required
                     value={categoryForm.shortName}
                     onChange={(e) => setCategoryForm({ ...categoryForm, shortName: e.target.value })}
-                    placeholder="e.g. Kurtis"
+                    placeholder={categoryForm.gender === 'perfumes' ? 'e.g. Royal Oud' : 'e.g. Kurtis'}
                     className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none ${
                       theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                     }`}
@@ -4940,7 +6238,7 @@ export const AdminPortal: React.FC = () => {
                     required
                     value={categoryForm.slug}
                     onChange={(e) => setCategoryForm({ ...categoryForm, slug: e.target.value })}
-                    placeholder="e.g. kurtis"
+                    placeholder={categoryForm.gender === 'perfumes' ? 'e.g. royal-oud' : 'e.g. kurtis'}
                     className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono border focus:outline-none ${
                       theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                     }`}
@@ -5246,7 +6544,7 @@ export const AdminPortal: React.FC = () => {
                   type="text"
                   value={categoryForm.eyebrow}
                   onChange={(e) => setCategoryForm({ ...categoryForm, eyebrow: e.target.value })}
-                  placeholder="e.g. WOMEN'S WARDROBE · KURTIS"
+                  placeholder={categoryForm.gender === 'perfumes' ? "e.g. HAUTE PARFUMERIE · OUD & AMBER" : "e.g. WOMEN'S WARDROBE · KURTIS"}
                   className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none ${
                     theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                   }`}
@@ -5261,7 +6559,7 @@ export const AdminPortal: React.FC = () => {
                   rows={2}
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                  placeholder="Atmospheric summary of this silhouette..."
+                  placeholder={categoryForm.gender === 'perfumes' ? "Rare aged Cambodian and Kalakassi Dehn Al Oud, frankincense resins, and sacred oriental woods." : "Atmospheric summary of this silhouette..."}
                   className={`w-full p-3 rounded-xl text-xs border focus:outline-none ${
                     theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
                   }`}
@@ -5308,7 +6606,7 @@ export const AdminPortal: React.FC = () => {
             <h3 className="text-lg font-serif">
               {deleteConfirmTarget.type === 'erase_all'
                 ? 'Erase Entire Inventory & Database?'
-                : `Delete ${deleteConfirmTarget.type === 'product' ? 'Piece' : 'Category'}?`}
+                : `Delete ${deleteConfirmTarget.type === 'product' ? 'Piece' : (deleteConfirmTarget.gender === 'perfumes' ? 'Fragrance Category' : 'Category')}?`}
             </h3>
 
             <p className="text-xs text-stone-400 leading-relaxed">
@@ -5319,7 +6617,7 @@ export const AdminPortal: React.FC = () => {
               ) : (
                 <>
                   Are you sure you want to permanently delete <strong className="text-white font-medium">"{deleteConfirmTarget.name}"</strong>?
-                  {deleteConfirmTarget.type === 'category' && ' Any pieces currently in this category will remain, but the category page will no longer be navigable.'}
+                  {deleteConfirmTarget.type === 'category' && (deleteConfirmTarget.gender === 'perfumes' ? ' Any creations in this olfactory family will remain in the vault, but this category classification will be removed.' : ' Any pieces currently in this category will remain, but the category page will no longer be navigable.')}
                 </>
               )}
             </p>

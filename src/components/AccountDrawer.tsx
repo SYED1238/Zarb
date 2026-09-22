@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
@@ -55,6 +55,35 @@ export const AccountDrawer: React.FC = () => {
   // Jaw-dropping button interaction states
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isShockwaveActive, setIsShockwaveActive] = useState(false);
+
+  // Ensure authentication loading state is immediately cleared when returning or pressing back
+  useEffect(() => {
+    const handleResetAuthLoading = () => {
+      setIsSigningIn(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setIsSigningIn(false);
+      }
+    };
+
+    window.addEventListener('pageshow', handleResetAuthLoading);
+    window.addEventListener('focus', handleResetAuthLoading);
+    window.addEventListener('popstate', handleResetAuthLoading);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pageshow', handleResetAuthLoading);
+      window.removeEventListener('focus', handleResetAuthLoading);
+      window.removeEventListener('popstate', handleResetAuthLoading);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsSigningIn(false);
+  }, [isAccountDrawerOpen, user]);
 
   // Multi-Address Management State
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -302,10 +331,22 @@ export const AccountDrawer: React.FC = () => {
     // Micro-delay for ripple feedback before redirect
     await new Promise((resolve) => setTimeout(resolve, 80));
 
-    const res = await signInWithGoogle();
-    if (res.error) {
+    // Fallback safety timeout if user cancels or presses back
+    const timer = setTimeout(() => {
       setIsSigningIn(false);
-      showToast(res.error);
+    }, 6000);
+
+    try {
+      const res = await signInWithGoogle();
+      if (res.error) {
+        clearTimeout(timer);
+        setIsSigningIn(false);
+        showToast(res.error);
+      }
+    } catch (err: any) {
+      clearTimeout(timer);
+      setIsSigningIn(false);
+      showToast(err?.message || 'Authentication error.');
     }
   };
 
@@ -450,6 +491,22 @@ export const AccountDrawer: React.FC = () => {
                   )}
                 </button>
               </div>
+
+              {/* Cancel / Retry option if connecting takes too long or user returned */}
+              {isSigningIn && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSigningIn(false);
+                  }}
+                  className={`text-[11px] underline transition-colors pt-1 cursor-pointer font-medium block mx-auto text-center animate-fade-in ${
+                    theme === 'alabaster' ? 'text-amber-800 hover:text-amber-950' : 'text-amber-400 hover:text-amber-300'
+                  }`}
+                >
+                  Cancel / Tap to retry
+                </button>
+              )}
 
               {/* Value Guarantees Badges (clear, readable, not small) */}
               <div className="grid grid-cols-3 gap-3 pt-2">
