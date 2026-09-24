@@ -215,13 +215,13 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 const FREE_SHIPPING_THRESHOLD = 10000; // ₹10,000
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Stored gender preference
+  // Stored gender preference - defaults strictly to 'women' while men collection is paused
   const [gender, setGenderState] = useState<GenderType>(() => {
     const saved = localStorage.getItem('atelier_gender_preference');
-    if (saved === 'men' || saved === 'women' || saved === 'all') {
-      return saved as GenderType;
+    if (saved === 'women') {
+      return 'women';
     }
-    return 'women'; // default fallback if already selected
+    return 'women'; // Default to women
   });
 
   const [hasSelectedGender, setHasSelectedGender] = useState<boolean>(true);
@@ -557,6 +557,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.remove('theme-alabaster');
     }
   }, [theme]);
+
+  // Safeguard: Ensure gender stays 'women' while men collection is paused
+  useEffect(() => {
+    if (gender === 'men') {
+      setGenderState('women');
+      localStorage.setItem('atelier_gender_preference', 'women');
+    }
+  }, [gender]);
 
   const setGender = (g: GenderType) => {
     setGenderState(g);

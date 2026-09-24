@@ -91,12 +91,13 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
         {/* Action controls: Sort & Gender Switch */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Gender Filter Pills */}
+          {/* Gender Filter Pills - Men button temporarily hidden, keeping only Women */}
           <div className={`gender-pills-container flex items-center p-1 rounded-xl border transition-colors duration-300 ${
             isAlabaster
               ? 'bg-stone-200/80 border-stone-300/80 shadow-xs'
               : 'bg-white/[0.05] border-white/10'
           }`}>
+            {/* All and Men buttons temporarily hidden per request - preserved for future restoration
             <button
               onClick={() => setGender('all')}
               className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-all cursor-pointer ${
@@ -117,9 +118,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             >
               Men
             </button>
+            */}
             <button
               onClick={() => setGender('women')}
-              className={`gender-filter-btn px-3 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-all cursor-pointer ${
+              className={`gender-filter-btn px-3.5 py-1.5 rounded-lg text-xs tracking-[0.15em] uppercase transition-all cursor-pointer ${
                 gender === 'women'
                   ? (isAlabaster ? 'gender-btn-active bg-stone-950 text-white font-semibold shadow-xs' : 'gender-btn-active bg-white text-black font-medium')
                   : (isAlabaster ? 'gender-btn-inactive text-stone-600 hover:text-black' : 'gender-btn-inactive text-stone-400 hover:text-white')

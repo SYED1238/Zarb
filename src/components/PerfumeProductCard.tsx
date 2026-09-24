@@ -8,12 +8,14 @@ interface PerfumeProductCardProps {
   product: Product;
   onQuickView?: (product: Product) => void;
   isStandalone?: boolean;
+  disableHoverTransform?: boolean;
 }
 
 export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
   product,
   onQuickView,
   isStandalone = false,
+  disableHoverTransform = false,
 }) => {
   const { addToCart, wishlist, toggleWishlist, showToast, theme } = useStore();
   const isAlabaster = theme === 'alabaster';
@@ -198,7 +200,9 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
         isStandalone
           ? 'w-full max-w-[360px] mx-auto rounded-[32px]'
           : 'w-full rounded-[20px] sm:rounded-[28px]'
-      } backdrop-blur-2xl ${perfumeTheme.cardBg} border ${perfumeTheme.cardBorder} hover:-translate-y-2`}
+      } backdrop-blur-2xl ${perfumeTheme.cardBg} border ${perfumeTheme.cardBorder} ${
+        disableHoverTransform ? '' : 'hover:-translate-y-2'
+      }`}
       style={{
         boxShadow: isAlabaster
           ? isHovered
@@ -251,6 +255,8 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
               id={`wishlist-btn-${product.id}`}
               aria-label={isWishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
               onClick={handleWishlistToggle}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-all duration-300 active:scale-90 cursor-pointer ${
                 isWishlisted
                   ? 'bg-black/40 border border-amber-400/60 text-amber-400 shadow-md shadow-amber-500/30 backdrop-blur-xs'
@@ -289,6 +295,8 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
                 id={`wishlist-btn-${product.id}`}
                 aria-label={isWishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
                 onClick={handleWishlistToggle}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center backdrop-blur-xl border transition-all duration-300 active:scale-90 cursor-pointer ${
                   isWishlisted
                     ? 'bg-amber-500/25 border-amber-400 text-amber-400 shadow-md shadow-amber-500/30'
@@ -359,6 +367,8 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
               id={`quick-view-btn-${product.id}`}
               aria-label={`Inspect ${product.name} formulation dossier`}
               onClick={handleInspect}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center backdrop-blur-xl bg-white/[0.12] hover:bg-white/[0.28] border border-white/30 hover:border-amber-300/80 text-white transition-all duration-300 active:scale-95 cursor-pointer shadow-[inset_0_1px_1px_rgba(255,255,255,0.35)]"
               title="Inspect formulation dossier & sizing"
             >
@@ -371,6 +381,8 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
               id={`add-cart-btn-${product.id}`}
               aria-label={`Add ${product.name} to shopping bag`}
               onClick={handleAddToCart}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className={`rounded-full px-2.5 sm:px-4 py-1 sm:py-2 text-[8.5px] sm:text-[11px] font-sans font-semibold tracking-wider uppercase flex items-center space-x-1 sm:space-x-1.5 transition-all duration-300 shadow-md active:scale-95 cursor-pointer ${
                 isAdded
                   ? 'bg-emerald-500 text-white shadow-emerald-500/30'

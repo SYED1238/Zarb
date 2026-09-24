@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Sparkles, ArrowRight, Sun, Moon } from 'lucide-react';
+import { Sparkles, ArrowRight } from 'lucide-react';
+// Sun, Moon preserved for future theme switcher restoration
 
 interface EntryScreenProps {
   onEnter: (selectedGender: 'men' | 'women') => void;
 }
 
 export const EntryScreen: React.FC<EntryScreenProps> = ({ onEnter }) => {
-  const { setGender, theme, toggleTheme } = useStore();
+  const { setGender, theme } = useStore();
+  // toggleTheme preserved for future theme switcher restoration
   const [selected, setSelected] = useState<'men' | 'women' | null>(null);
   const [isExiting, setIsExiting] = useState(false);
   const [hovered, setHovered] = useState<'men' | 'women' | null>(null);
@@ -107,7 +109,8 @@ export const EntryScreen: React.FC<EntryScreenProps> = ({ onEnter }) => {
             Collection N° 08 / 2026
           </div>
 
-          {/* Theme Switcher in Entry Screen */}
+          {/* Theme Switcher in Entry Screen - temporarily hidden per request */}
+          {/*
           <button
             type="button"
             onClick={toggleTheme}
@@ -125,6 +128,7 @@ export const EntryScreen: React.FC<EntryScreenProps> = ({ onEnter }) => {
               <Sun className="w-3.5 h-3.5" />
             )}
           </button>
+          */}
         </div>
       </header>
 
@@ -191,9 +195,9 @@ export const EntryScreen: React.FC<EntryScreenProps> = ({ onEnter }) => {
           Choose your collection to enter.
         </p>
 
-        {/* Exactly TWO primary choices: [ MEN ] & [ WOMEN ] */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-md mx-auto">
-          {/* MEN BUTTON */}
+        {/* Primary choice: WOMEN (Men button temporarily removed per request) */}
+        <div className="flex justify-center max-w-sm mx-auto">
+          {/* MEN BUTTON - temporarily hidden per request, preserved for future restoration
           <button
             type="button"
             onClick={() => handleSelect('men')}
@@ -232,6 +236,7 @@ export const EntryScreen: React.FC<EntryScreenProps> = ({ onEnter }) => {
               style={{ color: isAlabaster ? '#ffffff' : undefined }}
             />
           </button>
+          */}
 
           {/* WOMEN BUTTON */}
           <button
@@ -239,7 +244,7 @@ export const EntryScreen: React.FC<EntryScreenProps> = ({ onEnter }) => {
             onClick={() => handleSelect('women')}
             onMouseEnter={() => setHovered('women')}
             onMouseLeave={() => setHovered(null)}
-            className={`group entry-btn relative overflow-hidden px-8 py-5 rounded-xl border text-sm sm:text-base font-sans tracking-[0.25em] uppercase transition-all duration-400 ease-out flex items-center justify-center space-x-3 cursor-pointer ${
+            className={`group entry-btn w-full relative overflow-hidden px-8 py-5 rounded-xl border text-sm sm:text-base font-sans tracking-[0.25em] uppercase transition-all duration-400 ease-out flex items-center justify-center space-x-3 cursor-pointer ${
               isAlabaster
                 ? selected === 'women'
                   ? 'entry-btn-selected bg-black text-white border-black shadow-[0_0_35px_rgba(0,0,0,0.35)] scale-[1.03] font-semibold'

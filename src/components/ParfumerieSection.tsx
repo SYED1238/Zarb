@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { PerfumeProductCard } from './PerfumeProductCard';
+import { PerfumeSwipeDeck, type PerfumeSwipeDeckRef } from './PerfumeSwipeDeck';
 import { Link } from 'react-router-dom';
 
 interface ParfumerieSectionProps {
@@ -84,12 +85,13 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
   }, [perfumes, selectedFamily, perfumeCategories]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const swipeDeckRef = useRef<PerfumeSwipeDeckRef>(null);
   const [activePerfumeIndex, setActivePerfumeIndex] = useState<number>(0);
 
   const handleContainerScroll = () => {
     if (scrollContainerRef.current) {
       const { scrollLeft } = scrollContainerRef.current;
-      const cardWidth = 214; // mobile card width (200px) + gap (14px)
+      const cardWidth = 260;
       const newIndex = Math.min(
         Math.max(0, Math.round(scrollLeft / cardWidth)),
         filteredPerfumes.length - 1
@@ -99,8 +101,19 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
   };
 
   const handleScrollPerfumes = (direction: 'left' | 'right') => {
+    // Mobile 3D swipe deck navigation
+    if (typeof window !== 'undefined' && window.innerWidth < 640 && swipeDeckRef.current) {
+      if (direction === 'right') {
+        swipeDeckRef.current.next();
+      } else {
+        swipeDeckRef.current.prev();
+      }
+      return;
+    }
+
+    // Desktop container scroll
     if (scrollContainerRef.current) {
-      const scrollAmount = 214;
+      const scrollAmount = 320;
       scrollContainerRef.current.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',
@@ -108,12 +121,12 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
     }
   };
 
-  // Reset scroll to first card when switching olfactory category
+  // Reset scroll and index when switching olfactory category
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
-      setActivePerfumeIndex(0);
     }
+    setActivePerfumeIndex(0);
   }, [selectedFamily]);
 
   if (perfumes.length === 0) return null;
@@ -210,26 +223,38 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
         {/* LUXURY PERFUME LIQUID GLASS CARDS GALLERY                                */}
         {/* ========================================================================= */}
         {/* Mobile Swipe Hint & Count Indicator */}
-        <div className="flex sm:hidden items-center justify-between px-1 mb-2.5 text-[10px] font-mono tracking-widest uppercase text-stone-400">
+        <div className="flex sm:hidden items-center justify-between px-2 mb-3 text-[10px] font-mono tracking-widest uppercase text-stone-400">
           <span className="flex items-center space-x-1.5 text-[#b07d2b]">
-            <span className="inline-block animate-pulse">&larr;</span>
-            <span>Side Scroll Flacons</span>
-            <span className="inline-block animate-pulse">&rarr;</span>
+            <Sparkles className="w-3 h-3 text-[#c59450]" />
+            <span>3D Flacon Deck</span>
           </span>
           <span className={isAlabaster ? 'text-stone-500' : 'text-stone-400'}>
             {filteredPerfumes.length} {filteredPerfumes.length === 1 ? 'Creation' : 'Creations'}
           </span>
         </div>
 
+        {/* 1. Mobile 3D Stacked Swipe Deck (Perfect Match to Reference Video) */}
+        <div className="block sm:hidden w-full">
+          <PerfumeSwipeDeck
+            ref={swipeDeckRef}
+            products={filteredPerfumes}
+            activeIndex={activePerfumeIndex}
+            onActiveIndexChange={setActivePerfumeIndex}
+            onQuickView={onQuickView}
+            isAlabaster={isAlabaster}
+          />
+        </div>
+
+        {/* 2. Tablet & Desktop Expansive Multi-Column Grid */}
         <div
           ref={scrollContainerRef}
           onScroll={handleContainerScroll}
-          className="flex sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6 lg:gap-5 items-stretch overflow-x-auto sm:overflow-visible pb-4 sm:pb-0 pt-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none snap-x snap-mandatory scroll-smooth"
+          className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-5 items-stretch"
         >
           {filteredPerfumes.map((perfume) => (
             <div
               key={perfume.id}
-              className="w-[200px] xs:w-[220px] sm:w-auto shrink-0 snap-start sm:snap-none flex flex-col"
+              className="flex flex-col h-full"
             >
               <PerfumeProductCard
                 product={perfume}

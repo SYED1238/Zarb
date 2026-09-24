@@ -517,6 +517,7 @@ export const EditorialSection: React.FC<EditorialSectionProps> = ({ onShopCollec
               >
                 Women's Collection →
               </button>
+              {/* Men's Collection button temporarily hidden per request - preserved for future restoration
               <span className={isAlabaster ? 'text-stone-300' : 'text-stone-600'}>|</span>
               <button
                 type="button"
@@ -527,6 +528,7 @@ export const EditorialSection: React.FC<EditorialSectionProps> = ({ onShopCollec
               >
                 Men's Collection →
               </button>
+              */}
             </div>
           </div>
         </div>

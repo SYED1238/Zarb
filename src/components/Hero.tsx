@@ -356,8 +356,9 @@ export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
               : 'Unifying precision tailoring with quiet luxury. Created in limited atelier batches.'}
           </p>
 
-          {/* Buttons: SHOP MEN & SHOP WOMEN (Desktop only - removed from mobile interface) */}
+          {/* Buttons: SHOP WOMEN (SHOP MEN temporarily removed per request, preserved for future restoration) */}
           <div className="hidden sm:flex flex-row items-center space-x-5 max-w-md">
+            {/* SHOP MEN button temporarily hidden per request - preserved for future restoration
             <button
               onClick={() => onShopClick('men')}
               className={`hero-btn group flex items-center justify-center space-x-3 px-8 py-4 rounded-xl text-xs sm:text-sm tracking-[0.25em] uppercase font-medium transition-all duration-300 cursor-pointer ${
@@ -369,6 +370,7 @@ export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
               <span className="hero-btn-text">SHOP MEN</span>
               <ArrowUpRight className="hero-btn-icon w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </button>
+            */}
 
             <button
               onClick={() => onShopClick('women')}

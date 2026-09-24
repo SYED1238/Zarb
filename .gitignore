@@ -26,3 +26,4 @@ dist-ssr
 *.sln
 *.sw?
 supabase/.temp
+video_*.mp4

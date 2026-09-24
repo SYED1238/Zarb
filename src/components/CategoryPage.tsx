@@ -26,10 +26,15 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
   const { gender: storeGender, setGender, products, getCategories, getCategoryBySlug, theme } = useStore();
   const isAlabaster = theme === 'alabaster';
 
-  // Normalize gender from URL (default to storeGender or 'women')
-  const gender: 'men' | 'women' = (paramGender === 'men' || paramGender === 'women') 
-    ? paramGender 
-    : (storeGender === 'men' ? 'men' : 'women');
+  // Redirect men route to women while men collection is paused
+  useEffect(() => {
+    if (paramGender === 'men') {
+      navigate('/shop/women', { replace: true });
+    }
+  }, [paramGender, navigate]);
+
+  // Normalize gender from URL (strictly 'women' while men collection is paused)
+  const gender: 'men' | 'women' = 'women';
 
   // Synchronize store gender with URL param
   useEffect(() => {

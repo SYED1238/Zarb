@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
-import { Home, Layers, Search, Heart, ShoppingBag, Sun, Moon, User } from 'lucide-react';
+import { Home, Layers, Search, Heart, ShoppingBag, User } from 'lucide-react';
+// Sun, Moon preserved for future theme switcher restoration
 
 interface MobileBottomNavProps {
   onSelectCategory?: (cat: string) => void;
@@ -22,7 +23,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
     setIsSearchOpen,
     isSearchOpen,
     theme,
-    toggleTheme,
+    // toggleTheme preserved for future theme toggle restoration
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<'home' | 'catalog' | 'search' | 'wishlist' | 'bag' | 'theme' | 'account'>('home');
@@ -89,9 +90,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
     setIsCartOpen(true);
   };
 
-  const handleThemeClick = () => {
-    toggleTheme();
-  };
+  // handleThemeClick preserved for future theme toggle restoration
+  // const handleThemeClick = () => {
+  //   toggleTheme();
+  // };
 
   const isAlabaster = theme === 'alabaster';
 
@@ -137,6 +139,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
         setIsAccountDrawerOpen(true);
       },
     },
+    /* Theme toggle temporarily hidden per request - preserved for future restoration
     {
       id: 'theme' as const,
       label: 'Theme',
@@ -144,6 +147,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onSelectCatego
       action: handleThemeClick,
       isHighlight: isAlabaster,
     },
+    */
   ];
 
   return (

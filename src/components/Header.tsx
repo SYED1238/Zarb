@@ -10,8 +10,7 @@ import {
   Layers,
   Compass,
   Gem,
-  Sun,
-  Moon,
+  // Sun, Moon preserved for future theme switcher restoration
   User,
 } from 'lucide-react';
 
@@ -33,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
     setIsWishlistOpen,
     setIsSearchOpen,
     theme,
-    toggleTheme,
+    // toggleTheme preserved for future theme toggle restoration
   } = useStore();
 
   const [isScrolled, setIsScrolled] = useState(false);
@@ -274,11 +273,12 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
 
             {/* Right: Gender Switcher, Theme Switcher & Actions */}
             <div className="relative z-10 flex items-center space-x-2 sm:space-x-3">
-              {/* Liquid Droplet Gender Switcher Pill */}
+              {/* Liquid Droplet Gender Switcher Pill - Men button temporarily hidden, keeping only Women */}
               <div className={`hidden sm:flex items-center p-0.5 rounded-lg backdrop-blur-md border text-[11px] font-sans tracking-[0.1em] uppercase ${isDarkText
                   ? 'bg-stone-200/90 border-stone-300/80 shadow-[inset_0_1px_1px_rgba(0,0,0,0.06)]'
                   : 'bg-black/40 border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]'
                 }`}>
+                {/* Men button temporarily hidden per request - preserved for future restoration
                 <button
                   type="button"
                   onClick={() => setGender('men')}
@@ -289,19 +289,20 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
                 >
                   Men
                 </button>
+                */}
                 <button
                   type="button"
                   onClick={() => setGender('women')}
-                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${gender === 'women'
-                      ? (isDarkText ? 'bg-black text-white font-semibold shadow-sm' : 'bg-white text-black font-semibold shadow-md')
-                      : (isDarkText ? 'text-stone-700 hover:text-black' : 'text-stone-300 hover:text-white')
-                    }`}
+                  className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                    isDarkText ? 'bg-black text-white font-semibold shadow-sm' : 'bg-white text-black font-semibold shadow-md'
+                  }`}
                 >
                   Women
                 </button>
               </div>
 
-              {/* Theme Switcher Button (Noir vs Alabaster) */}
+              {/* Theme Switcher Button (Noir vs Alabaster) - temporarily hidden per request, preserved for future restoration */}
+              {/*
               <button
                 onClick={toggleTheme}
                 className={`liquid-droplet p-2 rounded-xl transition-all cursor-pointer focus:outline-none ${isDarkText
@@ -317,6 +318,7 @@ export const Header: React.FC<HeaderProps> = ({ onSelectFilter }) => {
                   <Sun className="w-4 h-4 stroke-[1.75]" />
                 )}
               </button>
+              */}
 
               {/* Search Icon (Desktop only - mobile has it in the bottom liquid bar) */}
               <button

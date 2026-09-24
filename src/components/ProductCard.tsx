@@ -61,9 +61,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       }).format(product.compareAtPrice)
     : null;
 
-  const discountPercent = product.compareAtPrice
-    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
-    : 0;
+  // discountPercent preserved for future restoration
+  // const discountPercent = product.compareAtPrice
+  //   ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+  //   : 0;
 
   const categoryLabel = getCategoryBySlug(product.gender, product.category)?.shortName || product.category.replace(/-/g, ' ');
 
@@ -107,11 +108,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
               EDITION
             </span>
           )}
+          {/* Percent off badge temporarily removed per request - preserved for future restoration
           {discountPercent > 0 && (
             <span className="text-[9px] font-sans font-semibold uppercase tracking-[0.15em] bg-emerald-500 text-white px-2.5 py-0.5 rounded-full shadow-md">
               {discountPercent}% OFF
             </span>
           )}
+          */}
         </div>
 
         {/* Floating Wishlist Heart */}

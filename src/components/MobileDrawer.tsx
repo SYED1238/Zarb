@@ -93,10 +93,11 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onN
               Active Collection
             </label>
             <div
-              className={`grid grid-cols-2 p-1 rounded-xl border ${
+              className={`p-1 rounded-xl border ${
                 isAlabaster ? 'bg-stone-200/70 border-stone-300/80' : 'bg-white/5 border-white/10'
               }`}
             >
+              {/* Men button temporarily hidden per request - preserved for future restoration
               <button
                 onClick={() => handleGenderSwitch('men')}
                 className={`py-3 text-xs tracking-[0.2em] uppercase font-medium rounded-lg transition-all ${
@@ -112,9 +113,10 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, onN
               >
                 Men
               </button>
+              */}
               <button
                 onClick={() => handleGenderSwitch('women')}
-                className={`py-3 text-xs tracking-[0.2em] uppercase font-medium rounded-lg transition-all ${
+                className={`w-full py-3 text-xs tracking-[0.2em] uppercase font-medium rounded-lg transition-all ${
                   gender === 'women'
                     ? isAlabaster
                       ? 'drawer-tab-active bg-stone-900 text-white shadow-md'
