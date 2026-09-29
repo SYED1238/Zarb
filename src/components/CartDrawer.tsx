@@ -246,8 +246,12 @@ export const CartDrawer: React.FC = () => {
 
                     <div className={`text-[11px] space-x-2 mt-1 ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
                       <span>Size: <strong className={`font-normal ${isAlabaster ? 'text-stone-900' : 'text-stone-200'}`}>{item.size}</strong></span>
-                      <span>&middot;</span>
-                      <span>Color: <strong className={`font-normal ${isAlabaster ? 'text-stone-900' : 'text-stone-200'}`}>{item.color}</strong></span>
+                      {Boolean(!item.isPerfume && item.color && item.color !== 'Standard' && item.color !== 'Default') && (
+                        <>
+                          <span>&middot;</span>
+                          <span>Color: <strong className={`font-normal ${isAlabaster ? 'text-stone-900' : 'text-stone-200'}`}>{item.color}</strong></span>
+                        </>
+                      )}
                     </div>
                   </div>
 

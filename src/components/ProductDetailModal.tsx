@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Share2,
+  ArrowUpRight,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -95,12 +96,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       modalCardRef.current.scrollTo({ top: 0, behavior });
       modalCardRef.current.scrollTop = 0;
     }
-    window.scrollTo({ top: 0, behavior });
+    // Do NOT scroll main window to top - preserves user's background page scroll position
   };
+
+  const isPerfume = Boolean(product?.isPerfume || product?.category === 'perfumes');
 
   // Dedicated gallery photos for currently selected color, smoothly falling back to product.images
   const activeGalleryImages = useMemo(() => {
     if (!product) return [];
+    if (isPerfume) {
+      return product.images && product.images.length > 0 ? product.images : [];
+    }
     const colorObj = product.colors?.find(c => c.name === selectedColor);
     if (colorObj?.images && colorObj.images.length > 0) {
       return colorObj.images;
@@ -109,7 +115,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       return [colorObj.image, ...product.images.filter(img => img !== colorObj.image)];
     }
     return product.images && product.images.length > 0 ? product.images : [];
-  }, [product, selectedColor]);
+  }, [product, selectedColor, isPerfume]);
 
   // Keyboard navigation for fullscreen lightbox
   useEffect(() => {
@@ -145,11 +151,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   }, [user]);
 
+  // Preserve background page scroll position across product modal open/close
+  const scrollPositionRef = useRef<number>(0);
   useEffect(() => {
     if (product) {
+      scrollPositionRef.current = window.scrollY;
       setActiveImageIndex(0);
       const initialSize = (Array.isArray(product.sizes) && product.sizes[0]) || (Array.isArray(product.volumeMl) && product.volumeMl[0]) || 'One Size';
-      const initialColor = (Array.isArray(product.colors) && product.colors[0]?.name) || 'Standard';
+      const initialColor = isPerfume ? '' : ((Array.isArray(product.colors) && product.colors[0]?.name) || 'Standard');
       setSelectedSize(initialSize);
       setSelectedColor(initialColor);
       setQuantity(1);
@@ -168,6 +177,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
     return () => {
       document.body.style.overflow = 'unset';
+      const savedScroll = scrollPositionRef.current;
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: savedScroll, behavior: 'instant' });
+      });
     };
   }, [product?.id]);
 
@@ -179,7 +192,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   }, [product, selectedSize]);
 
   // Step-back history integration for product modal and fullscreen lightbox
-  useModalBackHandler(!!product, onClose, `product-detail-${product?.id || 'active'}`);
+  useModalBackHandler(!!product, onClose, 'product-detail-modal');
   useModalBackHandler(
     isFullscreenOpen,
     () => {
@@ -189,20 +202,19 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     'product-fullscreen-lightbox'
   );
 
-  const isPerfume = Boolean(product?.isPerfume || product?.category === 'perfumes');
-
   const relatedProducts = useMemo(() => {
     if (!product) return [];
     if (isPerfume) {
-      // For perfume dossiers: suggest strictly other pure attars & extraits
+      // For perfume dossiers: suggest strictly other pure attars & extraits that are not hidden
       return products
-        .filter((p) => (p.isPerfume || p.category === 'perfumes') && p.id !== product.id)
+        .filter((p) => !p.hidden && (p.isPerfume || p.category === 'perfumes') && p.id !== product.id)
         .slice(0, 4);
     }
-    // For dresses, jackets & garments: strictly NEVER show perfumes, only clothing
+    // For dresses, jackets & garments: strictly NEVER show perfumes or hidden pieces, only active clothing
     return products
       .filter(
         (p) =>
+          !p.hidden &&
           !p.isPerfume &&
           p.category !== 'perfumes' &&
           p.gender === product.gender &&
@@ -272,11 +284,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   const handleAddToBag = () => {
-    addToCart(product, selectedSize, selectedColor, quantity, activeDisplayPrice);
+    addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity, activeDisplayPrice);
   };
 
   const handleBuyNow = () => {
-    addToCart(product, selectedSize, selectedColor, quantity, activeDisplayPrice);
+    addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity, activeDisplayPrice);
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
     onClose();
@@ -337,11 +349,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         {/* Close Button Header */}
         <div className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-30">
           <button
+            type="button"
             onClick={onClose}
-            className="pdp-close-btn p-2.5 rounded-full bg-black/70 text-stone-300 hover:text-white hover:bg-black border border-white/15 backdrop-blur-md transition-all active:scale-90 cursor-pointer shadow-xl"
+            className={`pdp-close-btn w-10 h-10 rounded-full border backdrop-blur-md transition-all active:scale-90 cursor-pointer shadow-md flex items-center justify-center group ${
+              isAlabaster
+                ? 'bg-white text-stone-900 border-stone-200/80 hover:bg-stone-900 hover:text-white hover:border-stone-900 shadow-stone-900/5'
+                : 'bg-black/70 text-stone-300 hover:text-white hover:bg-black border-white/15 shadow-xl'
+            }`}
             aria-label="Close modal"
+            title="Close modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 transition-transform group-hover:rotate-90" />
           </button>
         </div>
 
@@ -367,7 +385,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   >
                     <img
                       src={getMediaUrl(img)}
-                      alt={`${product.name} ${selectedColor} thumbnail ${idx + 1}`}
+                      alt={isPerfume ? `${product.name} thumbnail ${idx + 1}` : `${product.name} ${selectedColor} thumbnail ${idx + 1}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
                       decoding="async"
@@ -407,9 +425,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               >
                 <img
                   ref={mainImageRef}
-                  key={`${selectedColor}-${activeImageIndex}`}
+                  key={`${isPerfume ? 'perfume' : selectedColor}-${activeImageIndex}`}
                   src={getMediaUrl(activeGalleryImages[activeImageIndex] || activeGalleryImages[0] || product.images[0])}
-                  alt={`${product.name} - ${selectedColor}`}
+                  alt={isPerfume ? product.name : `${product.name} - ${selectedColor}`}
                   onClick={() => setIsFullscreenOpen(true)}
                   decoding="async"
                   className="w-full h-full object-contain sm:object-contain object-top cursor-zoom-in select-none will-change-transform"
@@ -521,56 +539,58 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   {product.description}
                 </p>
 
-                {/* Color Selector */}
-                <div className="mb-6">
-                  <div className="pdp-color-label flex items-center justify-between text-xs tracking-[0.15em] uppercase text-stone-300 mb-2.5">
-                    <span>
-                      Color: <strong className="pdp-color-name text-white font-normal">{selectedColor}</strong>
-                    </span>
-                    {(() => {
-                      const activeCol = product.colors.find(c => c.name === selectedColor);
-                      const dedicatedCount = activeCol?.images?.length || 0;
-                      return dedicatedCount > 0 ? (
-                        <span className="text-[10px] font-mono text-amber-400 font-normal">
-                          {dedicatedCount} shade {dedicatedCount === 1 ? 'photo' : 'photos'}
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    {product.colors.map((color) => {
-                      const hasDedicated = Boolean(color.images && color.images.length > 0);
-                      const isSelected = selectedColor === color.name;
-                      return (
-                        <button
-                          key={color.name}
-                          onClick={() => {
-                            setSelectedColor(color.name);
-                            setActiveImageIndex(0);
-                          }}
-                          className={`group relative p-1 rounded-full border transition-all cursor-pointer ${
-                            isSelected
-                              ? 'border-white ring-2 ring-white/60 scale-110'
-                              : 'border-white/20 hover:border-white/60'
-                          }`}
-                          title={`${color.name}${hasDedicated ? ` (${color.images!.length} photos)` : ''}`}
-                          aria-label={`Select color ${color.name}`}
-                        >
-                          <span
-                            className="block w-5 h-5 rounded-full border border-black/20"
-                            style={{ backgroundColor: color.hex }}
-                          />
-                          {hasDedicated && (
+                {/* Color Selector (Apparel Only — Completely Omitted for Fragrances) */}
+                {!isPerfume && Array.isArray(product.colors) && product.colors.length > 0 && (
+                  <div className="mb-6">
+                    <div className="pdp-color-label flex items-center justify-between text-xs tracking-[0.15em] uppercase text-stone-300 mb-2.5">
+                      <span>
+                        Color: <strong className="pdp-color-name text-white font-normal">{selectedColor}</strong>
+                      </span>
+                      {(() => {
+                        const activeCol = product.colors.find(c => c.name === selectedColor);
+                        const dedicatedCount = activeCol?.images?.length || 0;
+                        return dedicatedCount > 0 ? (
+                          <span className="text-[10px] font-mono text-amber-400 font-normal">
+                            {dedicatedCount} shade {dedicatedCount === 1 ? 'photo' : 'photos'}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      {product.colors.map((color) => {
+                        const hasDedicated = Boolean(color.images && color.images.length > 0);
+                        const isSelected = selectedColor === color.name;
+                        return (
+                          <button
+                            key={color.name}
+                            onClick={() => {
+                              setSelectedColor(color.name);
+                              setActiveImageIndex(0);
+                            }}
+                            className={`group relative p-1 rounded-full border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'border-white ring-2 ring-white/60 scale-110'
+                                : 'border-white/20 hover:border-white/60'
+                            }`}
+                            title={`${color.name}${hasDedicated ? ` (${color.images!.length} photos)` : ''}`}
+                            aria-label={`Select color ${color.name}`}
+                          >
                             <span
-                              className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-black"
-                              title="Dedicated photos available"
+                              className="block w-5 h-5 rounded-full border border-black/20"
+                              style={{ backgroundColor: color.hex }}
                             />
-                          )}
-                        </button>
-                      );
-                    })}
+                            {hasDedicated && (
+                              <span
+                                className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-black"
+                                title="Dedicated photos available"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Olfactory Notes Pyramid & Fragrance Specs (Perfumes Only) */}
                 {isPerfume && (
@@ -1110,48 +1130,102 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           {/* Related / Recommended Atelier Pieces */}
           {relatedProducts.length > 0 && (
             <div className="pdp-related-section mt-16 pt-12 border-t border-white/10">
-              <h3 className="pdp-related-heading text-xl sm:text-2xl font-serif text-white mb-6 tracking-[0.03em]">
-                {isPerfume ? 'HARMONIOUS OLFACTORY CREATIONS' : 'COMPLETE THE SILHOUETTE'}
-              </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {relatedProducts.map((rel) => (
-                <div
-                  key={rel.id}
-                  onClick={() => {
-                    scrollToModalTop('instant');
-                    onSelectProduct(rel);
-                    requestAnimationFrame(() => {
-                      scrollToModalTop('instant');
-                    });
-                    setTimeout(() => {
-                      scrollToModalTop('smooth');
-                    }, 20);
-                  }}
-                  className="pdp-related-card group cursor-pointer"
-                >
-                  <div className="aspect-[3/4] rounded-lg overflow-hidden bg-[#16161b] mb-2 border border-white/10">
-                    <img
-                      src={getMediaUrl(rel.images[0])}
-                      alt={rel.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400/90 shadow-[0_0_8px_rgba(251,191,36,0.6)] animate-pulse" />
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-amber-400 font-mono font-semibold">
+                      Curated Pairings
+                    </span>
                   </div>
-                  <h4 className="pdp-related-title text-xs font-sans text-stone-200 line-clamp-1 group-hover:text-white">
-                    {rel.name}
-                  </h4>
-                  <span className="pdp-related-price text-xs font-medium text-stone-400">
-                    {new Intl.NumberFormat('en-IN', {
-                      style: 'currency',
-                      currency: 'INR',
-                      maximumFractionDigits: 0,
-                    }).format(rel.price)}
-                  </span>
+                  <h3 className="pdp-related-heading text-xl sm:text-2xl font-serif text-white tracking-[0.03em]">
+                    {isPerfume ? 'HARMONIOUS OLFACTORY CREATIONS' : 'COMPLETE THE SILHOUETTE'}
+                  </h3>
                 </div>
-              ))}
+                <p className="pdp-related-subtext text-xs text-stone-400 font-light max-w-xs">
+                  {isPerfume
+                    ? 'Pure layered essences curated to harmonize with this olfactory profile.'
+                    : 'Tactile atelier pieces designed to compose a unified silhouette.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
+                {relatedProducts.map((rel) => {
+                  const relFormattedPrice = new Intl.NumberFormat('en-IN', {
+                    style: 'currency',
+                    currency: 'INR',
+                    maximumFractionDigits: 0,
+                  }).format(rel.price);
+
+                  const relComparePrice = rel.compareAtPrice && rel.compareAtPrice > rel.price
+                    ? new Intl.NumberFormat('en-IN', {
+                        style: 'currency',
+                        currency: 'INR',
+                        maximumFractionDigits: 0,
+                      }).format(rel.compareAtPrice)
+                    : null;
+
+                  return (
+                    <div
+                      key={rel.id}
+                      onClick={() => {
+                        scrollToModalTop('instant');
+                        onSelectProduct(rel);
+                        requestAnimationFrame(() => {
+                          scrollToModalTop('instant');
+                        });
+                        setTimeout(() => {
+                          scrollToModalTop('smooth');
+                        }, 20);
+                      }}
+                      className="clay-card pdp-related-card group cursor-pointer p-2.5 sm:p-3 flex flex-col justify-between select-none"
+                    >
+                      {/* Recessed Clay Image Frame */}
+                      <div className="relative aspect-[3/4] rounded-xl sm:rounded-2xl overflow-hidden clay-inset-frame border border-white/10 mb-3 bg-[#131318]">
+                        <img
+                          src={getMediaUrl(rel.images[0])}
+                          alt={rel.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                        />
+
+                        {/* Top-Left Clay Badge */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <span className="clay-pill px-2.5 py-1 rounded-full text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold">
+                            {rel.category ? rel.category.toUpperCase() : 'ATELIER'}
+                          </span>
+                        </div>
+
+                        {/* Bottom-Right Quick View Clay Disc */}
+                        <div className="absolute bottom-2.5 right-2.5 z-10 transition-all duration-300 transform opacity-90 group-hover:opacity-100 group-hover:scale-110">
+                          <div className="clay-button-circle w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center cursor-pointer shadow-md">
+                            <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Typography & Pricing */}
+                      <div className="px-1 pb-1">
+                        <h4 className="pdp-related-title text-xs sm:text-[13px] font-sans font-medium text-stone-200 line-clamp-1 group-hover:text-white transition-colors mb-1">
+                          {rel.name}
+                        </h4>
+                        <div className="flex items-baseline gap-2">
+                          <span className="pdp-related-price text-xs sm:text-sm font-semibold tracking-tight text-white">
+                            {relFormattedPrice}
+                          </span>
+                          {relComparePrice && (
+                            <span className="pdp-related-compare-price text-[10px] sm:text-xs text-stone-500 line-through">
+                              {relComparePrice}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
           )}
         </div>
       </div>

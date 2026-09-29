@@ -25,7 +25,7 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
   const olfactoryFamilies = useMemo(() => {
     const list = ['ALL CREATIONS'];
     if (perfumeCategories && perfumeCategories.length > 0) {
-      perfumeCategories.forEach((cat) => {
+      perfumeCategories.filter(c => !c.hidden).forEach((cat) => {
         const title = (cat.shortName || cat.name).toUpperCase();
         if (!list.includes(title)) {
           list.push(title);
@@ -40,9 +40,9 @@ export const ParfumerieSection: React.FC<ParfumerieSectionProps> = ({ onQuickVie
   // State
   const [selectedFamily, setSelectedFamily] = useState<string>('ALL CREATIONS');
 
-  // All perfume creations (strictly perfumes only)
+  // All perfume creations (strictly perfumes only, excluding hidden)
   const perfumes = useMemo(() => {
-    return products.filter((p) => p.isPerfume || p.category === 'perfumes');
+    return products.filter((p) => (p.isPerfume || p.category === 'perfumes') && !p.hidden);
   }, [products]);
 
   // Filtered by olfactory family tab

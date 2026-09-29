@@ -805,10 +805,7 @@ export const PRODUCTS: Product[] = [
     images: [
       '/images/perfumes/royal_oud_flacon.jpg'
     ],
-    colors: [
-      { name: 'Crystal Gold Flacon', hex: '#d4af37' },
-      { name: 'Obsidian Noir Edition', hex: '#111113' }
-    ],
+    colors: [],
     sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
     stock: 18,
     sku: 'AT-PARF-01',
@@ -857,10 +854,7 @@ export const PRODUCTS: Product[] = [
     images: [
       '/images/perfumes/taif_rose_flacon.jpg'
     ],
-    colors: [
-      { name: 'Rose Gold Flacon', hex: '#b76e79' },
-      { name: 'Pure Crystal', hex: '#fdfbf7' }
-    ],
+    colors: [],
     sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
     stock: 24,
     sku: 'AT-PARF-02',
@@ -909,10 +903,7 @@ export const PRODUCTS: Product[] = [
     images: [
       '/images/perfumes/bleu_flacon.jpg'
     ],
-    colors: [
-      { name: 'Smoked Obsidian Flacon', hex: '#1c1b1a' },
-      { name: 'Cognac Bronze', hex: '#8a4b2a' }
-    ],
+    colors: [],
     sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
     stock: 15,
     sku: 'AT-PARF-03',
@@ -961,10 +952,7 @@ export const PRODUCTS: Product[] = [
     images: [
       '/images/perfumes/white_musk_flacon.jpg'
     ],
-    colors: [
-      { name: 'Opal White Crystal', hex: '#f4f4f4' },
-      { name: 'Chalk Ivory', hex: '#ede8dd' }
-    ],
+    colors: [],
     sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
     stock: 22,
     sku: 'AT-PARF-04',
@@ -1013,10 +1001,7 @@ export const PRODUCTS: Product[] = [
     images: [
       '/images/perfumes/santal_flacon.jpg'
     ],
-    colors: [
-      { name: 'Amber Gold Flacon', hex: '#d99036' },
-      { name: 'Sandalwood Brun', hex: '#634427' }
-    ],
+    colors: [],
     sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
     stock: 20,
     sku: 'AT-PARF-05',

@@ -18,9 +18,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
 
   const isSaved = wishlist.includes(product.id);
 
+  const isPerfume = Boolean(product.isPerfume || product.category === 'perfumes');
+
   // Dedicated photos for selected color, falling back to product.images
-  const selectedColor = product.colors?.[selectedColorIndex];
+  const selectedColor = isPerfume ? undefined : product.colors?.[selectedColorIndex];
   const colorImages = useMemo(() => {
+    if (isPerfume) {
+      return product.images && product.images.length > 0 ? product.images : [];
+    }
     if (selectedColor?.images && selectedColor.images.length > 0) {
       return selectedColor.images;
     }
@@ -28,7 +33,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       return [selectedColor.image, ...product.images.filter(img => img !== selectedColor.image)];
     }
     return product.images && product.images.length > 0 ? product.images : [];
-  }, [product.images, selectedColor]);
+  }, [product.images, selectedColor, isPerfume]);
 
   const primaryImage = colorImages[0] || product.images[0];
   const secondaryImage = colorImages[1] || product.images[1] || primaryImage;
@@ -37,7 +42,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     const defaultSize = product.sizes?.[0] || 'Standard';
-    const defaultColor = product.colors?.[selectedColorIndex]?.name || 'Standard';
+    const defaultColor = isPerfume ? '' : (product.colors?.[selectedColorIndex]?.name || 'Standard');
     addToCart(product, defaultSize, defaultColor, 1);
   };
 
@@ -206,8 +211,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
           )}
         </div>
 
-        {/* Color swatches */}
-        {product.colors && product.colors.length > 0 && (
+        {/* Color swatches (Apparel Only, Not for Fragrances) */}
+        {!isPerfume && product.colors && product.colors.length > 0 && (
           <div className="flex items-center space-x-1.5 pt-1">
             {product.colors.map((col, idx) => (
               <button

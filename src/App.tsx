@@ -116,24 +116,27 @@ const StoreFront: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate]);
 
-  // Deep-link: auto-open product from ?product=slug on page load
+  // Deep-link: auto-open product from ?product=slug on initial page load
   const hasHandledDeepLink = useRef(false);
   useEffect(() => {
-    if (hasHandledDeepLink.current || products.length === 0) return;
+    if (hasHandledDeepLink.current) return;
     const params = new URLSearchParams(window.location.search);
     const productSlug = params.get('product');
-    if (productSlug) {
-      const match = products.find(p => p.slug === productSlug);
-      if (match) {
-        // Push a clean homepage entry first so pressing back lands on the store
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({ isStorePage: true }, '', cleanUrl);
-        // Now push the product URL as a new entry on top
-        const productUrl = cleanUrl + '?product=' + productSlug;
-        window.history.pushState({ isProductDeepLink: true }, '', productUrl);
-        setActiveProduct(match);
-        hasHandledDeepLink.current = true;
-      }
+    if (!productSlug) {
+      // No deep-link product on initial page load - mark as handled
+      hasHandledDeepLink.current = true;
+      return;
+    }
+    if (products.length === 0) return; // Wait for products to load before attempting to match
+    const match = products.find(p => p.slug === productSlug);
+    if (match) {
+      const currentState = (window.history.state && typeof window.history.state === 'object') ? window.history.state : {};
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({ ...currentState, isStorePage: true }, '', cleanUrl);
+      const productUrl = cleanUrl + '?product=' + productSlug;
+      window.history.pushState({ ...currentState, isProductDeepLink: true }, '', productUrl);
+      setActiveProduct(match);
+      hasHandledDeepLink.current = true;
     }
   }, [products, setActiveProduct]);
 
@@ -148,18 +151,19 @@ const StoreFront: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [activeProduct, setActiveProduct]);
 
-  // Update URL when product modal opens/closes (only for non-deep-link navigations)
+  // Update URL query param when product modal opens/closes while preserving history state
   useEffect(() => {
+    const currentState = (window.history.state && typeof window.history.state === 'object') ? window.history.state : {};
     if (activeProduct) {
       const url = new URL(window.location.href);
       if (!url.searchParams.has('product')) {
         url.searchParams.set('product', activeProduct.slug);
-        window.history.replaceState({}, '', url.toString());
+        window.history.replaceState({ ...currentState }, '', url.toString());
       }
     } else if (window.location.search.includes('product=')) {
       const url = new URL(window.location.href);
       url.searchParams.delete('product');
-      window.history.replaceState({}, '', url.toString());
+      window.history.replaceState({ ...currentState }, '', url.toString());
     }
   }, [activeProduct]);
 

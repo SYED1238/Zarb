@@ -61,6 +61,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   const matchedProducts = query.trim() === ''
     ? []
     : products.filter((p) => {
+        if (p.hidden) return false;
         const q = query.toLowerCase();
         return (
           p.name.toLowerCase().includes(q) ||
@@ -197,8 +198,10 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
                   <div
                     key={product.id}
                     onClick={() => {
-                      onSelectProduct(product);
                       setIsSearchOpen(false);
+                      setTimeout(() => {
+                        onSelectProduct(product);
+                      }, 60);
                     }}
                     className={`card-neumorphic p-3 rounded-2xl group cursor-pointer flex flex-col justify-between ${
                       isAlabaster ? 'bg-[#f4f3ec] text-stone-900' : 'bg-[#121216] text-white'

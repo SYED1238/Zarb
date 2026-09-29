@@ -4,6 +4,55 @@ import { PRODUCTS } from '../data/products';
 import { WOMEN_CATEGORIES, MEN_CATEGORIES, PERFUME_CATEGORIES, type CategoryItem } from '../data/categories';
 import { INITIAL_PRODUCT_REVIEWS, getDefaultReviewsForProduct } from '../data/reviews';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { uploadBase64ToR2 } from '../utils/imageUpload';
+
+// Pre-flight media sanitizer: converts any legacy or pasted base64 data URLs to Cloudflare R2
+// before pushing to PostgreSQL, preventing multi-megabyte payloads from causing statement timeouts
+async function sanitizeProductMediaForDatabase(product: Product): Promise<Product> {
+  const sanitized = { ...product };
+
+  if (Array.isArray(sanitized.images) && sanitized.images.some(img => typeof img === 'string' && img.startsWith('data:image/'))) {
+    const converted = await Promise.all(
+      sanitized.images.map(img => {
+        if (typeof img === 'string' && img.startsWith('data:image/')) {
+          return uploadBase64ToR2(img, 'products', sanitized.id);
+        }
+        return Promise.resolve(img);
+      })
+    );
+    sanitized.images = converted;
+  }
+
+  if (Array.isArray(sanitized.colors)) {
+    const convertedColors = await Promise.all(
+      sanitized.colors.map(async (c) => {
+        let mainImg = c.image;
+        if (typeof mainImg === 'string' && mainImg.startsWith('data:image/')) {
+          mainImg = await uploadBase64ToR2(mainImg, 'products', `${sanitized.id}-${c.name}`);
+        }
+        let shadeImgs = c.images;
+        if (Array.isArray(shadeImgs) && shadeImgs.some(img => typeof img === 'string' && img.startsWith('data:image/'))) {
+          shadeImgs = await Promise.all(
+            shadeImgs.map(img => {
+              if (typeof img === 'string' && img.startsWith('data:image/')) {
+                return uploadBase64ToR2(img, 'products', `${sanitized.id}-${c.name}`);
+              }
+              return Promise.resolve(img);
+            })
+          );
+        }
+        return {
+          ...c,
+          image: mainImg,
+          images: shadeImgs,
+        };
+      })
+    );
+    sanitized.colors = convertedColors;
+  }
+
+  return sanitized;
+}
 
 // Safe parsing helpers for Supabase <-> Frontend Product model
 function safeParseJson<T>(val: any, fallback: T): T {
@@ -68,7 +117,9 @@ export function mapSupabaseToProduct(d: any): Product {
     price: Number(d.price) || 0,
     compareAtPrice: d.compare_at_price ? Number(d.compare_at_price) : undefined,
     images: Array.isArray(d.images) ? d.images : safeParseJson(d.images, []),
-    colors: Array.isArray(d.colors) ? d.colors : safeParseJson(d.colors, [{ name: 'Obsidian Noir', hex: '#111113' }]),
+    colors: isPerfume
+      ? []
+      : (Array.isArray(d.colors) ? d.colors : safeParseJson(d.colors, [{ name: 'Obsidian Noir', hex: '#111113' }])),
     sizes: safeParseArray(d.sizes, ['One Size']),
     stock: Number(d.stock ?? 0),
     sku: d.sku || `AT-${String(d.id).slice(-4)}`,
@@ -91,6 +142,7 @@ export function mapSupabaseToProduct(d: any): Product {
     perfumeNotes: safeParsePerfumeNotes(d.perfume_notes || d.perfumeNotes),
     volumeOptions: Array.isArray(d.volume_options) ? d.volume_options : safeParseJson(d.volume_options || d.volumeOptions, undefined),
     volumeMl: Array.isArray(d.volume_ml) ? d.volume_ml : (Array.isArray(d.volumeMl) ? d.volumeMl : undefined),
+    hidden: Boolean(d.hidden || d.is_hidden),
   };
 }
 
@@ -105,7 +157,7 @@ export function mapProductToSupabase(p: Product) {
     price: Number(p.price),
     compare_at_price: p.compareAtPrice ? Number(p.compareAtPrice) : null,
     images: Array.isArray(p.images) ? p.images : [],
-    colors: Array.isArray(p.colors) ? p.colors : [],
+    colors: (p.isPerfume || p.category === 'perfumes') ? [] : (Array.isArray(p.colors) ? p.colors : []),
     sizes: Array.isArray(p.sizes) ? p.sizes : [],
     stock: p.stock !== undefined ? Math.max(0, Number(p.stock)) : 0,
     sku: p.sku || '',
@@ -235,20 +287,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const wasErased = localStorage.getItem('atelier_inventory_erased') === 'true';
       if (wasErased) return [];
-      const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume);
-      const saved = localStorage.getItem('atelier_products_v4');
+      const saved = localStorage.getItem('atelier_products_v4') || localStorage.getItem('atelier_products_v2');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const nonPerfumes = parsed.filter(p => !p.isPerfume && p.category !== 'perfumes');
-          return [...defaultPerfumes, ...nonPerfumes];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(p => (p.isPerfume || p.category === 'perfumes') ? { ...p, colors: [] } : p);
         }
       }
-      return PRODUCTS;
+      return PRODUCTS.map(p => (p.isPerfume || p.category === 'perfumes') ? { ...p, colors: [] } : p);
     } catch (e) {
       console.error('Failed to load products from storage', e);
     }
-    return PRODUCTS;
+    return PRODUCTS.map(p => (p.isPerfume || p.category === 'perfumes') ? { ...p, colors: [] } : p);
   });
 
   // Automatically load real catalog from Supabase cloud on initial mount
@@ -264,23 +314,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!error && data) {
           const existingLocalProducts: Product[] = [];
           try {
-            const saved = localStorage.getItem('atelier_products_v4');
+            const saved = localStorage.getItem('atelier_products_v4') || localStorage.getItem('atelier_products_v2');
             if (saved) existingLocalProducts.push(...JSON.parse(saved));
           } catch {}
 
           let mapped = data.map(row => {
             const prod = mapSupabaseToProduct(row);
             const local = existingLocalProducts.find(lp => lp.id === prod.id);
-            if (local && local.returnDays !== undefined && prod.returnDays === undefined) {
-              prod.returnDays = local.returnDays;
-            }
-            return prod;
+            const preset = PRODUCTS.find(p => p.id === prod.id);
+            const isPerfume = Boolean(prod.isPerfume || prod.category === 'perfumes' || local?.isPerfume || preset?.isPerfume);
+
+            return {
+              ...prod,
+              isPerfume,
+              colors: isPerfume ? [] : prod.colors,
+              perfumeFamily: local?.perfumeFamily || prod.perfumeFamily || preset?.perfumeFamily,
+              concentration: local?.concentration || prod.concentration || preset?.concentration,
+              longevity: local?.longevity || prod.longevity || preset?.longevity,
+              sillage: local?.sillage || prod.sillage || preset?.sillage,
+              perfumeNotes: local?.perfumeNotes || prod.perfumeNotes || preset?.perfumeNotes,
+              volumeOptions: local?.volumeOptions || prod.volumeOptions || preset?.volumeOptions,
+              volumeMl: local?.volumeMl || prod.volumeMl || preset?.volumeMl,
+              returnDays: local?.returnDays !== undefined ? local.returnDays : (prod.returnDays !== undefined ? prod.returnDays : preset?.returnDays),
+              hidden: local?.hidden !== undefined ? local.hidden : (prod.hidden !== undefined ? prod.hidden : false),
+            };
           });
 
-          // Always merge latest flagship perfumes with latest flacon assets
-          const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume);
-          const nonPerfumes = mapped.filter(p => !p.isPerfume && p.category !== 'perfumes');
-          mapped = [...defaultPerfumes, ...nonPerfumes];
+          // Ensure default flagship perfumes exist only if database has zero perfumes configured
+          const hasAnyPerfumes = mapped.some(p => p.isPerfume || p.category === 'perfumes');
+          if (!hasAnyPerfumes) {
+            const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume).map(p => ({ ...p, colors: [] }));
+            mapped = [...defaultPerfumes, ...mapped];
+          }
 
           setProducts(mapped);
           localStorage.setItem('atelier_products_v4', JSON.stringify(mapped));
@@ -300,20 +365,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (wasErased) {
         setProducts([]);
       } else {
-        const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume);
-        const saved = localStorage.getItem('atelier_products_v4');
+        const saved = localStorage.getItem('atelier_products_v4') || localStorage.getItem('atelier_products_v2');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            const nonPerfumes = parsed.filter(p => !p.isPerfume && p.category !== 'perfumes');
-            const merged = [...defaultPerfumes, ...nonPerfumes];
-            setProducts(merged);
-            localStorage.setItem('atelier_products_v4', JSON.stringify(merged));
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const cleaned = parsed.map(p => (p.isPerfume || p.category === 'perfumes') ? { ...p, colors: [] } : p);
+            setProducts(cleaned);
+            localStorage.setItem('atelier_products_v4', JSON.stringify(cleaned));
             return;
           }
         }
-        setProducts(PRODUCTS);
-        localStorage.setItem('atelier_products_v4', JSON.stringify(PRODUCTS));
+        const defaultClean = PRODUCTS.map(p => (p.isPerfume || p.category === 'perfumes') ? { ...p, colors: [] } : p);
+        setProducts(defaultClean);
+        localStorage.setItem('atelier_products_v4', JSON.stringify(defaultClean));
       }
     } catch (e) {
       console.error('Failed to load products from cloud:', e);
@@ -346,6 +410,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             image: row.image || '',
             images: row.image ? [row.image] : [],
             metaDescription: row.meta_description || '',
+            hidden: Boolean(row.hidden || row.is_hidden),
           };
           if (item.gender === 'women') {
             cloudWomen.push(item);
@@ -496,7 +561,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Sync catalog updates to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('atelier_products_v2', JSON.stringify(products));
+      localStorage.setItem('atelier_products_v4', JSON.stringify(products));
     } catch (e) {
       console.error('Failed to persist products', e);
     }
@@ -759,48 +824,142 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       reviews: productData.reviews || 1,
     };
 
+    // Pre-sanitize any base64 images to Cloudflare R2 before sending payload to PostgreSQL
+    try {
+      newProduct = await sanitizeProductMediaForDatabase(newProduct);
+    } catch (e) {
+      console.warn('[StoreContext] Media pre-sanitizing warning:', e);
+    }
+
     // Auto-sync to Supabase Cloud if connected
     if (isSupabaseConfigured()) {
-      const payload = mapProductToSupabase(newProduct);
-      let { data, error } = await supabase
-        .from('products')
-        .upsert(payload, { onConflict: 'id' })
-        .select();
+      // 1. Safe slug deduplication: ensure slug is unique across products with different IDs
+      const rawSlug = newProduct.slug || newProduct.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      let finalSlug = rawSlug;
+      try {
+        const { data: existingSlugRows } = await supabase
+          .from('products')
+          .select('id, slug')
+          .eq('slug', rawSlug)
+          .limit(1);
 
-      // Gracefully retry if an unmapped column triggered PGRST204 schema cache error
-      if (error && error.code === 'PGRST204') {
-        const colMatch = error.message.match(/Could not find the '([^']+)' column/i);
-        if (colMatch && colMatch[1]) {
-          console.warn(`Stripping unknown column "${colMatch[1]}" and retrying add...`);
-          delete payload[colMatch[1]];
-          const retry = await supabase
-            .from('products')
-            .upsert(payload, { onConflict: 'id' })
-            .select();
-          data = retry.data;
-          error = retry.error;
+        if (existingSlugRows && existingSlugRows.length > 0 && existingSlugRows[0].id !== id) {
+          finalSlug = `${rawSlug}-${Date.now().toString().slice(-4)}`;
+          newProduct.slug = finalSlug;
+        }
+      } catch (slugEx) {
+        console.warn('[StoreContext] Slug uniqueness check skipped:', slugEx);
+      }
+
+      const payload = mapProductToSupabase(newProduct);
+      let success = false;
+      let lastError: any = null;
+
+      // 2. Attempt atomic transaction RPC if available
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('create_or_update_product_atomic', {
+          p_product: payload,
+        });
+        if (!rpcError && rpcData?.success) {
+          success = true;
+          console.log(`[StoreContext] Product "${newProduct.name}" created atomically via RPC.`);
+        } else if (rpcError && rpcError.code !== 'PGRST202') {
+          console.warn('[StoreContext] Atomic RPC notice:', rpcError.message);
+          lastError = rpcError;
+        }
+      } catch (rpcEx) {
+        // Fallback to direct upsert
+      }
+
+      // 3. Fallback to direct upsert with safe idempotency and retry handling
+      if (!success) {
+        const MAX_RETRIES = 2;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            // Select complete row now that all images are lightweight Cloudflare R2 URLs
+            let { data, error } = await supabase
+              .from('products')
+              .upsert(payload, { onConflict: 'id' })
+              .select('*');
+
+            // Gracefully retry if an unmapped column triggered PGRST204 schema cache error
+            if (error && error.code === 'PGRST204') {
+              const colMatch = error.message.match(/Could not find the '([^']+)' column/i);
+              if (colMatch && colMatch[1]) {
+                console.warn(`Stripping unknown column "${colMatch[1]}" and retrying add...`);
+                delete payload[colMatch[1]];
+                const retry = await supabase
+                  .from('products')
+                  .upsert(payload, { onConflict: 'id' })
+                  .select('*');
+                data = retry.data;
+                error = retry.error;
+              }
+            }
+
+            if (!error) {
+              success = true;
+              if (data && data.length > 0) {
+                const dbProduct = mapSupabaseToProduct(data[0]);
+                const isPerfume = Boolean(newProduct.isPerfume || newProduct.category === 'perfumes' || dbProduct.isPerfume || dbProduct.category === 'perfumes');
+                newProduct = {
+                  ...dbProduct,
+                  ...newProduct,
+                  id: dbProduct.id || newProduct.id,
+                  slug: dbProduct.slug || newProduct.slug,
+                  isPerfume,
+                  colors: isPerfume ? [] : ((newProduct.colors && newProduct.colors.length > 0) ? newProduct.colors : (dbProduct.colors || [])),
+                  images: (newProduct.images && newProduct.images.length > 0) ? newProduct.images : (dbProduct.images || []),
+                  sizes: (newProduct.sizes && newProduct.sizes.length > 0) ? newProduct.sizes : (dbProduct.sizes || ['One Size']),
+                  returnDays: newProduct.returnDays !== undefined ? newProduct.returnDays : dbProduct.returnDays,
+                  hidden: newProduct.hidden !== undefined ? newProduct.hidden : dbProduct.hidden,
+                  perfumeFamily: newProduct.perfumeFamily || dbProduct.perfumeFamily,
+                  concentration: newProduct.concentration || dbProduct.concentration,
+                  longevity: newProduct.longevity || dbProduct.longevity,
+                  sillage: newProduct.sillage || dbProduct.sillage,
+                  perfumeNotes: newProduct.perfumeNotes || dbProduct.perfumeNotes,
+                  volumeOptions: newProduct.volumeOptions || dbProduct.volumeOptions,
+                  volumeMl: newProduct.volumeMl || dbProduct.volumeMl,
+                };
+              }
+              break;
+            }
+
+            lastError = error;
+            // Retry on transient timeouts (code 57014) or network errors
+            if (attempt < MAX_RETRIES && (error.code === '57014' || error.message.includes('timeout'))) {
+              console.warn(`[StoreContext] Transient database timeout on attempt ${attempt + 1}, retrying with backoff...`);
+              await new Promise(r => setTimeout(r, 450 * (attempt + 1)));
+            } else {
+              break;
+            }
+          } catch (upsertEx: any) {
+            lastError = upsertEx;
+            if (attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, 450 * (attempt + 1)));
+            } else {
+              break;
+            }
+          }
         }
       }
 
-      if (error) {
-        console.error('Supabase add error:', error);
-        throw new Error(`Database error adding piece: ${error.message}`);
-      }
-
-      if (data && data.length > 0) {
-        const dbProduct = mapSupabaseToProduct(data[0]);
-        newProduct = {
-          ...newProduct,
-          ...dbProduct,
-          returnDays: newProduct.returnDays !== undefined ? newProduct.returnDays : dbProduct.returnDays,
-        };
+      if (!success && lastError) {
+        console.error('Supabase add error:', lastError);
+        throw new Error(`Database error adding piece: ${lastError.message}`);
       }
     }
     
+    if (newProduct.isPerfume || newProduct.category === 'perfumes') {
+      newProduct.colors = [];
+      newProduct.isPerfume = true;
+      newProduct.category = 'perfumes';
+    }
+
     setProducts(prev => {
       const next = [newProduct, ...prev.filter(p => p.id !== id)];
       try {
-        localStorage.setItem('atelier_products_v2', JSON.stringify(next));
+        localStorage.setItem('atelier_products_v4', JSON.stringify(next));
       } catch (e) {
         console.error('Failed to sync products to localStorage:', e);
       }
@@ -815,63 +974,132 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateProduct = async (updatedProduct: Product): Promise<void> => {
     let finalProduct: Product = { ...updatedProduct };
 
+    // Pre-sanitize any base64 images to Cloudflare R2 before sending payload to PostgreSQL
+    try {
+      finalProduct = await sanitizeProductMediaForDatabase(finalProduct);
+    } catch (e) {
+      console.warn('[StoreContext] Media pre-sanitizing warning on update:', e);
+    }
+
     // Auto-sync update to Supabase Cloud
     if (isSupabaseConfigured()) {
-      const payload = mapProductToSupabase(updatedProduct);
+      const payload = mapProductToSupabase(finalProduct);
+      let success = false;
+      let lastError: any = null;
 
-      // Perform explicit UPDATE targeting the exact product ID
-      let { data, error } = await supabase
-        .from('products')
-        .update(payload)
-        .eq('id', updatedProduct.id)
-        .select();
+      // 1. Attempt atomic transaction RPC if available
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('create_or_update_product_atomic', {
+          p_product: payload,
+        });
+        if (!rpcError && rpcData?.success) {
+          success = true;
+        } else if (rpcError && rpcError.code !== 'PGRST202') {
+          lastError = rpcError;
+        }
+      } catch (rpcEx) {
+        // Fallback to direct update
+      }
 
-      // Gracefully retry if an unmapped column triggered PGRST204 schema cache error
-      if (error && error.code === 'PGRST204') {
-        const colMatch = error.message.match(/Could not find the '([^']+)' column/i);
-        if (colMatch && colMatch[1]) {
-          console.warn(`Stripping unknown column "${colMatch[1]}" and retrying update...`);
-          delete payload[colMatch[1]];
-          const retry = await supabase
-            .from('products')
-            .update(payload)
-            .eq('id', updatedProduct.id)
-            .select();
-          data = retry.data;
-          error = retry.error;
+      // 2. Fallback to direct update with safe retry
+      if (!success) {
+        const MAX_RETRIES = 2;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            // Perform explicit UPDATE targeting the exact product ID
+            let { data, error } = await supabase
+              .from('products')
+              .update(payload)
+              .eq('id', updatedProduct.id)
+              .select('*');
+
+            // Gracefully retry if an unmapped column triggered PGRST204 schema cache error
+            if (error && error.code === 'PGRST204') {
+              const colMatch = error.message.match(/Could not find the '([^']+)' column/i);
+              if (colMatch && colMatch[1]) {
+                console.warn(`Stripping unknown column "${colMatch[1]}" and retrying update...`);
+                delete payload[colMatch[1]];
+                const retry = await supabase
+                  .from('products')
+                  .update(payload)
+                  .eq('id', updatedProduct.id)
+                  .select('*');
+                data = retry.data;
+                error = retry.error;
+              }
+            }
+
+            // If the row didn't exist yet, fallback to upsert
+            if (!error && (!data || data.length === 0)) {
+              const upsertRes = await supabase
+                .from('products')
+                .upsert(payload, { onConflict: 'id' })
+                .select('*');
+              data = upsertRes.data;
+              error = upsertRes.error;
+            }
+
+            if (!error) {
+              success = true;
+              if (data && data.length > 0) {
+                const dbProduct = mapSupabaseToProduct(data[0]);
+                const isPerfume = Boolean(finalProduct.isPerfume || finalProduct.category === 'perfumes' || dbProduct.isPerfume || dbProduct.category === 'perfumes');
+                finalProduct = {
+                  ...dbProduct,
+                  ...finalProduct,
+                  id: dbProduct.id || finalProduct.id,
+                  slug: dbProduct.slug || finalProduct.slug,
+                  isPerfume,
+                  colors: isPerfume ? [] : ((finalProduct.colors && finalProduct.colors.length > 0) ? finalProduct.colors : (dbProduct.colors || [])),
+                  images: (finalProduct.images && finalProduct.images.length > 0) ? finalProduct.images : (dbProduct.images || []),
+                  sizes: (finalProduct.sizes && finalProduct.sizes.length > 0) ? finalProduct.sizes : (dbProduct.sizes || ['One Size']),
+                  returnDays: finalProduct.returnDays !== undefined ? finalProduct.returnDays : dbProduct.returnDays,
+                  hidden: finalProduct.hidden !== undefined ? finalProduct.hidden : dbProduct.hidden,
+                  perfumeFamily: finalProduct.perfumeFamily || dbProduct.perfumeFamily,
+                  concentration: finalProduct.concentration || dbProduct.concentration,
+                  longevity: finalProduct.longevity || dbProduct.longevity,
+                  sillage: finalProduct.sillage || dbProduct.sillage,
+                  perfumeNotes: finalProduct.perfumeNotes || dbProduct.perfumeNotes,
+                  volumeOptions: finalProduct.volumeOptions || dbProduct.volumeOptions,
+                  volumeMl: finalProduct.volumeMl || dbProduct.volumeMl,
+                };
+              }
+              break;
+            }
+
+            lastError = error;
+            if (attempt < MAX_RETRIES && (error.code === '57014' || error.message.includes('timeout'))) {
+              await new Promise(r => setTimeout(r, 450 * (attempt + 1)));
+            } else {
+              break;
+            }
+          } catch (updateEx: any) {
+            lastError = updateEx;
+            if (attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, 450 * (attempt + 1)));
+            } else {
+              break;
+            }
+          }
         }
       }
 
-      // If the row didn't exist yet, fallback to upsert
-      if (!error && (!data || data.length === 0)) {
-        const upsertRes = await supabase
-          .from('products')
-          .upsert(payload, { onConflict: 'id' })
-          .select();
-        data = upsertRes.data;
-        error = upsertRes.error;
+      if (!success && lastError) {
+        console.error('Supabase product update error:', lastError);
+        throw new Error(`Database error: ${lastError.message}`);
       }
+    }
 
-      if (error) {
-        console.error('Supabase product update error:', error);
-        throw new Error(`Database error: ${error.message}`);
-      }
-
-      // Merge verified database data with local-only metadata (e.g. returnDays)
-      if (data && data.length > 0) {
-        const dbProduct = mapSupabaseToProduct(data[0]);
-        finalProduct = {
-          ...finalProduct,
-          ...dbProduct,
-          returnDays: finalProduct.returnDays !== undefined ? finalProduct.returnDays : dbProduct.returnDays,
-        };
-      }
+    if (finalProduct.isPerfume || finalProduct.category === 'perfumes') {
+      finalProduct.colors = [];
+      finalProduct.isPerfume = true;
+      finalProduct.category = 'perfumes';
     }
 
     setProducts(prev => {
       const next = prev.map(p => (p.id === finalProduct.id ? finalProduct : p));
       try {
-        localStorage.setItem('atelier_products_v2', JSON.stringify(next));
+        localStorage.setItem('atelier_products_v4', JSON.stringify(next));
       } catch (e) {
         console.error('Failed to sync products to localStorage:', e);
       }
@@ -903,7 +1131,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('atelier_inventory_erased', 'true');
       }
       try {
-        localStorage.setItem('atelier_products_v2', JSON.stringify(next));
+        localStorage.setItem('atelier_products_v4', JSON.stringify(next));
       } catch (e) {
         console.error('Failed to sync products to localStorage:', e);
       }
@@ -925,7 +1153,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (activeProduct) {
       setActiveProduct(null);
     }
-    localStorage.setItem('atelier_products_v2', JSON.stringify([]));
+    localStorage.setItem('atelier_products_v4', JSON.stringify([]));
     localStorage.setItem('atelier_inventory_erased', 'true');
 
     if (isSupabaseConfigured()) {
@@ -1052,7 +1280,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setMenCategories(MEN_CATEGORIES);
     setPerfumeCategories(PERFUME_CATEGORIES);
     localStorage.removeItem('atelier_inventory_erased');
-    localStorage.setItem('atelier_products_v2', JSON.stringify(PRODUCTS));
+    localStorage.setItem('atelier_products_v4', JSON.stringify(PRODUCTS));
+    localStorage.removeItem('atelier_products_v2');
     localStorage.removeItem('atelier_women_categories_v2');
     localStorage.removeItem('atelier_men_categories_v2');
     localStorage.removeItem('atelier_perfume_categories_v2');
@@ -1120,8 +1349,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
+    const isPerfume = Boolean(product.isPerfume || product.category === 'perfumes');
+    const effectiveColor = isPerfume ? '' : color;
+
     const existingIndex = cart.findIndex(
-      item => item.productId === product.id && item.size === size && item.color === color
+      item => item.productId === product.id && item.size === size && (isPerfume || item.color === effectiveColor)
     );
 
     if (existingIndex > -1) {
@@ -1129,15 +1361,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updated[existingIndex].quantity += quantity;
       setCart(updated);
     } else {
-      const isPerfume = Boolean(product.isPerfume || product.category === 'perfumes');
       const newItem: CartItem = {
-        id: `${product.id}-${size}-${color}-${Date.now()}`,
+        id: `${product.id}-${size}-${effectiveColor}-${Date.now()}`,
         productId: product.id,
         name: product.name,
         price: effectivePrice,
         image: product.images[0] || '',
         size,
-        color,
+        color: effectiveColor,
         quantity,
         isPerfume,
         volumeMl: isPerfume ? size : undefined,

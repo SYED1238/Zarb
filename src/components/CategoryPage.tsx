@@ -49,7 +49,14 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
     return getCategoryBySlug(gender, categorySlug);
   }, [gender, categorySlug, getCategoryBySlug]);
 
-  const categoriesList = useMemo(() => getCategories(gender), [gender, getCategories]);
+  const categoriesList = useMemo(() => getCategories(gender).filter(c => !c.hidden), [gender, getCategories]);
+
+  // If a category is marked as hidden, smoothly redirect back to collection
+  useEffect(() => {
+    if (currentCategory && currentCategory.hidden) {
+      navigate(`/shop/${gender}`, { replace: true });
+    }
+  }, [currentCategory, gender, navigate]);
 
   // SEO: Update Title and Meta tags dynamically
   useEffect(() => {
@@ -112,6 +119,9 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ onQuickView }) => {
   // Filter & Sort Products (Strict category filtering: ONLY products belonging to category)
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
+      // Must not be hidden from storefront
+      if (p.hidden) return false;
+
       // Must match active gender
       if (p.gender !== gender) return false;
 

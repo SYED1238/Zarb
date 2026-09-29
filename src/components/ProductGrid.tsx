@@ -23,7 +23,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   const currentCategoryList = getCategories(gender === 'all' ? 'women' : gender).filter(
-    (c) => c.slug !== 'perfumes' && c.id !== 'perfumes'
+    (c) => c.slug !== 'perfumes' && c.id !== 'perfumes' && !c.hidden
   );
   const categories = [
     { id: 'all', name: 'All Pieces' },
@@ -33,6 +33,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   // Filter products by current active gender, category, and quick filter flags
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
+      // Must not be hidden from storefront
+      if (p.hidden) {
+        return false;
+      }
       // Garment collection is strictly apparel - exclude perfumes:
       if (p.isPerfume || p.category === 'perfumes') {
         return false;

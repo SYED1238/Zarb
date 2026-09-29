@@ -44,6 +44,7 @@ export interface Product {
   fit?: string;
   season?: string;
   returnDays?: number; // Return window in days (undefined = follows store policy, 0 = final sale)
+  hidden?: boolean; // When true, hidden from storefront catalog, search, and category listings
 
   // Haute Parfumerie & Attar Extensions
   isPerfume?: boolean;

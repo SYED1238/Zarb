@@ -26,6 +26,7 @@ import {
   RotateCcw,
   ArrowRight,
   Eye,
+  EyeOff,
   SlidersHorizontal,
   CloudUpload,
   CloudDownload,
@@ -596,9 +597,10 @@ export const AdminPortal: React.FC = () => {
 
   // Product Filtering & Search
   const [productSearch, setProductSearch] = useState('');
-  const [productGenderFilter, setProductGenderFilter] = useState<'all' | 'men' | 'women'>('all');
+  const [productGenderFilter, setProductGenderFilter] = useState<'all' | 'men' | 'women' | 'perfumes'>('all');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
   const [productStockFilter, setProductStockFilter] = useState<'all' | 'instock' | 'lowstock' | 'out'>('all');
+  const [productVisibilityFilter, setProductVisibilityFilter] = useState<'all' | 'live' | 'hidden'>('all');
 
   // Product Edit/Create Modal State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -624,6 +626,7 @@ export const AdminPortal: React.FC = () => {
     featured: boolean;
     newArrival: boolean;
     bestSeller: boolean;
+    hidden: boolean;
     materials: string;
     fit: string;
     season: string;
@@ -656,6 +659,7 @@ export const AdminPortal: React.FC = () => {
     featured: false,
     newArrival: true,
     bestSeller: false,
+    hidden: false,
     materials: '100% Pure Mulberry Silk & Hand-Spun Wool',
     fit: 'Tailored Silhouette',
     season: 'Autumn / Winter 2026',
@@ -853,6 +857,7 @@ export const AdminPortal: React.FC = () => {
     image: '',
     images: [],
     metaDescription: '',
+    hidden: false,
   });
   const [newCategoryImageUrl, setNewCategoryImageUrl] = useState('');
   const [categoryPreviewIndex, setCategoryPreviewIndex] = useState(0);
@@ -971,8 +976,13 @@ export const AdminPortal: React.FC = () => {
         if (!matchesName && !matchesSku && !matchesCategory) return false;
       }
 
-      // Gender
-      if (productGenderFilter !== 'all' && p.gender !== productGenderFilter) return false;
+      // Gender / Department
+      if (productGenderFilter === 'perfumes') {
+        if (!p.isPerfume && p.category !== 'perfumes' && (p.gender as any) !== 'perfumes') return false;
+      } else if (productGenderFilter !== 'all') {
+        if (p.isPerfume || p.category === 'perfumes') return false;
+        if (p.gender !== productGenderFilter) return false;
+      }
 
       // Category
       if (productCategoryFilter !== 'all' && p.category !== productCategoryFilter) return false;
@@ -982,9 +992,13 @@ export const AdminPortal: React.FC = () => {
       if (productStockFilter === 'lowstock' && (p.stock <= 0 || p.stock > 3)) return false;
       if (productStockFilter === 'out' && p.stock > 0) return false;
 
+      // Storefront Visibility
+      if (productVisibilityFilter === 'live' && p.hidden) return false;
+      if (productVisibilityFilter === 'hidden' && !p.hidden) return false;
+
       return true;
     });
-  }, [products, productSearch, productGenderFilter, productCategoryFilter, productStockFilter]);
+  }, [products, productSearch, productGenderFilter, productCategoryFilter, productStockFilter, productVisibilityFilter]);
 
   // Live Statistics
   const stats = useMemo(() => {
@@ -993,6 +1007,7 @@ export const AdminPortal: React.FC = () => {
     const outOfStockCount = products.filter((p) => p.stock <= 0).length;
     const womenCount = products.filter((p) => p.gender === 'women').length;
     const menCount = products.filter((p) => p.gender === 'men').length;
+    const hiddenCount = products.filter((p) => p.hidden).length;
 
     return {
       totalItems: products.length,
@@ -1002,12 +1017,14 @@ export const AdminPortal: React.FC = () => {
       inventoryValue: totalInventoryValue,
       lowStock: lowStockCount,
       outOfStock: outOfStockCount,
+      hiddenCount,
     };
   }, [products, allCategories]);
 
   // Perfume Filtering & Live State
   const [perfumeSearch, setPerfumeSearch] = useState('');
   const [perfumeFamilyFilter, setPerfumeFamilyFilter] = useState('all');
+  const [perfumeVisibilityFilter, setPerfumeVisibilityFilter] = useState<'all' | 'live' | 'hidden'>('all');
 
   const perfumeProducts = useMemo(() => {
     return products.filter(p => p.isPerfume || p.category === 'perfumes');
@@ -1027,9 +1044,14 @@ export const AdminPortal: React.FC = () => {
         if (!matchesName && !matchesSku && !matchesFamily && !matchesNotes) return false;
       }
       if (perfumeFamilyFilter !== 'all' && p.perfumeFamily !== perfumeFamilyFilter) return false;
+
+      // Visibility Filter
+      if (perfumeVisibilityFilter === 'live' && p.hidden) return false;
+      if (perfumeVisibilityFilter === 'hidden' && !p.hidden) return false;
+
       return true;
     });
-  }, [perfumeProducts, perfumeSearch, perfumeFamilyFilter]);
+  }, [perfumeProducts, perfumeSearch, perfumeFamilyFilter, perfumeVisibilityFilter]);
 
   const [isSeedingPerfumes, setIsSeedingPerfumes] = useState(false);
 
@@ -1063,7 +1085,7 @@ export const AdminPortal: React.FC = () => {
       price: 4500,
       compareAtPrice: 5500,
       images: ['https://images.unsplash.com/photo-1547887537-6158d64c35b3?q=80&w=1200&auto=format&fit=crop'],
-      colors: [{ name: 'Crystal Gold Flacon', hex: '#d4af37', images: [] }],
+      colors: [],
       sizes: ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'],
       stock: 15,
       sku: `AT-PARF-${Date.now().toString().slice(-4)}`,
@@ -1072,6 +1094,7 @@ export const AdminPortal: React.FC = () => {
       featured: true,
       newArrival: true,
       bestSeller: false,
+      hidden: false,
       materials: 'Pure Aged Agarwood, Ambergris, Mysore Sandalwood',
       fit: 'Concentrated Elixir · Apply to pulse points',
       season: 'HAUTE PARFUMERIE',
@@ -1122,6 +1145,7 @@ export const AdminPortal: React.FC = () => {
       featured: false,
       newArrival: true,
       bestSeller: false,
+      hidden: false,
       materials: 'Pure Mulberry Silk & Italian Wool',
       fit: 'Relaxed Architectural Silhouette',
       season: 'Autumn / Winter 2026',
@@ -1158,12 +1182,14 @@ export const AdminPortal: React.FC = () => {
       price: p.price,
       compareAtPrice: p.compareAtPrice || 0,
       images: [...p.images],
-      colors: p.colors.map(c => ({
-        name: c.name,
-        hex: c.hex,
-        image: c.image,
-        images: c.images ? [...c.images] : (c.image ? [c.image] : []),
-      })),
+      colors: isPerf
+        ? []
+        : (p.colors || []).map(c => ({
+            name: c.name,
+            hex: c.hex,
+            image: c.image,
+            images: c.images ? [...c.images] : (c.image ? [c.image] : []),
+          })),
       sizes: [...p.sizes],
       stock: p.stock,
       sku: p.sku,
@@ -1172,6 +1198,7 @@ export const AdminPortal: React.FC = () => {
       featured: !!p.featured,
       newArrival: !!p.newArrival,
       bestSeller: !!p.bestSeller,
+      hidden: Boolean(p.hidden),
       materials: p.materials || '',
       fit: p.fit || '',
       season: p.season || 'Autumn / Winter 2026',
@@ -1259,14 +1286,16 @@ export const AdminPortal: React.FC = () => {
       price: Number(productForm.price),
       compareAtPrice: productForm.compareAtPrice ? Number(productForm.compareAtPrice) : undefined,
       images: productForm.images.filter(img => !!img.trim()),
-      colors: productForm.colors.length > 0
-        ? productForm.colors.map(c => ({
-            name: c.name,
-            hex: c.hex,
-            image: (c.images && c.images.length > 0) ? c.images[0] : c.image,
-            images: (c.images && c.images.length > 0) ? c.images : (c.image ? [c.image] : []),
-          }))
-        : [{ name: isPerfumeItem ? 'Crystal Gold Flacon' : 'Standard', hex: isPerfumeItem ? '#d4af37' : '#111113', images: [] }],
+      colors: isPerfumeItem
+        ? []
+        : (productForm.colors.length > 0
+            ? productForm.colors.map(c => ({
+                name: c.name,
+                hex: c.hex,
+                image: (c.images && c.images.length > 0) ? c.images[0] : c.image,
+                images: (c.images && c.images.length > 0) ? c.images : (c.image ? [c.image] : []),
+              }))
+            : [{ name: 'Standard', hex: '#111113', images: [] }]),
       sizes: productForm.sizes.length > 0 ? productForm.sizes : ['One Size'],
       stock: Math.max(0, Number(productForm.stock)),
       sku: productForm.sku.trim() || `AT-${Date.now().toString().slice(-4)}`,
@@ -1275,6 +1304,7 @@ export const AdminPortal: React.FC = () => {
       featured: productForm.featured,
       newArrival: productForm.newArrival,
       bestSeller: productForm.bestSeller,
+      hidden: Boolean(productForm.hidden),
       materials: productForm.materials.trim(),
       fit: productForm.fit.trim(),
       season: productForm.season.trim(),
@@ -1327,6 +1357,7 @@ export const AdminPortal: React.FC = () => {
       image: '',
       images: [],
       metaDescription: '',
+      hidden: false,
     });
     setNewCategoryImageUrl('');
     setCategoryPreviewIndex(0);
@@ -1344,6 +1375,7 @@ export const AdminPortal: React.FC = () => {
       ...cat,
       image: catCover,
       images: catImages,
+      hidden: Boolean(cat.hidden),
     });
     setNewCategoryImageUrl('');
     setCategoryPreviewIndex(0);
@@ -1387,6 +1419,7 @@ export const AdminPortal: React.FC = () => {
       image: primaryCover,
       images: validImages,
       metaDescription: categoryForm.metaDescription.trim() || defaultMeta,
+      hidden: Boolean(categoryForm.hidden),
     };
 
     if (editingCategory) {
@@ -1416,6 +1449,31 @@ export const AdminPortal: React.FC = () => {
     }
 
     setDeleteConfirmTarget(null);
+  };
+
+  // Quick Visibility Toggles (Storefront live vs hidden)
+  const handleToggleCategoryVisibility = (cat: CategoryItem) => {
+    const updated = { ...cat, hidden: !cat.hidden };
+    updateCategory(updated, cat.slug);
+    showToast(
+      updated.hidden
+        ? `Category "${cat.name}" is now hidden from the front store`
+        : `Category "${cat.name}" is now live on the front store`
+    );
+  };
+
+  const handleToggleProductVisibility = async (p: Product) => {
+    const updated = { ...p, hidden: !p.hidden };
+    try {
+      await updateProduct(updated);
+      showToast(
+        updated.hidden
+          ? `"${p.name}" is now hidden from the front store`
+          : `"${p.name}" is now live on the front store`
+      );
+    } catch (err: any) {
+      showToast(`Visibility update failed: ${err.message || 'Error'}`);
+    }
   };
 
   // Bulk Price & Stock Edit Handlers
@@ -2031,7 +2089,7 @@ export const AdminPortal: React.FC = () => {
             }`}
           >
             <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>Haute Parfumerie ({perfumeProducts.length})</span>
+            <span>Haute Parfumerie & Perfumes ({perfumeProducts.length})</span>
           </button>
 
           {/* Tab 3: Client Orders */}
@@ -2127,7 +2185,7 @@ export const AdminPortal: React.FC = () => {
 
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-2.5">
-                {/* Gender */}
+                {/* Gender / Department Filter */}
                 <select
                   value={productGenderFilter}
                   onChange={(e) => setProductGenderFilter(e.target.value as any)}
@@ -2135,9 +2193,10 @@ export const AdminPortal: React.FC = () => {
                     theme === 'alabaster' ? 'bg-stone-100 border-stone-300 text-stone-800' : 'bg-black/50 border-white/10 text-stone-200'
                   }`}
                 >
-                  <option value="all">All Genders</option>
+                  <option value="all">All Departments</option>
                   <option value="women">Women's Collection</option>
                   <option value="men">Men's Collection</option>
+                  <option value="perfumes">✨ Haute Parfumerie (Perfumes)</option>
                 </select>
 
                 {/* Category */}
@@ -2170,6 +2229,19 @@ export const AdminPortal: React.FC = () => {
                   <option value="out">Out of Stock</option>
                 </select>
 
+                {/* Storefront Visibility */}
+                <select
+                  value={productVisibilityFilter}
+                  onChange={(e) => setProductVisibilityFilter(e.target.value as any)}
+                  className={`px-3 py-2 rounded-xl text-xs tracking-wider uppercase border focus:outline-none cursor-pointer ${
+                    theme === 'alabaster' ? 'bg-stone-100 border-stone-300 text-stone-800' : 'bg-black/50 border-white/10 text-stone-200'
+                  }`}
+                >
+                  <option value="all">Visibility: All</option>
+                  <option value="live">Live on Store</option>
+                  <option value="hidden">Hidden from Store</option>
+                </select>
+
                 {/* Cloud Refresh Button */}
                 <button
                   type="button"
@@ -2188,8 +2260,20 @@ export const AdminPortal: React.FC = () => {
                   <span className="hidden sm:inline">Sync Cloud</span>
                 </button>
 
+                {/* Add New Perfume Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenCreatePerfume}
+                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 font-semibold text-xs tracking-[0.12em] uppercase transition-all shadow-sm cursor-pointer"
+                  title="Create and publish a new Haute Parfumerie flacon or pure attar"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>+ Add Perfume</span>
+                </button>
+
                 {/* Add New Piece Button */}
                 <button
+                  type="button"
                   onClick={handleOpenCreateProduct}
                   className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-[0.15em] uppercase transition-all shadow-md cursor-pointer"
                 >
@@ -2213,7 +2297,7 @@ export const AdminPortal: React.FC = () => {
                       <th className="py-3 px-4">Gender & Category</th>
                       <th className="py-3 px-4">Pricing</th>
                       <th className="py-3 px-4">Inventory</th>
-                      <th className="py-3 px-4">Badges</th>
+                      <th className="py-3 px-4">Badges & Status</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -2226,6 +2310,8 @@ export const AdminPortal: React.FC = () => {
                           <tr
                             key={product.id}
                             className={`transition-colors ${
+                              product.hidden ? 'opacity-75 bg-amber-500/[0.02]' : ''
+                            } ${
                               theme === 'alabaster' ? 'hover:bg-stone-50' : 'hover:bg-white/[0.02]'
                             }`}
                           >
@@ -2287,30 +2373,65 @@ export const AdminPortal: React.FC = () => {
                               </span>
                             </td>
 
-                            {/* Editorial Badges */}
+                            {/* Editorial & Visibility Badges */}
                             <td className="py-3.5 px-4">
-                              <div className="flex items-center space-x-1">
-                                {product.newArrival && (
-                                  <span className="text-[8px] bg-white text-black px-1.5 py-0.5 rounded font-bold uppercase tracking-wider" title="New Arrival">
-                                    NEW
-                                  </span>
-                                )}
-                                {product.bestSeller && (
-                                  <span className="text-[8px] bg-amber-500 text-black px-1.5 py-0.5 rounded font-bold uppercase tracking-wider" title="Best Seller">
-                                    BEST
-                                  </span>
-                                )}
-                                {product.featured && (
-                                  <span className="text-[8px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider" title="Featured">
-                                    STAR
-                                  </span>
-                                )}
+                              <div className="flex flex-col gap-1">
+                                <div>
+                                  {product.hidden ? (
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono font-medium"
+                                      title="Hidden from storefront (Draft / Archived)"
+                                    >
+                                      <EyeOff className="w-2.5 h-2.5 text-amber-400" />
+                                      HIDDEN
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[9px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-1.5 py-0.5 rounded font-mono font-medium"
+                                      title="Live on storefront"
+                                    >
+                                      <Eye className="w-2.5 h-2.5 text-emerald-400" />
+                                      LIVE
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  {product.newArrival && (
+                                    <span className="text-[8px] bg-white text-black px-1.5 py-0.5 rounded font-bold uppercase tracking-wider" title="New Arrival">
+                                      NEW
+                                    </span>
+                                  )}
+                                  {product.bestSeller && (
+                                    <span className="text-[8px] bg-amber-500 text-black px-1.5 py-0.5 rounded font-bold uppercase tracking-wider" title="Best Seller">
+                                      BEST
+                                    </span>
+                                  )}
+                                  {product.featured && (
+                                    <span className="text-[8px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider" title="Featured">
+                                      STAR
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </td>
 
                             {/* Action Buttons */}
                             <td className="py-3.5 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleProductVisibility(product)}
+                                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                    product.hidden
+                                      ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                                      : theme === 'alabaster'
+                                        ? 'hover:bg-stone-200 text-stone-600 border-stone-300'
+                                        : 'hover:bg-white/10 text-stone-400 border-white/10'
+                                  }`}
+                                  title={product.hidden ? 'Show piece on storefront (currently hidden)' : 'Hide piece from storefront without deleting'}
+                                >
+                                  {product.hidden ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
                                 <button
                                   onClick={() => handleOpenEditProduct(product)}
                                   className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
@@ -2413,7 +2534,9 @@ export const AdminPortal: React.FC = () => {
                     <div
                       key={cat.slug}
                       className={`rounded-2xl border p-4 flex flex-col justify-between space-y-4 transition-all ${
-                        theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+                        cat.hidden
+                          ? 'opacity-80 border-amber-500/40 bg-amber-500/[0.02]'
+                          : theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
                       }`}
                     >
                       <div className="flex items-start space-x-3.5">
@@ -2430,9 +2553,20 @@ export const AdminPortal: React.FC = () => {
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block">
-                            /{cat.slug}
-                          </span>
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
+                              /{cat.slug}
+                            </span>
+                            {cat.hidden ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+                                <EyeOff className="w-2.5 h-2.5 text-amber-400" /> Hidden
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-medium">
+                                <Eye className="w-2.5 h-2.5 text-emerald-400" /> Live
+                              </span>
+                            )}
+                          </div>
                           <h3 className="font-serif text-base font-normal truncate mt-0.5">
                             {cat.name}
                           </h3>
@@ -2483,6 +2617,20 @@ export const AdminPortal: React.FC = () => {
                           <ExternalLink className="w-3 h-3" />
                         </button>
                         <div className="flex items-center space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCategoryVisibility(cat)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              cat.hidden
+                                ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                                : theme === 'alabaster'
+                                  ? 'hover:bg-stone-200 text-stone-600 border-stone-300'
+                                  : 'hover:bg-white/10 text-stone-400 border-white/10'
+                            }`}
+                            title={cat.hidden ? 'Show category on storefront (currently hidden)' : 'Hide category from storefront without deleting'}
+                          >
+                            {cat.hidden ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
                           <button
                             onClick={() => handleOpenEditCategory(cat)}
                             className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
@@ -2536,7 +2684,9 @@ export const AdminPortal: React.FC = () => {
                     <div
                       key={cat.slug}
                       className={`rounded-2xl border p-4 flex flex-col justify-between space-y-4 transition-all ${
-                        theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+                        cat.hidden
+                          ? 'opacity-80 border-amber-500/40 bg-amber-500/[0.02]'
+                          : theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
                       }`}
                     >
                       <div className="flex items-start space-x-3.5">
@@ -2553,9 +2703,20 @@ export const AdminPortal: React.FC = () => {
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block">
-                            /{cat.slug}
-                          </span>
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
+                              /{cat.slug}
+                            </span>
+                            {cat.hidden ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+                                <EyeOff className="w-2.5 h-2.5 text-amber-400" /> Hidden
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-medium">
+                                <Eye className="w-2.5 h-2.5 text-emerald-400" /> Live
+                              </span>
+                            )}
+                          </div>
                           <h3 className="font-serif text-base font-normal truncate mt-0.5">
                             {cat.name}
                           </h3>
@@ -2607,6 +2768,20 @@ export const AdminPortal: React.FC = () => {
                         </button>
                         <div className="flex items-center space-x-1.5">
                           <button
+                            type="button"
+                            onClick={() => handleToggleCategoryVisibility(cat)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              cat.hidden
+                                ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                                : theme === 'alabaster'
+                                  ? 'hover:bg-stone-200 text-stone-600 border-stone-300'
+                                  : 'hover:bg-white/10 text-stone-400 border-white/10'
+                            }`}
+                            title={cat.hidden ? 'Show category on storefront (currently hidden)' : 'Hide category from storefront without deleting'}
+                          >
+                            {cat.hidden ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
                             onClick={() => handleOpenEditCategory(cat)}
                             className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                               theme === 'alabaster' ? 'hover:bg-stone-200 text-stone-700 border-stone-300' : 'hover:bg-white/10 text-stone-300 border-white/10'
@@ -2647,13 +2822,28 @@ export const AdminPortal: React.FC = () => {
                   </div>
                   <p className="text-xs text-stone-400">Sacred distillations, olfactory classifications, and pure attar notes pyramids.</p>
                 </div>
-                <button
-                  onClick={() => handleOpenCreateCategory('perfumes')}
-                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase cursor-pointer transition-transform active:scale-95"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>New Fragrance Category</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenCreatePerfume}
+                    className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs tracking-wider uppercase cursor-pointer transition-transform active:scale-95 shadow-md"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>+ Add Perfume</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateCategory('perfumes')}
+                    className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-xl border font-semibold text-xs tracking-wider uppercase cursor-pointer transition-transform active:scale-95 ${
+                      theme === 'alabaster'
+                        ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900 shadow-sm'
+                        : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300'
+                    }`}
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>New Fragrance Category</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2664,7 +2854,9 @@ export const AdminPortal: React.FC = () => {
                     <div
                       key={cat.slug}
                       className={`rounded-2xl border p-4 flex flex-col justify-between space-y-4 transition-all ${
-                        theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
+                        cat.hidden
+                          ? 'opacity-80 border-amber-500/40 bg-amber-500/[0.02]'
+                          : theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
                       }`}
                     >
                       <div className="flex items-start space-x-3.5">
@@ -2681,9 +2873,20 @@ export const AdminPortal: React.FC = () => {
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
-                            /{cat.slug}
-                          </span>
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
+                              /{cat.slug}
+                            </span>
+                            {cat.hidden ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+                                <EyeOff className="w-2.5 h-2.5 text-amber-400" /> Hidden
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-medium">
+                                <Eye className="w-2.5 h-2.5 text-emerald-400" /> Live
+                              </span>
+                            )}
+                          </div>
                           <h3 className="font-serif text-base font-normal truncate mt-0.5">
                             {cat.name}
                           </h3>
@@ -2726,14 +2929,47 @@ export const AdminPortal: React.FC = () => {
                       </p>
 
                       <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                        <button
-                          onClick={() => navigate('/haute-parfumerie')}
-                          className="text-[11px] text-stone-400 hover:text-white flex items-center space-x-1"
-                        >
-                          <span>View Vault</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleOpenCreatePerfume();
+                              setProductForm(prev => ({
+                                ...prev,
+                                perfumeFamily: cat.name,
+                              }));
+                            }}
+                            className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 flex items-center space-x-1 cursor-pointer transition-colors"
+                            title={`Create and add a new perfume under ${cat.name}`}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ Add Perfume</span>
+                          </button>
+                          <span className="text-stone-600">·</span>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/haute-parfumerie')}
+                            className="text-[11px] text-stone-400 hover:text-white flex items-center space-x-1"
+                          >
+                            <span>Vault</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </div>
                         <div className="flex items-center space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCategoryVisibility(cat)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                              cat.hidden
+                                ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                                : theme === 'alabaster'
+                                  ? 'hover:bg-stone-200 text-stone-600 border-stone-300'
+                                  : 'hover:bg-white/10 text-stone-400 border-white/10'
+                            }`}
+                            title={cat.hidden ? 'Show category on storefront (currently hidden)' : 'Hide category from storefront without deleting'}
+                          >
+                            {cat.hidden ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
                           <button
                             onClick={() => handleOpenEditCategory(cat)}
                             className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
@@ -2944,6 +3180,8 @@ export const AdminPortal: React.FC = () => {
                       <div
                         key={cat.slug}
                         className={`rounded-2xl border p-4 flex flex-col justify-between space-y-3.5 transition-all ${
+                          cat.hidden ? 'opacity-80 border-amber-500/40 bg-amber-500/[0.02]' : ''
+                        } ${
                           isFilteringThis
                             ? 'border-amber-500/60 ring-1 ring-amber-500/30 shadow-md'
                             : theme === 'alabaster' ? 'bg-stone-50 border-stone-200' : 'bg-black/30 border-white/10 hover:border-white/20'
@@ -2963,9 +3201,20 @@ export const AdminPortal: React.FC = () => {
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
-                              /{cat.slug}
-                            </span>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="text-[9px] font-mono tracking-widest text-amber-500 uppercase block truncate">
+                                /{cat.slug}
+                              </span>
+                              {cat.hidden ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+                                  <EyeOff className="w-2.5 h-2.5 text-amber-400" /> Hidden
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-medium">
+                                  <Eye className="w-2.5 h-2.5 text-emerald-400" /> Live
+                                </span>
+                              )}
+                            </div>
                             <h4 className="font-serif text-base font-normal truncate mt-0.5" title={cat.name}>
                               {cat.name}
                             </h4>
@@ -3025,6 +3274,20 @@ export const AdminPortal: React.FC = () => {
                           </button>
 
                           <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCategoryVisibility(cat)}
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                cat.hidden
+                                  ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                                  : theme === 'alabaster'
+                                    ? 'hover:bg-stone-200 text-stone-600 border-stone-300'
+                                    : 'hover:bg-white/10 text-stone-400 border-white/10'
+                              }`}
+                              title={cat.hidden ? 'Show category on storefront (currently hidden)' : 'Hide category from storefront without deleting'}
+                            >
+                              {cat.hidden ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleOpenEditCategory(cat)}
@@ -3109,13 +3372,27 @@ export const AdminPortal: React.FC = () => {
                   })}
                 </select>
 
-                {(perfumeSearch || perfumeFamilyFilter !== 'all') && (
+                {/* Storefront Visibility Filter for Fragrances */}
+                <select
+                  value={perfumeVisibilityFilter}
+                  onChange={(e) => setPerfumeVisibilityFilter(e.target.value as any)}
+                  className={`px-3.5 py-2.5 rounded-xl text-xs tracking-wider uppercase border focus:outline-none cursor-pointer ${
+                    theme === 'alabaster' ? 'bg-stone-100 border-stone-300 text-stone-800' : 'bg-black/50 border-white/10 text-stone-200'
+                  }`}
+                >
+                  <option value="all">Visibility: All</option>
+                  <option value="live">Live on Store</option>
+                  <option value="hidden">Hidden from Store</option>
+                </select>
+
+                {(perfumeSearch || perfumeFamilyFilter !== 'all' || perfumeVisibilityFilter !== 'all') && (
                   <button
                     onClick={() => {
                       setPerfumeSearch('');
                       setPerfumeFamilyFilter('all');
+                      setPerfumeVisibilityFilter('all');
                     }}
-                    className="px-3 py-2 rounded-xl text-xs font-mono uppercase tracking-wider text-amber-500 hover:text-amber-400"
+                    className="px-3 py-2 rounded-xl text-xs font-mono uppercase tracking-wider text-amber-500 hover:text-amber-400 cursor-pointer"
                   >
                     Reset Filters
                   </button>
@@ -3137,6 +3414,8 @@ export const AdminPortal: React.FC = () => {
                     <div
                       key={p.id}
                       className={`rounded-3xl border p-5 flex flex-col justify-between space-y-4 transition-all hover:border-amber-500/40 ${
+                        p.hidden ? 'opacity-80 border-amber-500/30 bg-amber-500/[0.02]' : ''
+                      } ${
                         theme === 'alabaster' ? 'bg-white border-stone-200 shadow-sm' : 'bg-[#121216] border-white/10'
                       }`}
                     >
@@ -3156,10 +3435,19 @@ export const AdminPortal: React.FC = () => {
                         </div>
 
                         <div className="flex-1 min-w-0 space-y-1.5">
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[9px] font-mono uppercase tracking-widest font-semibold">
                               {p.perfumeFamily || 'Haute Parfumerie'}
                             </span>
+                            {p.hidden ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-300 border-amber-500/30 font-medium">
+                                <EyeOff className="w-2.5 h-2.5 text-amber-400" /> Hidden
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase px-2 py-0.5 rounded-full border bg-emerald-500/15 text-emerald-400 border-emerald-500/25 font-medium">
+                                <Eye className="w-2.5 h-2.5 text-emerald-400" /> Live
+                              </span>
+                            )}
                             <span className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded-full border ${
                               isOut
                                 ? 'bg-red-500/10 text-red-400 border-red-500/20'
@@ -3298,6 +3586,21 @@ export const AdminPortal: React.FC = () => {
                           >
                             <Copy className="w-3 h-3" />
                             <span className="hidden sm:inline">Duplicate</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleProductVisibility(p)}
+                            className={`p-1.5 rounded-lg border transition-colors cursor-pointer text-xs flex items-center space-x-1.5 ${
+                              p.hidden
+                                ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                                : theme === 'alabaster'
+                                  ? 'hover:bg-stone-200 text-stone-700 border-stone-300'
+                                  : 'hover:bg-white/10 text-stone-300 border-white/10'
+                            }`}
+                            title={p.hidden ? 'Show perfume on storefront (currently hidden)' : 'Hide perfume from storefront without deleting'}
+                          >
+                            {p.hidden ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                            <span className="text-[11px] font-mono uppercase">{p.hidden ? 'Hidden' : 'Live'}</span>
                           </button>
                         </div>
 
@@ -4621,10 +4924,14 @@ export const AdminPortal: React.FC = () => {
             }`}>
               <div>
                 <span className="text-[10px] font-mono tracking-[0.2em] text-amber-500 uppercase block">
-                  {editingProduct ? 'Update Zarb Piece' : 'Create New Zarb Piece'}
+                  {editingProduct
+                    ? ((productForm.isPerfume || productForm.category === 'perfumes') ? 'Update Haute Parfumerie Creation' : 'Update Zarb Piece')
+                    : ((productForm.isPerfume || productForm.category === 'perfumes') ? 'New Haute Parfumerie Fragrance' : 'Create New Zarb Piece')}
                 </span>
                 <h2 className="text-lg font-serif">
-                  {editingProduct ? editingProduct.name : 'New Catalogue Addition'}
+                  {editingProduct
+                    ? editingProduct.name
+                    : ((productForm.isPerfume || productForm.category === 'perfumes') ? 'New Fragrance / Attar Flacon' : 'New Catalogue Addition')}
                 </h2>
               </div>
               <button
@@ -4677,55 +4984,97 @@ export const AdminPortal: React.FC = () => {
 
                   <div>
                     <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5">
-                      Gender Collection *
+                      Department / Collection *
                     </label>
                     <select
-                      value={productForm.gender}
+                      value={(productForm.isPerfume || productForm.category === 'perfumes') ? 'perfumes' : productForm.gender}
                       onChange={(e) => {
-                        const newGender = e.target.value as 'women' | 'men';
-                        const firstCategoryForGender = (newGender === 'women' ? womenCategories : menCategories)[0]?.slug || 'kurtis';
-                        setProductForm({
-                          ...productForm,
-                          gender: newGender,
-                          category: firstCategoryForGender,
-                        });
+                        const val = e.target.value;
+                        if (val === 'perfumes') {
+                          const firstPerfFam = perfumeCategories[0]?.name || 'Royal Oud & Oriental';
+                          setProductForm(prev => ({
+                            ...prev,
+                            category: 'perfumes',
+                            isPerfume: true,
+                            perfumeFamily: prev.perfumeFamily || firstPerfFam,
+                            sizes: prev.sizes.length === 0 || !prev.isPerfume ? ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'] : prev.sizes,
+                            season: 'HAUTE PARFUMERIE',
+                          }));
+                          setSizeCategoryTab('perfume');
+                        } else {
+                          const newGender = val as 'women' | 'men';
+                          const firstCategoryForGender = (newGender === 'women' ? womenCategories : menCategories)[0]?.slug || 'kurtis';
+                          setProductForm(prev => ({
+                            ...prev,
+                            gender: newGender,
+                            category: firstCategoryForGender,
+                            isPerfume: false,
+                            sizes: prev.isPerfume ? ['S', 'M', 'L'] : prev.sizes,
+                            season: prev.season === 'HAUTE PARFUMERIE' ? 'Autumn / Winter 2026' : prev.season,
+                          }));
+                          setSizeCategoryTab('all');
+                        }
                       }}
                       className={`w-full px-3.5 py-2.5 rounded-xl text-xs uppercase border focus:outline-none cursor-pointer ${
-                        theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                        (productForm.isPerfume || productForm.category === 'perfumes')
+                          ? (theme === 'alabaster' ? 'bg-amber-50 border-amber-300 text-black font-semibold' : 'bg-amber-500/10 border-amber-500/30 text-amber-300 font-semibold')
+                          : (theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white')
                       }`}
                     >
                       <option value="women">Women's Collection</option>
                       <option value="men">Men's Collection</option>
+                      <option value="perfumes">✨ Haute Parfumerie (Perfumes & Attars)</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-[11px] uppercase tracking-wider text-stone-400 mb-1.5">
-                      Category Silhouette *
+                      {(productForm.isPerfume || productForm.category === 'perfumes') ? 'Olfactory Fragrance Family *' : 'Category Silhouette *'}
                     </label>
-                    <select
-                      value={productForm.category}
-                      onChange={(e) => {
-                        const newCat = e.target.value;
-                        const isPerf = newCat === 'perfumes' || productForm.isPerfume;
-                        setProductForm(prev => ({
+                    {(productForm.isPerfume || productForm.category === 'perfumes') ? (
+                      <select
+                        value={productForm.perfumeFamily || (perfumeCategories[0]?.name ?? '')}
+                        onChange={(e) => setProductForm(prev => ({
                           ...prev,
-                          category: newCat,
-                          isPerfume: isPerf,
-                          sizes: isPerf && prev.sizes.length === 0 ? ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'] : prev.sizes,
-                        }));
-                        if (isPerf) setSizeCategoryTab('perfume');
-                      }}
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs uppercase border focus:outline-none cursor-pointer ${
-                        theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
-                      }`}
-                    >
-                      {(productForm.gender === 'women' ? womenCategories : menCategories).map((c) => (
-                        <option key={c.slug} value={c.slug}>
-                          {c.name} ({c.shortName})
-                        </option>
-                      ))}
-                    </select>
+                          perfumeFamily: e.target.value,
+                          category: 'perfumes',
+                          isPerfume: true,
+                        }))}
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs uppercase border focus:outline-none cursor-pointer ${
+                          theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                        }`}
+                      >
+                        {perfumeCategories.map((c) => (
+                          <option key={c.slug} value={c.name}>
+                            {c.name} ({c.shortName})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        value={productForm.category}
+                        onChange={(e) => {
+                          const newCat = e.target.value;
+                          const isPerf = newCat === 'perfumes' || productForm.isPerfume;
+                          setProductForm(prev => ({
+                            ...prev,
+                            category: newCat,
+                            isPerfume: isPerf,
+                            sizes: isPerf && prev.sizes.length === 0 ? ['6ml (Attar)', '12ml (1 Tola)', '50ml (Extrait)', '100ml (Grand Flacon)'] : prev.sizes,
+                          }));
+                          if (isPerf) setSizeCategoryTab('perfume');
+                        }}
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs uppercase border focus:outline-none cursor-pointer ${
+                          theme === 'alabaster' ? 'bg-white border-stone-300 text-black' : 'bg-black/50 border-white/15 text-white'
+                        }`}
+                      >
+                        {(productForm.gender === 'women' ? womenCategories : menCategories).map((c) => (
+                          <option key={c.slug} value={c.slug}>
+                            {c.name} ({c.shortName})
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -4995,6 +5344,54 @@ export const AdminPortal: React.FC = () => {
                     />
                     <span>Featured Runway Item</span>
                   </label>
+                </div>
+
+                {/* Storefront Visibility Status Card */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  productForm.hidden
+                    ? 'bg-amber-500/10 border-amber-500/30'
+                    : 'bg-emerald-500/10 border-emerald-500/25'
+                }`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center space-x-3.5">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                        productForm.hidden
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      }`}>
+                        {productForm.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold tracking-wide flex items-center gap-2">
+                          <span>{productForm.hidden ? 'Storefront Status: Hidden (Draft / Archived)' : 'Storefront Status: Live on Store'}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono uppercase font-bold border ${
+                            productForm.hidden
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          }`}>
+                            {productForm.hidden ? 'Hidden' : 'Live'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-400 mt-0.5 leading-relaxed">
+                          {productForm.hidden
+                            ? 'Hidden from storefront grids, category pages, search, and recommendations. All pricing, inventory, and images remain preserved.'
+                            : 'Visible to all customers and visitors across category pages, search, and product details.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setProductForm(prev => ({ ...prev, hidden: !prev.hidden }))}
+                      className={`px-3.5 py-1.5 rounded-xl border text-xs font-mono uppercase tracking-wider shrink-0 transition-all cursor-pointer font-semibold ${
+                        productForm.hidden
+                          ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-400 shadow-md'
+                          : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border-white/20'
+                      }`}
+                    >
+                      {productForm.hidden ? 'Make Live' : 'Hide Item'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -5266,16 +5663,17 @@ export const AdminPortal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Colors & Swatches */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                  <span className="text-xs uppercase tracking-wider font-semibold text-stone-400">
-                    4. Color Shades & Color-Specific Imagery
-                  </span>
-                  <span className="text-[10px] font-mono text-amber-400">
-                    {productForm.colors.length} {productForm.colors.length === 1 ? 'shade' : 'shades'} configured
-                  </span>
-                </div>
+              {/* Colors & Swatches (Apparel Only — Completely Omitted for Fragrances) */}
+              {!(productForm.isPerfume || productForm.category === 'perfumes') && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <span className="text-xs uppercase tracking-wider font-semibold text-stone-400">
+                      4. Color Shades & Color-Specific Imagery
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-400">
+                      {productForm.colors.length} {productForm.colors.length === 1 ? 'shade' : 'shades'} configured
+                    </span>
+                  </div>
 
                 <div className="space-y-4">
                   {/* Swatch Pills with Dedicated Photo Count */}
@@ -5668,13 +6066,16 @@ export const AdminPortal: React.FC = () => {
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* Sizes & Size Management */}
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
-                  <span className="text-xs uppercase tracking-wider font-semibold text-stone-400">
-                    5. Available Sizes & Size Management ({productForm.sizes.length} selected)
-                  </span>
+            {/* Sizes & Size Management */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                <span className="text-xs uppercase tracking-wider font-semibold text-stone-400">
+                  {(productForm.isPerfume || productForm.category === 'perfumes')
+                    ? `4. Flacon Volumes & ML Pricing (${productForm.sizes.length} selected)`
+                    : `5. Available Sizes & Size Management (${productForm.sizes.length} selected)`}
+                </span>
                   <div className="flex items-center space-x-2">
                     <button
                       type="button"
@@ -5994,7 +6395,9 @@ export const AdminPortal: React.FC = () => {
               {/* Editorial Copy */}
               <div className="space-y-4">
                 <span className="text-xs uppercase tracking-wider font-semibold text-stone-400 block border-b border-white/10 pb-2">
-                  6. Editorial Copy & Fabric Specifications
+                  {(productForm.isPerfume || productForm.category === 'perfumes')
+                    ? '5. Editorial Story & Scent Specifications'
+                    : '6. Editorial Copy & Fabric Specifications'}
                 </span>
 
                 <div className="space-y-3">
@@ -6112,7 +6515,9 @@ export const AdminPortal: React.FC = () => {
                 >
                   {isSavingProduct
                     ? 'Saving to Database...'
-                    : (editingProduct ? 'Save Piece Changes' : 'Publish New Piece')}
+                    : (editingProduct
+                        ? ((productForm.isPerfume || productForm.category === 'perfumes') ? 'Save Fragrance Changes' : 'Save Piece Changes')
+                        : ((productForm.isPerfume || productForm.category === 'perfumes') ? 'Publish Fragrance to Vault' : 'Publish New Piece'))}
                 </button>
               </div>
             </form>
@@ -6193,6 +6598,54 @@ export const AdminPortal: React.FC = () => {
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Storefront Visibility Toggle Card */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  categoryForm.hidden
+                    ? 'bg-amber-500/10 border-amber-500/30'
+                    : 'bg-emerald-500/10 border-emerald-500/25'
+                }`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center space-x-3.5">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                        categoryForm.hidden
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      }`}>
+                        {categoryForm.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold tracking-wide flex items-center gap-2">
+                          <span>{categoryForm.hidden ? 'Storefront Status: Hidden from Store' : 'Storefront Status: Live on Store'}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono uppercase font-bold border ${
+                            categoryForm.hidden
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          }`}>
+                            {categoryForm.hidden ? 'Hidden' : 'Live'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-400 mt-0.5 leading-relaxed">
+                          {categoryForm.hidden
+                            ? 'Hidden from navigation pills, storefront categories, and collections. All assigned products and images remain 100% saved.'
+                            : 'Visible across the storefront header, navigation pills, homepage collections, and filters.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCategoryForm(prev => ({ ...prev, hidden: !prev.hidden }))}
+                      className={`px-3.5 py-1.5 rounded-xl border text-xs font-mono uppercase tracking-wider shrink-0 transition-all cursor-pointer font-semibold ${
+                        categoryForm.hidden
+                          ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-400 shadow-md'
+                          : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border-white/20'
+                      }`}
+                    >
+                      {categoryForm.hidden ? 'Make Live' : 'Hide Category'}
+                    </button>
                   </div>
                 </div>
 

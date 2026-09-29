@@ -58,7 +58,8 @@ class ModalHistoryManager {
     }
 
     try {
-      window.history.pushState({ zarbOverlayId: id, timestamp: Date.now() }, '', window.location.href);
+      const currentState = (window.history.state && typeof window.history.state === 'object') ? window.history.state : {};
+      window.history.pushState({ ...currentState, zarbOverlayId: id, timestamp: Date.now() }, '', window.location.href);
     } catch (e) {
       console.warn('[ModalHistory] pushState failed:', e);
     }

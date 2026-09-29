@@ -125,8 +125,10 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ onSelectProduct 
               <div key={product.id} className="pt-4 flex space-x-4">
                 <div
                   onClick={() => {
-                    onSelectProduct(product);
                     setIsWishlistOpen(false);
+                    setTimeout(() => {
+                      onSelectProduct(product);
+                    }, 60);
                   }}
                   className={`w-20 aspect-[3/4] rounded-lg overflow-hidden shrink-0 border cursor-pointer ${
                     isAlabaster ? 'bg-stone-200 border-stone-300/80' : 'bg-[#16161b] border-white/10'
@@ -146,8 +148,10 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ onSelectProduct 
                     <div className="flex items-start justify-between">
                       <h4
                         onClick={() => {
-                          onSelectProduct(product);
                           setIsWishlistOpen(false);
+                          setTimeout(() => {
+                            onSelectProduct(product);
+                          }, 60);
                         }}
                         className={`text-xs sm:text-sm font-sans font-normal line-clamp-1 pr-2 cursor-pointer hover:underline ${
                           isAlabaster ? 'text-stone-950' : 'text-white'

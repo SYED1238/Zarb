@@ -9,6 +9,7 @@ export interface CategoryItem {
   image: string;
   images?: string[]; // Multiple photos configured from admin page
   metaDescription: string;
+  hidden?: boolean; // When true, hidden from customer storefront navigation, pills, and homepage
 }
 
 export const WOMEN_CATEGORIES: CategoryItem[] = [
