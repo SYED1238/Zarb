@@ -318,7 +318,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (saved) existingLocalProducts.push(...JSON.parse(saved));
           } catch {}
 
-          let mapped = data.map(row => {
+          let mapped: Product[] = data.map(row => {
             const prod = mapSupabaseToProduct(row);
             const local = existingLocalProducts.find(lp => lp.id === prod.id);
             const preset = PRODUCTS.find(p => p.id === prod.id);
@@ -343,7 +343,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           // Ensure default flagship perfumes exist only if database has zero perfumes configured
           const hasAnyPerfumes = mapped.some(p => p.isPerfume || p.category === 'perfumes');
           if (!hasAnyPerfumes) {
-            const defaultPerfumes = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume).map(p => ({ ...p, colors: [] }));
+            const defaultPerfumes: Product[] = PRODUCTS.filter(p => p.category === 'perfumes' || p.isPerfume).map(p => ({ ...p, colors: [] }));
             mapped = [...defaultPerfumes, ...mapped];
           }
 
