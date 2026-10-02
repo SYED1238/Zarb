@@ -30,13 +30,13 @@ export const EntryScreen: React.FC<EntryScreenProps> = ({ onEnter }) => {
   // Background editorial image adapts to hover or selection
   const getBackgroundImage = () => {
     if (selected === 'men' || hovered === 'men') {
-      return 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?q=85&w=2000&auto=format&fit=crop';
+      return 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?q=75&w=1200&auto=format&fit=crop';
     }
     if (selected === 'women' || hovered === 'women') {
-      return 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=85&w=2000&auto=format&fit=crop';
+      return 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=75&w=1200&auto=format&fit=crop';
     }
     // Atmospheric dual/moody editorial
-    return 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=85&w=2000&auto=format&fit=crop';
+    return 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=75&w=1200&auto=format&fit=crop';
   };
 
   return (

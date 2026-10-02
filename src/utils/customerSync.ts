@@ -146,10 +146,15 @@ export async function resolvePhoneCustomerId(phone: string): Promise<{
   let resolvedId = '';
   if (isSupabaseConfigured()) {
     try {
-      const deterministicSecret = `ZarbClient_${national}_LuxuryAuth2026!`;
+      // Generate a cryptographically random password for the Supabase auth record.
+      // This is NOT stored or displayed — it's only used for identity resolution via signUp.
+      // signUp is idempotent: if the email already exists, it returns the existing user.
+      const randomBytes = new Uint8Array(32);
+      crypto.getRandomValues(randomBytes);
+      const securePassword = Array.from(randomBytes, b => b.toString(16).padStart(2, '0')).join('') + '!Zr';
       const res = await supabase.auth.signUp({
         email: syntheticEmail,
-        password: deterministicSecret,
+        password: securePassword,
         options: {
           data: {
             phone: e164,

@@ -1,4 +1,8 @@
 // MSG91 OTP Widget Integration Utility for ZARB (India-only Phone OTP)
+// Credentials are fetched from the server-side otp-service Edge Function.
+// NO secrets are stored in client-side code.
+
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 declare global {
   interface Window {
@@ -7,10 +11,9 @@ declare global {
   }
 }
 
-export const MSG91_CONFIG = {
-  widgetId: '366967677778343938383039',
-  tokenAuth: '568506Tub0GL8Mw6a9e748aP1',
-};
+// NOTE: MSG91 widgetId and tokenAuth are fetched from the server at runtime.
+// The old hardcoded values have been removed for security.
+// ⚠️ The previously exposed tokenAuth should be ROTATED/REVOKED in the MSG91 dashboard.
 
 let isScriptLoading = false;
 let isScriptLoaded = false;
@@ -73,6 +76,32 @@ export const loadMsg91Script = (): Promise<boolean> => {
 };
 
 /**
+ * Fetch MSG91 OTP configuration from the secure server-side Edge Function
+ */
+async function fetchOtpConfig(phone?: string): Promise<{ widgetId: string; tokenAuth: string } | null> {
+  if (!isSupabaseConfigured()) {
+    console.error('Supabase not configured — cannot fetch OTP config');
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('otp-service', {
+      body: { action: 'get-config', phone: phone || '' },
+    });
+
+    if (error || !data?.widgetId || !data?.tokenAuth) {
+      console.error('Failed to fetch OTP config from server:', error || data);
+      return null;
+    }
+
+    return { widgetId: data.widgetId, tokenAuth: data.tokenAuth };
+  } catch (err) {
+    console.error('Error fetching OTP config:', err);
+    return null;
+  }
+}
+
+/**
  * Trigger the MSG91 OTP Widget popup modal for user phone verification
  */
 export const openMsg91OtpWidget = async (options: {
@@ -80,6 +109,14 @@ export const openMsg91OtpWidget = async (options: {
   onSuccess: (data: any) => void;
   onFailure?: (error: any) => void;
 }) => {
+  // 1. Fetch OTP credentials from server
+  const otpConfig = await fetchOtpConfig(options.mobileNumber);
+  if (!otpConfig) {
+    options.onFailure?.('Unable to initialize OTP service. Please try again.');
+    return;
+  }
+
+  // 2. Load the MSG91 widget script
   const loaded = await loadMsg91Script();
   if (!loaded || typeof window.initSendOTP !== 'function') {
     console.error('Failed to load MSG91 OTP widget script');
@@ -87,7 +124,7 @@ export const openMsg91OtpWidget = async (options: {
     return;
   }
 
-  // Format identifier: only digits, 10-digit Indian number prefixed by 91
+  // 3. Format identifier: only digits, 10-digit Indian number prefixed by 91
   let formattedNumber = '';
   if (options.mobileNumber) {
     const digits = options.mobileNumber.replace(/\D/g, '');
@@ -96,12 +133,13 @@ export const openMsg91OtpWidget = async (options: {
     }
   }
 
+  // 4. Initialize the widget with server-provided credentials
   const configuration = {
-    widgetId: MSG91_CONFIG.widgetId,
-    tokenAuth: MSG91_CONFIG.tokenAuth,
+    widgetId: otpConfig.widgetId,
+    tokenAuth: otpConfig.tokenAuth,
     identifier: formattedNumber || undefined,
     success: (data: any) => {
-      console.log('MSG91 OTP Verification Success:', data);
+      console.log('MSG91 OTP Verification Success');
       options.onSuccess(data);
     },
     failure: (error: any) => {

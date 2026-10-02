@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, ExternalLink, X, Copy, Check, Sparkles, MoreHorizontal } from 'lucide-react';
+import { Compass, ExternalLink, Copy, Check, Sparkles, MoreHorizontal } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import {
   shouldShowInstagramChoice,
   openInExternalBrowser,
@@ -14,10 +13,9 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
   const [hasAttemptedHandoff, setHasAttemptedHandoff] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Detect whether to display the choice sheet on initial mount
+  // Detect whether to display the modal on initial mount
   useEffect(() => {
     if (shouldShowInstagramChoice()) {
-      // Gentle micro-delay ensures seamless initial paint without layout shift
       const timer = setTimeout(() => {
         setIsOpen(true);
       }, 400);
@@ -25,16 +23,20 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
     }
   }, []);
 
-  // Connect Android hardware / browser back-navigation to closing this modal
-  useModalBackHandler(isOpen, () => handleContinueInInstagram(), 'instagram-browser-choice-modal');
+  // Auto-trigger browser handoff when modal opens
+  useEffect(() => {
+    if (isOpen && !hasAttemptedHandoff) {
+      // Small delay so the user sees the modal before the handoff attempt
+      const timer = setTimeout(() => {
+        setHasAttemptedHandoff(true);
+        openInExternalBrowser();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, hasAttemptedHandoff]);
 
-  // Dismiss for current page session without saving to persistent storage
-  const handleContinueInInstagram = () => {
-    setIsOpen(false);
-  };
-
-  // Primary action: hand off to external / default browser
-  const handleContinueInBrowser = () => {
+  // Manual retry: hand off to external / default browser
+  const handleOpenInBrowser = () => {
     setHasAttemptedHandoff(true);
     openInExternalBrowser();
   };
@@ -63,15 +65,14 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
       aria-modal="true"
       aria-labelledby="instagram-choice-title"
     >
-      {/* Dimmed backdrop with luxury blur */}
+      {/* Dimmed backdrop — NOT dismissable, user must open in browser */}
       <div
         className={`fixed inset-0 transition-opacity duration-300 ${
           isAlabaster ? 'bg-stone-900/40 backdrop-blur-md' : 'bg-black/80 backdrop-blur-md'
         }`}
-        onClick={handleContinueInInstagram}
       />
 
-      {/* Modal / Sheet Card */}
+      {/* Modal Card */}
       <div
         className={`relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl border z-10 shadow-2xl overflow-hidden animate-fade-in transition-all duration-300 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-7 ${
           isAlabaster
@@ -79,13 +80,13 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
             : 'bg-[#0d0d10]/95 backdrop-blur-2xl border-white/15 text-stone-100 shadow-[0_25px_60px_rgba(0,0,0,0.85)]'
         }`}
       >
-        {/* Mobile Swipe / Sheet Handle Indicator */}
+        {/* Mobile Sheet Handle */}
         <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
           <div className={`w-12 h-1 rounded-full ${isAlabaster ? 'bg-stone-300' : 'bg-white/20'}`} />
         </div>
 
-        {/* Top Header Row with Close Icon */}
-        <div className="flex items-center justify-between px-6 pt-3 sm:pt-6 pb-2">
+        {/* Header */}
+        <div className="flex items-center px-6 pt-3 sm:pt-6 pb-2">
           <div className="flex items-center space-x-2">
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400">
               <Sparkles className="w-3.5 h-3.5" />
@@ -94,22 +95,9 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
               WELCOME TO ZARB
             </span>
           </div>
-
-          <button
-            type="button"
-            onClick={handleContinueInInstagram}
-            className={`p-2 rounded-full transition-all cursor-pointer ${
-              isAlabaster
-                ? 'text-stone-500 hover:text-black hover:bg-stone-200/60'
-                : 'text-stone-400 hover:text-white hover:bg-white/10'
-            }`}
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
-        {/* Editorial Heading & Subtitle */}
+        {/* Heading */}
         <div className="px-6 pt-2 pb-5 space-y-1 text-left">
           <h2
             id="instagram-choice-title"
@@ -117,106 +105,65 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
               isAlabaster ? 'text-stone-950' : 'text-white'
             }`}
           >
-            Where would you like to shop?
+            Opening in your browser
           </h2>
           <p className={`text-xs sm:text-sm font-sans ${isAlabaster ? 'text-stone-600' : 'text-stone-400'}`}>
-            Choose the experience that works best for you.
+            For the best shopping, checkout & payment experience.
           </p>
         </div>
 
-        {/* Choice Actions */}
+        {/* Open in Browser Button */}
         <div className="px-6 space-y-3.5">
-          {/* PRIMARY BUTTON: Continue in Browser */}
-          <div className="space-y-1.5">
-            <button
-              type="button"
-              onClick={handleContinueInBrowser}
-              className={`w-full group flex items-center justify-between px-5 py-4 rounded-2xl transition-all duration-300 active:scale-[0.98] cursor-pointer text-left ${
-                isAlabaster
-                  ? 'bg-gradient-to-r from-stone-900/[0.10] to-stone-900/[0.04] hover:from-stone-900/[0.15] hover:to-stone-900/[0.08] text-stone-950 border border-stone-900/20 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] ring-1 ring-stone-900/10'
-                  : 'bg-gradient-to-r from-white/[0.15] to-white/[0.08] hover:from-white/[0.22] hover:to-white/[0.12] text-white border border-white/30 backdrop-blur-xl shadow-[0_8px_32px_rgba(255,255,255,0.06),0_2px_12px_rgba(0,0,0,0.4)] ring-1 ring-white/15'
-              }`}
-            >
-              <div className="flex items-center space-x-3.5 min-w-0 flex-1 mr-2">
-                <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                    isAlabaster
-                      ? 'bg-stone-900/10 border-stone-900/20 text-stone-900'
-                      : 'bg-white/10 border-white/20 text-white shadow-inner'
-                  }`}
-                >
-                  <Compass className="w-5 h-5 transition-transform duration-300 group-hover:rotate-45" />
-                </div>
-                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
-                  <span className="text-sm sm:text-base font-medium tracking-wide shrink-0">
-                    Continue in Browser
-                  </span>
+          <button
+            type="button"
+            onClick={handleOpenInBrowser}
+            className={`w-full group flex items-center justify-between px-5 py-4 rounded-2xl transition-all duration-300 active:scale-[0.98] cursor-pointer text-left ${
+              isAlabaster
+                ? 'bg-gradient-to-r from-stone-900/[0.10] to-stone-900/[0.04] hover:from-stone-900/[0.15] hover:to-stone-900/[0.08] text-stone-950 border border-stone-900/20 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] ring-1 ring-stone-900/10'
+                : 'bg-gradient-to-r from-white/[0.15] to-white/[0.08] hover:from-white/[0.22] hover:to-white/[0.12] text-white border border-white/30 backdrop-blur-xl shadow-[0_8px_32px_rgba(255,255,255,0.06),0_2px_12px_rgba(0,0,0,0.4)] ring-1 ring-white/15'
+            }`}
+          >
+            <div className="flex items-center space-x-3.5 min-w-0 flex-1 mr-2">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                  isAlabaster
+                    ? 'bg-stone-900/10 border-stone-900/20 text-stone-900'
+                    : 'bg-white/10 border-white/20 text-white shadow-inner'
+                }`}
+              >
+                <Compass className="w-5 h-5 transition-transform duration-300 group-hover:rotate-45" />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
+                <span className="text-sm sm:text-base font-medium tracking-wide shrink-0">
+                  Open in {isIos ? 'Safari' : 'Browser'}
+                </span>
+                {hasAttemptedHandoff && (
                   <span
                     className={`inline-flex items-center text-[9px] sm:text-[9.5px] font-mono tracking-[0.18em] uppercase font-semibold px-2 py-0.5 rounded-full border transition-colors ${
                       isAlabaster
-                        ? 'text-emerald-800 bg-emerald-700/10 border-emerald-700/25'
-                        : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+                        ? 'text-amber-700 bg-amber-500/10 border-amber-500/25'
+                        : 'text-amber-400 bg-amber-500/10 border-amber-500/25'
                     }`}
                   >
-                    RECOMMENDED
+                    TAP TO RETRY
                   </span>
-                </div>
+                )}
               </div>
+            </div>
 
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border transition-all ${
-                  isAlabaster
-                    ? 'bg-stone-900/5 border-stone-900/15 text-stone-800 group-hover:translate-x-0.5'
-                    : 'bg-white/10 border-white/20 text-white group-hover:translate-x-0.5'
-                }`}
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </div>
-            </button>
-
-            <p className={`text-[11px] px-1 font-sans leading-relaxed ${isAlabaster ? 'text-stone-500' : 'text-stone-400'}`}>
-              Recommended for the smoothest sign-in, checkout & payment experience.
-            </p>
-          </div>
-
-          {/* SECONDARY OPTION: Continue in Instagram */}
-          <div className="space-y-1.5 pt-1">
-            <button
-              type="button"
-              onClick={handleContinueInInstagram}
-              className={`w-full group flex items-center justify-between px-5 py-3.5 rounded-2xl transition-all duration-300 active:scale-[0.98] cursor-pointer text-left ${
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border transition-all ${
                 isAlabaster
-                  ? 'bg-stone-900/[0.03] hover:bg-stone-900/[0.07] text-stone-700 hover:text-stone-950 border border-stone-900/10 backdrop-blur-md'
-                  : 'bg-white/[0.04] hover:bg-white/[0.08] text-stone-300 hover:text-white border border-white/10 backdrop-blur-md'
+                  ? 'bg-stone-900/5 border-stone-900/15 text-stone-800 group-hover:translate-x-0.5'
+                  : 'bg-white/10 border-white/20 text-white group-hover:translate-x-0.5'
               }`}
             >
-              <div className="flex items-center space-x-3.5 min-w-0">
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                    isAlabaster
-                      ? 'bg-stone-900/[0.03] border-stone-900/10 text-stone-700'
-                      : 'bg-white/[0.05] border-white/10 text-stone-300'
-                  }`}
-                >
-                  <span className="text-xs font-serif font-bold tracking-widest">IG</span>
-                </div>
-                <span className="text-xs sm:text-sm font-medium tracking-wide">
-                  Continue in Instagram
-                </span>
-              </div>
-
-              <span className={`text-[11px] font-mono tracking-wider uppercase ${isAlabaster ? 'text-stone-500' : 'text-stone-400'}`}>
-                Stay here &rarr;
-              </span>
-            </button>
-
-            <p className={`text-[11px] px-1 font-sans leading-relaxed ${isAlabaster ? 'text-stone-500' : 'text-stone-400'}`}>
-              Stay here and continue shopping without leaving Instagram.
-            </p>
-          </div>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </div>
+          </button>
         </div>
 
-        {/* Fallback Guidance (Shown after user taps Continue in Browser or on iOS) */}
+        {/* Fallback Guidance — shown after handoff attempt */}
         {hasAttemptedHandoff && (
           <div
             className={`mx-6 mt-4 p-3.5 rounded-2xl border animate-fade-in text-xs space-y-2 ${
@@ -229,17 +176,17 @@ export const InstagramBrowserChoiceModal: React.FC = () => {
               <MoreHorizontal className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="font-semibold text-amber-500">
-                  Did your browser not open automatically?
+                  Didn&apos;t open automatically?
                 </p>
                 <p className={`text-[11px] leading-relaxed ${isAlabaster ? 'text-stone-700' : 'text-stone-300'}`}>
-                  Tap the three dots (<strong>•••</strong>) in Instagram&apos;s top-right corner and select{' '}
+                  Tap the three dots (<strong>&bull;&bull;&bull;</strong>) in Instagram&apos;s top-right corner and select{' '}
                   <strong>&ldquo;Open in {isIos ? 'Safari' : 'external browser'}&rdquo;</strong>.
                 </p>
               </div>
             </div>
 
             <div className="pt-1 flex items-center justify-between border-t border-amber-500/20">
-              <span className="text-[10px] font-mono text-stone-400">Or copy link to paste into your browser:</span>
+              <span className="text-[10px] font-mono text-stone-400">Or copy link to paste in your browser:</span>
               <button
                 type="button"
                 onClick={handleCopyLink}

@@ -12,15 +12,15 @@ import * as crypto from 'crypto';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://lakuqxnlgqaquvssyhed.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || 'a7382081a7f46890c428d6dbf437740f';
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'zarb-media';
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL || 'https://pub-15149465d8d847a1b40de05cd4baad37.r2.dev').replace(/\/$/, '');
 
-if (!SUPABASE_SERVICE_ROLE_KEY || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
+if (!SUPABASE_SERVICE_ROLE_KEY || !R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
   console.error('Error: Missing required environment variables.');
-  console.error('Please set: SUPABASE_SERVICE_ROLE_KEY, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY');
+  console.error('Please set: SUPABASE_SERVICE_ROLE_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY');
   process.exit(1);
 }
 

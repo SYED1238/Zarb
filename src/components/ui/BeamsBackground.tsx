@@ -61,6 +61,19 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
     const container = containerRef.current;
     if (!canvas || !container) return;
 
+    // --- LOW-END DEVICE DETECTION ---
+    const nav = navigator as any;
+    const deviceMemory = nav.deviceMemory || 8; // GB, defaults to 8 if API unavailable
+    const hardwareConcurrency = nav.hardwareConcurrency || 4;
+    const isLowEnd = deviceMemory <= 4 || hardwareConcurrency <= 2;
+    const isMidRange = deviceMemory <= 6 || hardwareConcurrency <= 4;
+
+    // Skip canvas animation entirely on very low-end devices (≤4GB RAM)
+    if (isLowEnd) {
+      canvas.style.display = 'none';
+      return;
+    }
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -68,6 +81,25 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
     let height = container.offsetHeight || 500;
     let time = 0;
     let animationFrameId: number;
+    let isVisible = true;
+    let lastFrameTime = 0;
+
+    // Throttle FPS: 20fps on mid-range mobile, 30fps on decent mobile, 60fps on desktop
+    const isMobileScreen = window.innerWidth < 768;
+    const targetFps = isMidRange ? 20 : isMobileScreen ? 30 : 60;
+    const frameInterval = 1000 / targetFps;
+
+    // --- VISIBILITY OBSERVER: pause when footer is off-screen ---
+    let observer: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          isVisible = entries[0]?.isIntersecting ?? true;
+        },
+        { threshold: 0.05 }
+      );
+      observer.observe(container);
+    }
 
     // --- NOISE GENERATOR (Sine Superposition from new-main) ---
     const noise = (x: number, t: number) => {
@@ -86,13 +118,25 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
       canvas.height = height;
     };
 
-    const draw = () => {
+    const draw = (timestamp: number) => {
+      animationFrameId = requestAnimationFrame(draw);
+
+      // Skip if not visible (off-screen) — huge perf win
+      if (!isVisible) return;
+
+      // Frame throttle
+      if (timestamp - lastFrameTime < frameInterval) return;
+      lastFrameTime = timestamp;
+
       ctx.clearRect(0, 0, width, height);
 
       const isMobile = width < 768;
 
-      // On mobile, calibrate density so each beam has substance and doesn't blur into mud
-      const effectiveDensity = isMobile ? Math.max(16, Math.min(24, Math.floor(width / 20))) : density;
+      // Reduce density further on mid-range devices
+      const densityScale = isMidRange ? 0.5 : 1;
+      const effectiveDensity = isMobile
+        ? Math.max(10, Math.min(16, Math.floor(width / 25)))
+        : Math.floor(density * densityScale);
       const effectiveAberration = isMobile ? Math.min(aberration, 8.0) : aberration;
 
       // Additive screen blending in noir, multiply in alabaster
@@ -157,8 +201,6 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
           isMobile ? 1.0 : 0.8
         );
       }
-
-      animationFrameId = requestAnimationFrame(draw);
     };
 
     resize();
@@ -170,11 +212,12 @@ export const HolographicBeams: React.FC<HolographicBeamsProps> = ({
       resizeObserver.observe(container);
     }
 
-    draw();
+    animationFrameId = requestAnimationFrame(draw);
 
     return () => {
       window.removeEventListener('resize', resize);
       if (resizeObserver) resizeObserver.disconnect();
+      if (observer) observer.disconnect();
       cancelAnimationFrame(animationFrameId);
     };
   }, [density, speed, aberration, opacity, effectiveAlabaster]);

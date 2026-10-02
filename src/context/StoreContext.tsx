@@ -207,7 +207,7 @@ interface StoreContextType {
 
   // Cart
   cart: CartItem[];
-  addToCart: (product: Product, size: string, color: string, quantity?: number, customPrice?: number) => void;
+  addToCart: (product: Product, size: string, color: string, quantity?: number) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, qty: number) => void;
   clearCart: () => void;
@@ -1339,15 +1339,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return products.find(p => p.id === id);
   };
 
-  const addToCart = (product: Product, size: string, color: string, quantity = 1, customPrice?: number) => {
-    // Resolve dynamic price for perfume volume option if configured
-    let effectivePrice = customPrice !== undefined ? customPrice : product.price;
-    if (customPrice === undefined && product.volumeOptions && product.volumeOptions.length > 0) {
+  const addToCart = (product: Product, size: string, color: string, quantity = 1) => {
+    // Price is always derived from the product catalog — never from client input.
+    // The Cashfree edge function also re-validates prices server-side.
+    let effectivePrice = product.price;
+    if (product.volumeOptions && product.volumeOptions.length > 0) {
       const match = product.volumeOptions.find(v => v.ml === size || size.startsWith(v.ml));
       if (match && match.price > 0) {
         effectivePrice = match.price;
       }
     }
+
 
     const isPerfume = Boolean(product.isPerfume || product.category === 'perfumes');
     const effectiveColor = isPerfume ? '' : color;

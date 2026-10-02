@@ -6,7 +6,7 @@ import { Hero } from './components/Hero';
 import { CategorySection } from './components/CategorySection';
 import { ProductGrid } from './components/ProductGrid';
 import { CategoryPage } from './components/CategoryPage';
-import { AdminPortal } from './components/admin/AdminPortal';
+const AdminPortal = React.lazy(() => import('./components/admin/AdminPortal').then(m => ({ default: m.AdminPortal })));
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { InstagramBrowserChoiceModal } from './components/InstagramBrowserChoiceModal';
 import { SizeGuideModal } from './components/SizeGuideModal';
@@ -23,6 +23,7 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { AuthProvider } from './context/AuthContext';
 import { PaymentReturnPage } from './components/PaymentReturnPage';
 import type { Product, GenderType } from './types/product';
+const ZarbAI = React.lazy(() => import('./components/ZarbAI').then(m => ({ default: m.ZarbAI })));
 
 // Scroll restoration component: ensures navigating to any route begins at top
 const ScrollToTop: React.FC = () => {
@@ -116,29 +117,62 @@ const StoreFront: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate]);
 
-  // Deep-link: auto-open product from ?product=slug on initial page load
+  // SEO: Dynamic canonical URL & Open Graph URL on every route change
+  useEffect(() => {
+    const baseUrl = 'https://zarb.shop';
+    const canonicalUrl = `${baseUrl}${location.pathname}`;
+
+    // Update <link rel="canonical">
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', canonicalUrl);
+
+    // Update og:url
+    let ogUrl = document.querySelector('meta[property="og:url"]') as HTMLMetaElement | null;
+    if (ogUrl) ogUrl.setAttribute('content', canonicalUrl);
+  }, [location.pathname]);
+
+  // Deep-link: auto-open product from ?product=slug or /product/:slug on page load / navigation
   const hasHandledDeepLink = useRef(false);
   useEffect(() => {
-    if (hasHandledDeepLink.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const productSlug = params.get('product');
+    // 1. Check query parameter ?product=slug
+    const params = new URLSearchParams(location.search);
+    let productSlug = params.get('product');
+
+    // 2. Check pathname /product/:slug, /products/:slug, or /product=:slug
     if (!productSlug) {
-      // No deep-link product on initial page load - mark as handled
+      const matchPath = location.pathname.match(/^\/(?:products?\/|product=)([^/?#]+)/i);
+      if (matchPath) {
+        productSlug = decodeURIComponent(matchPath[1]);
+      }
+    }
+
+    if (!productSlug) {
       hasHandledDeepLink.current = true;
       return;
     }
+
     if (products.length === 0) return; // Wait for products to load before attempting to match
-    const match = products.find(p => p.slug === productSlug);
+
+    if (hasHandledDeepLink.current && activeProduct?.slug === productSlug) return;
+
+    const match = products.find(p => p.slug === productSlug || String(p.id) === productSlug);
     if (match) {
       const currentState = (window.history.state && typeof window.history.state === 'object') ? window.history.state : {};
-      const cleanUrl = window.location.pathname;
+      const cleanUrl = '/';
       window.history.replaceState({ ...currentState, isStorePage: true }, '', cleanUrl);
-      const productUrl = cleanUrl + '?product=' + productSlug;
+      const productUrl = cleanUrl + '?product=' + match.slug;
       window.history.pushState({ ...currentState, isProductDeepLink: true }, '', productUrl);
       setActiveProduct(match);
       hasHandledDeepLink.current = true;
+    } else {
+      hasHandledDeepLink.current = true;
     }
-  }, [products, setActiveProduct]);
+  }, [location.pathname, location.search, products, activeProduct, setActiveProduct]);
 
   // Listen for popstate (browser back button) to close product modal
   useEffect(() => {
@@ -225,6 +259,20 @@ const StoreFront: React.FC = () => {
           element={<HomePage onQuickView={(p) => setActiveProduct(p)} />}
         />
 
+        {/* Dedicated Direct Product Modal Routes */}
+        <Route
+          path="/product/:productSlug"
+          element={<HomePage onQuickView={(p) => setActiveProduct(p)} />}
+        />
+        <Route
+          path="/products/:productSlug"
+          element={<HomePage onQuickView={(p) => setActiveProduct(p)} />}
+        />
+        <Route
+          path="/product=:productSlug"
+          element={<HomePage onQuickView={(p) => setActiveProduct(p)} />}
+        />
+
         {/* Dedicated Haute Parfumerie Showcase Routes */}
         <Route
           path="/perfumes"
@@ -248,9 +296,35 @@ const StoreFront: React.FC = () => {
         {/* Cashfree Payment Return Route */}
         <Route path="/payment-return" element={<PaymentReturnPage />} />
 
-        {/* Concealed Admin Route */}
-        <Route path="/admin" element={<AdminPortal />} />
-        <Route path="/atelier-portal" element={<AdminPortal />} />
+        {/* Concealed Admin Route (Lazy Loaded) */}
+        <Route
+          path="/admin"
+          element={
+            <React.Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center font-serif text-sm tracking-[0.25em] uppercase text-[#141416]/60 dark:text-white/60">
+                  Initializing Atelier Admin...
+                </div>
+              }
+            >
+              <AdminPortal />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/atelier-portal"
+          element={
+            <React.Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center font-serif text-sm tracking-[0.25em] uppercase text-[#141416]/60 dark:text-white/60">
+                  Initializing Atelier Admin...
+                </div>
+              }
+            >
+              <AdminPortal />
+            </React.Suspense>
+          }
+        />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -261,6 +335,11 @@ const StoreFront: React.FC = () => {
 
       {/* Floating Liquid Glass Bottom Navigation Bar (Mobile only) */}
       <MobileBottomNav />
+
+      {/* ZARB AI Fashion Concierge */}
+      <React.Suspense fallback={null}>
+        <ZarbAI />
+      </React.Suspense>
 
       {/* Interactive Overlays & Modals */}
       <InstagramBrowserChoiceModal />

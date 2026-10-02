@@ -9,11 +9,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from 'npm:@aws-sdk/client-s3@3.699.0';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.699.0';
 
-const ALLOWED_ADMIN_EMAILS = ['syedhamza1238@gmail.com'];
+// Admin authorization is verified against the admin_users database table
 
-const ALLOWED_ORIGINS = [
+const PRODUCTION_ORIGINS = [
   'https://zarb.shop',
   'https://www.zarb.shop',
+];
+const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
 ];
@@ -26,8 +28,15 @@ const ALLOWED_CONTENT_TYPES: Record<string, string> = {
   'image/gif': 'gif',
 };
 
+function getAllowedOrigins(): string[] {
+  // Only allow localhost origins in non-production (dev/staging) environments
+  const env = (Deno.env.get('ENVIRONMENT') || 'production').toLowerCase();
+  return env !== 'production' ? [...PRODUCTION_ORIGINS, ...DEV_ORIGINS] : PRODUCTION_ORIGINS;
+}
+
 function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*';
+  const origins = getAllowedOrigins();
+  const allowed = origin && origins.includes(origin) ? origin : origins[0];
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -89,42 +98,31 @@ serve(async (req: Request) => {
   let isAuthorized = false;
   let userEmail = '';
 
-  // Helper to parse JWT payload without external library
-  function parseJwtPayload(jwt: string): Record<string, any> | null {
-    try {
-      const parts = jwt.split('.');
-      if (parts.length === 3) {
-        const payloadStr = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
-        return JSON.parse(payloadStr);
-      }
-    } catch {}
-    return null;
-  }
-
-  const tokenPayload = parseJwtPayload(token);
-
+  // Check if caller is using the service_role key directly
   if (
     token === supabaseServiceKey ||
-    apiKeyHeader === supabaseServiceKey ||
-    tokenPayload?.role === 'service_role'
+    apiKeyHeader === supabaseServiceKey
   ) {
     isAuthorized = true;
     userEmail = 'service_role';
   } else if (token) {
-    // Validate with Supabase Auth for end-user admin session
+    // Validate with Supabase Auth — only trust cryptographically verified tokens
     try {
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || token);
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
       const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
 
       if (!authErr && user && user.email) {
         userEmail = user.email.toLowerCase().trim();
-        if (ALLOWED_ADMIN_EMAILS.includes(userEmail)) {
+        // Verify against admin_users table for server-side admin check
+        const { data: adminRow } = await supabaseAdmin
+          .from('admin_users')
+          .select('email')
+          .eq('email', userEmail)
+          .maybeSingle();
+
+        if (adminRow) {
           isAuthorized = true;
         }
-      } else if (tokenPayload?.email && ALLOWED_ADMIN_EMAILS.includes(tokenPayload.email.toLowerCase().trim())) {
-        // Fallback to verified JWT claim
-        isAuthorized = true;
-        userEmail = tokenPayload.email.toLowerCase().trim();
       }
     } catch (authException) {
       console.warn('[R2 SERVICE] Auth verification warning:', authException);
@@ -149,6 +147,33 @@ serve(async (req: Request) => {
       const folder = (body.folder || 'products').replace(/[^a-zA-Z0-9_-]/g, '');
       const entityId = (body.entityId || 'general').replace(/[^a-zA-Z0-9_-]/g, '');
 
+      // Validate content type against allowlist
+      if (!ALLOWED_CONTENT_TYPES[contentType]) {
+        return new Response(
+          JSON.stringify({ error: `Content type "${contentType}" is not allowed. Allowed: ${Object.keys(ALLOWED_CONTENT_TYPES).join(', ')}` }),
+          { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Rate limit: 20 upload requests per admin user per 10 minutes
+      const uploadRateKey = `upload:${userEmail}`;
+      const now = Date.now();
+      const rateEntry = (globalThis as any).__r2RateMap || new Map();
+      (globalThis as any).__r2RateMap = rateEntry;
+      const existing = rateEntry.get(uploadRateKey);
+      if (existing && now < existing.resetAt) {
+        existing.count++;
+        if (existing.count > 20) {
+          return new Response(
+            JSON.stringify({ error: 'Upload rate limit exceeded. Please try again later.' }),
+            { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        rateEntry.set(uploadRateKey, { count: 1, resetAt: now + 10 * 60 * 1000 });
+      }
+
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
       const ext = ALLOWED_CONTENT_TYPES[contentType] || 'webp';
       const uniqueId = crypto.randomUUID();
       const objectKey = `${folder}/${entityId}/${uniqueId}.${ext}`;
@@ -157,6 +182,7 @@ serve(async (req: Request) => {
         Bucket: bucketName,
         Key: objectKey,
         ContentType: contentType,
+        ContentLength: MAX_FILE_SIZE, // Server-enforced 10MB max
       });
 
       // 5 minutes expiry
@@ -199,6 +225,15 @@ serve(async (req: Request) => {
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) {
         bytes[i] = binaryStr.charCodeAt(i);
+      }
+
+      // Server-side file size validation (10MB max)
+      const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+      if (bytes.length > MAX_UPLOAD_SIZE) {
+        return new Response(
+          JSON.stringify({ error: `File too large (${(bytes.length / 1024 / 1024).toFixed(1)}MB). Maximum allowed: 10MB.` }),
+          { status: 413, headers: { ...cors, 'Content-Type': 'application/json' } }
+        );
       }
 
       const ext = ALLOWED_CONTENT_TYPES[mimeType] || 'jpg';
@@ -266,7 +301,7 @@ serve(async (req: Request) => {
   } catch (err: any) {
     console.error('[R2 SERVICE] Unexpected error:', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Internal server error' }),
+      JSON.stringify({ error: 'An internal error occurred. Please try again.' }),
       { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
     );
   }

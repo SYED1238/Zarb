@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /atelier-portal
+Disallow: /payment-return
+
+Sitemap: https://zarb.shop/sitemap.xml

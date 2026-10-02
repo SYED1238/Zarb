@@ -129,30 +129,18 @@ export async function optimizeFileForUpload(file: File, quality = 0.9): Promise<
 
 /**
  * Retrieves authorization headers for Cloudflare R2 Edge Function calls.
- * Ensures that both Google OAuth admin sessions and master passkey emergency sessions
- * can obtain presigned R2 upload URLs without falling back to large Base64 strings.
+ * Uses the actual Supabase Auth session token for server-side verification.
+ * No client-side JWT fabrication — the token must be cryptographically valid.
  */
-export function getAdminAuthHeaders(): Record<string, string> {
+export async function getAdminAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {};
-  if (typeof window !== 'undefined') {
-    const isPasskeyAuthed =
-      sessionStorage.getItem('atelier_admin_auth') === 'true' ||
-      localStorage.getItem('atelier_admin_auth') === 'true';
-
-    if (isPasskeyAuthed) {
-      try {
-        const b64Url = (obj: any) =>
-          btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
-            .replace(/=/g, '')
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_');
-        const header = b64Url({ alg: 'HS256', typ: 'JWT' });
-        const payload = b64Url({ email: 'syedhamza1238@gmail.com', role: 'authenticated' });
-        headers['Authorization'] = `Bearer ${header}.${payload}.sig`;
-      } catch (e) {
-        console.warn('Could not generate admin auth token payload:', e);
-      }
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
     }
+  } catch (e) {
+    console.warn('Could not retrieve Supabase auth session for admin headers:', e);
   }
   return headers;
 }
@@ -199,7 +187,7 @@ export async function uploadImageToR2(
 
     // 2. Request presigned upload URL from Edge Function
     const { data: signResult, error: signError } = await supabase.functions.invoke('r2-storage', {
-      headers: getAdminAuthHeaders(),
+      headers: await getAdminAuthHeaders(),
       body: {
         action: 'get-upload-url',
         folder,
@@ -255,7 +243,7 @@ export async function deleteImageFromR2(urlOrKey: string): Promise<boolean> {
 
   try {
     const { data, error } = await supabase.functions.invoke('r2-storage', {
-      headers: getAdminAuthHeaders(),
+      headers: await getAdminAuthHeaders(),
       body: {
         action: 'delete-object',
         objectKey,

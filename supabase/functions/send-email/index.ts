@@ -11,15 +11,23 @@ const SENDER_IDENTITY = 'Zarb <hello@zarb.shop>';
 const RESEND_API_URL = 'https://api.resend.com/emails';
 export const ADMIN_NOTIFICATION_EMAIL = 'syedhamza1238@gmail.com';
 
-const ALLOWED_ORIGINS = [
+const PRODUCTION_ORIGINS = [
   'https://zarb.shop',
   'https://www.zarb.shop',
+];
+const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
 ];
 
+function getAllowedOrigins(): string[] {
+  const env = (Deno.env.get('ENVIRONMENT') || 'production').toLowerCase();
+  return env !== 'production' ? [...PRODUCTION_ORIGINS, ...DEV_ORIGINS] : PRODUCTION_ORIGINS;
+}
+
 function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*';
+  const origins = getAllowedOrigins();
+  const allowed = origin && origins.includes(origin) ? origin : origins[0];
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -38,6 +46,19 @@ interface SendEmailPayload {
   data?: EmailTemplateData;
 }
 
+// Simple in-memory rate limiter (per edge-function instance)
+const emailRateLimiter = new Map<string, { count: number; resetAt: number }>();
+function isRateLimited(key: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = emailRateLimiter.get(key);
+  if (!entry || now > entry.resetAt) {
+    emailRateLimiter.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  entry.count++;
+  return entry.count > maxRequests;
+}
+
 serve(async (req: Request) => {
   const origin = req.headers.get('origin');
   const cors = getCorsHeaders(origin);
@@ -50,6 +71,15 @@ serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
       status: 405,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Rate limit: 10 email requests per IP per 10 minutes
+  const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown';
+  if (isRateLimited(`email:${clientIp}`, 10, 10 * 60 * 1000)) {
+    return new Response(JSON.stringify({ error: 'Too many email requests. Please try again later.' }), {
+      status: 429,
       headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
@@ -346,7 +376,7 @@ serve(async (req: Request) => {
   } catch (err: any) {
     console.error('[EMAIL SERVICE] Exception processing request:', err);
     return new Response(
-      JSON.stringify({ success: false, error: err?.message || 'Internal error' }),
+      JSON.stringify({ success: false, error: 'An error occurred while processing your request.' }),
       { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
     );
   }

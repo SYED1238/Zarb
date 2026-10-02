@@ -223,6 +223,57 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       .slice(0, 4);
   }, [products, product, isPerfume]);
 
+  const activeDisplayPrice = selectedVolumeOption?.price && selectedVolumeOption.price > 0
+    ? selectedVolumeOption.price
+    : (product?.price ?? 0);
+
+  // Dynamic Product JSON-LD Structured Data for Google Rich Snippets & SEO
+  useEffect(() => {
+    if (!product) return;
+    const scriptId = 'product-jsonld';
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
+      script.type = 'application/ld+json';
+      document.head.appendChild(script);
+    }
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      image: (product.images && product.images.length > 0) ? product.images : undefined,
+      description: product.description || `Luxury piece from ZARB Atelier collections.`,
+      sku: product.sku || product.id,
+      brand: {
+        '@type': 'Brand',
+        name: 'ZARB',
+      },
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'INR',
+        price: activeDisplayPrice,
+        availability: (product.stock && product.stock > 0) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        url: window.location.href,
+        seller: {
+          '@type': 'Organization',
+          name: 'ZARB',
+        },
+      },
+      aggregateRating: product.rating ? {
+        '@type': 'AggregateRating',
+        ratingValue: product.rating,
+        reviewCount: Math.max(1, product.reviews || 1),
+      } : undefined,
+    };
+    script.textContent = JSON.stringify(schema);
+
+    return () => {
+      const el = document.getElementById(scriptId);
+      if (el) el.remove();
+    };
+  }, [product, activeDisplayPrice]);
+
   if (!product) return null;
 
   const isAlabaster = theme === 'alabaster';
@@ -234,10 +285,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     if (typeof val === 'string') return val.trim() || '—';
     return '—';
   };
-
-  const activeDisplayPrice = selectedVolumeOption?.price && selectedVolumeOption.price > 0
-    ? selectedVolumeOption.price
-    : product.price;
 
   const activeDisplayComparePrice = selectedVolumeOption?.compareAtPrice
     ? selectedVolumeOption.compareAtPrice
@@ -284,11 +331,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   const handleAddToBag = () => {
-    addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity, activeDisplayPrice);
+    addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity);
   };
 
   const handleBuyNow = () => {
-    addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity, activeDisplayPrice);
+    addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity);
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
     onClose();

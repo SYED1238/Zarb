@@ -198,11 +198,11 @@ export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
       {/* Background Editorial Image Slides Layer (Layered Zero-Blink Cinematic Ken Burns) */}
       {gender === 'women' ? (
         <div className="absolute inset-0 overflow-hidden bg-[#09090b]">
-          {(activeSlidesList.length > 0 ? activeSlidesList : fallbackWomen).map((imgUrl, idx) => {
+           {(activeSlidesList.length > 0 ? activeSlidesList : fallbackWomen).map((imgUrl, idx) => {
             const isCurrent = activeSlide === idx;
             const isPrev = prevSlide === idx;
 
-            // Only keep current and previous in DOM for silky 60fps performance
+            // Only keep current and previous in DOM for performance
             if (!isCurrent && !isPrev) {
               return null;
             }
@@ -214,25 +214,15 @@ export const Hero: React.FC<HeroProps> = ({ onShopClick }) => {
                 key={imgUrl + idx}
                 className={`absolute inset-0 bg-cover bg-center transition-all duration-[1400ms] ease-out pointer-events-none ${
                   isCurrent
-                    ? 'opacity-100 scale-100'
+                    ? `opacity-100 scale-100 ${isCurrent ? 'animate-ken-burns' : ''}`
                     : 'opacity-0 scale-[1.07]'
                 }`}
                 style={{
                   backgroundImage: `url(${imgUrl})`,
                   zIndex,
                   filter: 'brightness(0.64) contrast(1.05) saturate(0.96)',
-                  willChange: 'opacity, transform',
                 }}
-              >
-                {/* Slow ambient Ken Burns drift on the active image */}
-                <div
-                  className={`absolute inset-0 bg-cover bg-center ${isCurrent ? 'animate-ken-burns' : ''}`}
-                  style={{
-                    backgroundImage: `url(${imgUrl})`,
-                    filter: 'inherit',
-                  }}
-                />
-              </div>
+              />
             );
           })}
 

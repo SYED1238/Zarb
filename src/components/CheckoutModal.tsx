@@ -308,9 +308,9 @@ export const CheckoutModal: React.FC = () => {
         }));
         setPincodeStatus({
           type: 'success',
-          message: `Verified: ${result.city ? `${result.city}, ` : ''}${result.state}`,
+          message: `Verified: ${result.city ? `${result.city}, ` : ''}${result.state} • Estimated Delivery: 2–4 Business Days`,
         });
-        showToast(`PIN Code verified: ${result.city || result.state}`);
+        showToast(`Delivery available to ${result.city || result.state}`);
       }
     } catch {
       setPincodeStatus({
@@ -1227,6 +1227,9 @@ export const CheckoutModal: React.FC = () => {
                       const clean = e.target.value.replace(/\D/g, '').slice(0, 6);
                       setFormData({ ...formData, postalCode: clean });
                       if (pincodeStatus) setPincodeStatus(null);
+                      if (clean.length === 6) {
+                        handleCheckPincode(clean);
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {

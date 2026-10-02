@@ -344,6 +344,49 @@ export const CartDrawer: React.FC = () => {
                 </button>
               </form>
             )}
+            {!appliedCoupon && (
+              <div className="flex items-center space-x-2 pt-0.5">
+                <span className={`text-[10px] uppercase tracking-wider shrink-0 ${isAlabaster ? 'text-stone-500' : 'text-stone-400'}`}>Privilege:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = applyCoupon('ATELIER10');
+                    if (res.success) {
+                      setPromoSuccess(res.message);
+                      setPromoError('');
+                      setPromoCode('');
+                    }
+                  }}
+                  className={`text-[10px] px-2.5 py-0.5 rounded-full border transition-all cursor-pointer font-mono flex items-center space-x-1 shrink-0 ${
+                    isAlabaster
+                      ? 'border-stone-300/80 hover:border-stone-900 bg-stone-200/50 hover:bg-stone-900 hover:text-white text-stone-800'
+                      : 'border-white/20 hover:border-white bg-white/5 hover:bg-white hover:text-black text-stone-200'
+                  }`}
+                >
+                  <span>ATELIER10</span>
+                  <span className="opacity-70 text-[9px]">• 10% OFF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = applyCoupon('HAUTE20');
+                    if (res.success) {
+                      setPromoSuccess(res.message);
+                      setPromoError('');
+                      setPromoCode('');
+                    }
+                  }}
+                  className={`text-[10px] px-2.5 py-0.5 rounded-full border transition-all cursor-pointer font-mono flex items-center space-x-1 shrink-0 ${
+                    isAlabaster
+                      ? 'border-stone-300/80 hover:border-stone-900 bg-stone-200/50 hover:bg-stone-900 hover:text-white text-stone-800'
+                      : 'border-white/20 hover:border-white bg-white/5 hover:bg-white hover:text-black text-stone-200'
+                  }`}
+                >
+                  <span>HAUTE20</span>
+                  <span className="opacity-70 text-[9px]">• 20% OFF</span>
+                </button>
+              </div>
+            )}
             {promoSuccess && (
               <p className="text-[11px] text-emerald-500 tracking-[0.05em]">{promoSuccess}</p>
             )}

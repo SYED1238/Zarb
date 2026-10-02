@@ -9,24 +9,64 @@
     <title>ZARB — Haute Couture & Modern Luxury E-Commerce</title>
     <meta name="title" content="ZARB — Haute Couture & Modern Luxury E-Commerce" />
     <meta name="description" content="Contemporary silhouettes. Refined materials. Designed for everyday distinction. Explore our luxury Men's and Women's collections." />
+    <meta name="keywords" content="ZARB, luxury fashion, haute couture, designer clothing, women's fashion, men's fashion, modern luxury, premium clothing India, atelier fashion, luxury e-commerce" />
     <meta name="theme-color" content="#f6f5f0" />
+    <link rel="canonical" href="https://zarb.shop/" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://zarb.luxury/" />
+    <meta property="og:url" content="https://zarb.shop/" />
     <meta property="og:title" content="ZARB — Haute Couture & Modern Luxury" />
     <meta property="og:description" content="Cinematic luxury fashion. Experience the Autumn/Winter 2026 Men's & Women's editorial collections." />
     <meta property="og:image" content="https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1200&auto=format&fit=crop" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://zarb.shop/" />
     <meta property="twitter:title" content="ZARB — Haute Couture & Modern Luxury" />
     <meta property="twitter:description" content="Cinematic luxury fashion. Experience the Autumn/Winter 2026 Men's & Women's editorial collections." />
+    <meta property="twitter:image" content="https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1200&auto=format&fit=crop" />
 
     <!-- Google Fonts: Cormorant Garamond & Plus Jakarta Sans & Cinzel -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Structured Data (JSON-LD) for Google Rich Snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://zarb.shop/#organization",
+          "name": "ZARB",
+          "url": "https://zarb.shop",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1200&auto=format&fit=crop"
+          },
+          "sameAs": [
+            "https://instagram.com/zarb.luxury"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://zarb.shop/#website",
+          "url": "https://zarb.shop",
+          "name": "ZARB — Haute Couture & Modern Luxury",
+          "publisher": {
+            "@id": "https://zarb.shop/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://zarb.shop/shop/all?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body class="selection:bg-[#141416] selection:text-white overflow-x-hidden min-h-screen">
     <div id="root"></div>

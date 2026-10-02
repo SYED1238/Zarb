@@ -157,10 +157,9 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     const defaultVolume = product.volumeMl?.[0] || '6ml';
-    const defaultPrice = product.volumeOptions?.[0]?.price || product.price;
     const defaultColor = product.colors?.[0]?.name || 'Crystal Flacon';
 
-    addToCart(product, defaultVolume, defaultColor, 1, defaultPrice);
+    addToCart(product, defaultVolume, defaultColor, 1);
     setIsAdded(true);
     if (showToast) {
       showToast(`Added ${product.name} (${defaultVolume}) to your bag`);

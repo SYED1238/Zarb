@@ -12,15 +12,23 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 
-const ALLOWED_ORIGINS = [
+const PRODUCTION_ORIGINS = [
   'https://zarb.shop',
   'https://www.zarb.shop',
+];
+const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
 ];
 
+function getAllowedOrigins(): string[] {
+  const env = (Deno.env.get('CASHFREE_ENVIRONMENT') || 'PRODUCTION').toUpperCase();
+  return env === 'SANDBOX' ? [...PRODUCTION_ORIGINS, ...DEV_ORIGINS] : PRODUCTION_ORIGINS;
+}
+
 function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*';
+  const origins = getAllowedOrigins();
+  const allowed = origin && origins.includes(origin) ? origin : origins[0];
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -61,14 +69,29 @@ async function computeHmacSha256(secret: string, payload: string): Promise<strin
 }
 
 // Constant-time string comparison to prevent timing attacks
+// Does NOT early-return on length mismatch to avoid leaking length information
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const maxLen = Math.max(a.length, b.length);
+  let result = a.length ^ b.length; // non-zero if lengths differ
+  for (let i = 0; i < maxLen; i++) {
+    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return result === 0;
 }
+
+// Simple in-memory rate limiter (per edge-function instance)
+const rateLimiter = new Map<string, { count: number; resetAt: number }>();
+function isRateLimited(key: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = rateLimiter.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimiter.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  entry.count++;
+  return entry.count > maxRequests;
+}
+
 
 serve(async (req: Request) => {
   const origin = req.headers.get('origin');
@@ -258,6 +281,14 @@ serve(async (req: Request) => {
   // Authoritative server-side price validation & Cashfree Order creation
   // -------------------------------------------------------------------------
   if (action === 'create-order') {
+    // Rate limit: 10 order creation requests per IP per 10 minutes
+    const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown';
+    if (isRateLimited(`order:${clientIp}`, 10, 10 * 60 * 1000)) {
+      return new Response(JSON.stringify({ error: 'Too many requests. Please try again later.' }), {
+        status: 429,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      });
+    }
     if (!cfAppId || !cfSecretKey) {
       return new Response(
         JSON.stringify({
@@ -373,9 +404,11 @@ serve(async (req: Request) => {
     if (couponCode && typeof couponCode === 'string') {
       const cleanCode = couponCode.trim().toUpperCase();
       if (cleanCode === 'ATELIER10') {
-        discountAmount = Math.round(authoritativeSubtotal * 0.1);
+        // 10% discount, capped at ₹2,000 max
+        discountAmount = Math.min(Math.round(authoritativeSubtotal * 0.1), 2000);
       } else if (cleanCode === 'HAUTE20') {
-        discountAmount = Math.round(authoritativeSubtotal * 0.2);
+        // 20% discount, capped at ₹5,000 max
+        discountAmount = Math.min(Math.round(authoritativeSubtotal * 0.2), 5000);
       }
     }
 
@@ -682,9 +715,32 @@ serve(async (req: Request) => {
   // -------------------------------------------------------------------------
   if (action === 'initiate-refund') {
     const { order_id, refund_amount, refund_note } = payload;
-    const callerEmail = payload.caller_email;
 
-    if (callerEmail !== 'syedhamza1238@gmail.com') {
+    // Server-side admin authorization: verify the authenticated user via Authorization header
+    const authHeader = req.headers.get('authorization') || '';
+    const authToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+    let isAdminAuthorized = false;
+
+    if (authToken) {
+      try {
+        const { data: { user }, error: authErr } = await supabase.auth.getUser(authToken);
+        if (!authErr && user && user.email) {
+          const adminEmail = user.email.toLowerCase().trim();
+          const { data: adminRow } = await supabase
+            .from('admin_users')
+            .select('email')
+            .eq('email', adminEmail)
+            .maybeSingle();
+          if (adminRow) {
+            isAdminAuthorized = true;
+          }
+        }
+      } catch (e) {
+        console.warn('[CASHFREE REFUND] Auth verification error:', e);
+      }
+    }
+
+    if (!isAdminAuthorized) {
       return new Response(JSON.stringify({ error: 'Unauthorized: Admin permission required.' }), {
         status: 403,
         headers: { ...cors, 'Content-Type': 'application/json' },

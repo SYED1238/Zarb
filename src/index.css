@@ -1917,6 +1917,50 @@ html.theme-alabaster .liquid-droplet:hover {
   }
 }
 
+/* ===================================================================
+   MOBILE PERFORMANCE OPTIMIZATIONS
+   Reduce GPU-intensive effects on small screens (phones with ≤6GB RAM)
+   =================================================================== */
+
+/* Downgrade backdrop-blur on mobile — single biggest GPU saver */
+@media (max-width: 767px) {
+  .backdrop-blur-xl {
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+  .backdrop-blur-2xl {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+  .backdrop-blur-md {
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+  }
+
+  /* Disable film grain on mobile — renders a full-screen SVG filter on every frame */
+  .film-grain {
+    display: none !important;
+  }
+
+  /* Simplify Ken Burns to pure opacity fade — no scale/translate GPU compositing */
+  .animate-ken-burns {
+    animation: none !important;
+  }
+
+  /* Reduce box-shadow complexity on interactive elements */
+  .shadow-2xl {
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
+/* Ultra-low-end optimization: disable all non-essential visual effects */
+@media (max-width: 480px) {
+  /* Reduce vignette to a simpler gradient */
+  .vignette-radial {
+    background: linear-gradient(to top, rgba(9, 9, 11, 0.7) 0%, transparent 60%) !important;
+  }
+}
+
 /* Custom utility for clean horizontal scroll without scrollbar clutter */
 .scrollbar-none::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar {

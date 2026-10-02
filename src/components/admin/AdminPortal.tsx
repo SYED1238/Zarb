@@ -6,7 +6,6 @@ import type { CategoryItem } from '../../data/categories';
 import { HAUTE_PERFUMES_PRESETS } from '../../data/products';
 import {
   Lock,
-  Unlock,
   Package,
   Layers,
   DollarSign,
@@ -73,7 +72,6 @@ import {
   type ShippingTier,
 } from '../../utils/shippingConfig';
 
-const MASTER_PASSCODE = 'atelier2026';
 export const AUTHORIZED_ADMIN_EMAIL = 'syedhamza1238@gmail.com';
 
 const LUXURY_COLOR_PRESETS = [
@@ -162,18 +160,13 @@ export const AdminPortal: React.FC = () => {
   } = useStore();
 
   // Authentication State (Google OAuth restricted to syedhamza1238@gmail.com)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('atelier_admin_auth') === 'true' ||
-           localStorage.getItem('atelier_admin_auth') === 'true';
-  });
+  // Admin access requires verified Supabase Auth session — no client-side passwords
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [adminUser, setAdminUser] = useState<any>(null);
   const [isSigningInWithGoogle, setIsSigningInWithGoogle] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [passcodeInput, setPasscodeInput] = useState('');
-  const [rememberDevice, setRememberDevice] = useState(true);
-  const [showPasskeyFallback, setShowPasskeyFallback] = useState(false);
 
   // Monitor Supabase Authentication & Enforce Single Email Restriction
   useEffect(() => {
@@ -210,10 +203,6 @@ export const AdminPortal: React.FC = () => {
             setAdminUser(session.user);
             setUnauthorizedEmail(null);
             setAuthError(null);
-            sessionStorage.setItem('atelier_admin_auth', 'true');
-            if (rememberDevice) {
-              localStorage.setItem('atelier_admin_auth', 'true');
-            }
             // Clean up hash from browser address bar
             if (window.location.hash) {
               window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -223,8 +212,6 @@ export const AdminPortal: React.FC = () => {
             await supabase.auth.signOut();
             setIsAuthenticated(false);
             setAdminUser(null);
-            sessionStorage.removeItem('atelier_admin_auth');
-            localStorage.removeItem('atelier_admin_auth');
             setUnauthorizedEmail(session.user.email);
             setAuthError(`Access Denied: ${session.user.email} is not authorized.`);
           }
@@ -249,10 +236,6 @@ export const AdminPortal: React.FC = () => {
           setAdminUser(session.user);
           setUnauthorizedEmail(null);
           setAuthError(null);
-          sessionStorage.setItem('atelier_admin_auth', 'true');
-          if (rememberDevice) {
-            localStorage.setItem('atelier_admin_auth', 'true');
-          }
           if (window.location.hash) {
             window.history.replaceState(null, '', window.location.pathname + window.location.search);
           }
@@ -262,8 +245,6 @@ export const AdminPortal: React.FC = () => {
           await supabase.auth.signOut();
           setIsAuthenticated(false);
           setAdminUser(null);
-          sessionStorage.removeItem('atelier_admin_auth');
-          localStorage.removeItem('atelier_admin_auth');
           setUnauthorizedEmail(session.user.email);
           setAuthError(`Access Denied: ${session.user.email} is not authorized.`);
           showToast(`Access Denied: Account ${session.user.email} is unauthorized. Only ${AUTHORIZED_ADMIN_EMAIL} can access this portal.`);
@@ -271,8 +252,6 @@ export const AdminPortal: React.FC = () => {
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         setAdminUser(null);
-        sessionStorage.removeItem('atelier_admin_auth');
-        localStorage.removeItem('atelier_admin_auth');
       }
     });
 
@@ -280,7 +259,7 @@ export const AdminPortal: React.FC = () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [rememberDevice]);
+  }, []);
 
   // Active Management Tab
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'perfumes' | 'orders' | 'reviews' | 'pricing' | 'backup' | 'shipping'>('products');
@@ -926,23 +905,8 @@ export const AdminPortal: React.FC = () => {
     }
   };
 
-  // Emergency Passkey Login Handler
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passcodeInput.trim() === MASTER_PASSCODE) {
-      setIsAuthenticated(true);
-      setAuthError(null);
-      setUnauthorizedEmail(null);
-      sessionStorage.setItem('atelier_admin_auth', 'true');
-      if (rememberDevice) {
-        localStorage.setItem('atelier_admin_auth', 'true');
-      }
-      showToast('Welcome to Zarb Master Portal (Passkey Override)');
-    } else {
-      setAuthError('Invalid Master Passkey');
-      showToast('Invalid Master Passkey');
-    }
-  };
+  // Admin authentication is exclusively through Google OAuth
+  // No client-side passwords, passkeys, or emergency overrides
 
   const handleLogout = async () => {
     try {
@@ -954,8 +918,6 @@ export const AdminPortal: React.FC = () => {
     setAdminUser(null);
     setUnauthorizedEmail(null);
     setAuthError(null);
-    sessionStorage.removeItem('atelier_admin_auth');
-    localStorage.removeItem('atelier_admin_auth');
     showToast('Logged out of Admin Portal');
   };
 
@@ -1821,50 +1783,11 @@ export const AdminPortal: React.FC = () => {
               )}
             </button>
 
-            <div className="flex items-center justify-between text-xs text-stone-400 pt-1">
-              <label className="flex items-center space-x-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberDevice}
-                  onChange={(e) => setRememberDevice(e.target.checked)}
-                  className="rounded border-white/20 bg-white/5 text-amber-500 focus:ring-0 cursor-pointer"
-                />
-                <span className="text-[10px] tracking-wider uppercase text-stone-400">Remember device</span>
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setShowPasskeyFallback(!showPasskeyFallback)}
-                className="text-[10px] text-stone-400 hover:text-amber-300 transition-colors uppercase tracking-wider underline cursor-pointer"
-              >
-                {showPasskeyFallback ? 'Hide Passkey' : 'Emergency Passkey'}
-              </button>
+            <div className="text-center text-xs text-stone-400 pt-2">
+              <p className="text-[10px] tracking-wider uppercase text-stone-500">
+                Admin access requires authorized Google account
+              </p>
             </div>
-
-            {/* Emergency Master Passkey Toggle Form */}
-            {showPasskeyFallback && (
-              <form onSubmit={handleLogin} className="pt-4 border-t border-white/10 space-y-3 animate-fade-in">
-                <div>
-                  <label className="block text-[9px] font-mono tracking-[0.2em] uppercase text-stone-400 mb-1.5">
-                    Emergency Master Passkey
-                  </label>
-                  <input
-                    type="password"
-                    value={passcodeInput}
-                    onChange={(e) => setPasscodeInput(e.target.value)}
-                    placeholder="Enter passkey..."
-                    className="w-full px-4 py-3 bg-black/50 border border-white/15 focus:border-amber-400/80 rounded-xl text-sm font-mono text-white tracking-widest focus:outline-none transition-all placeholder:text-stone-600 shadow-inner"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-mono tracking-[0.2em] uppercase transition-all duration-300 border border-white/15 cursor-pointer flex items-center justify-center space-x-2"
-                >
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>Verify Passkey</span>
-                </button>
-              </form>
-            )}
           </div>
 
           <div className="mt-8 pt-6 border-t border-white/10 text-center">
