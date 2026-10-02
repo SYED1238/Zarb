@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// Retrieve credentials from .env or browser localStorage
+const DEFAULT_SUPABASE_URL = 'https://lakuqxnlgqaquvssyhed.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_59HDyjltZ_CRAI44P5Kv8w_3dXbKfnP';
+
+// Retrieve credentials from .env or browser localStorage, with default to production project
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
   const envUrl =
     import.meta.env.VITE_SUPABASE_URL ||
@@ -16,8 +19,12 @@ export function getSupabaseCredentials(): { url: string; anonKey: string; isConf
   const localUrl = typeof window !== 'undefined' ? localStorage.getItem('atelier_supabase_url') || '' : '';
   const localKey = typeof window !== 'undefined' ? localStorage.getItem('atelier_supabase_anon_key') || '' : '';
 
-  const url = (envUrl || localUrl).trim();
-  const anonKey = (envKey || localKey).trim();
+  const rawUrl = (envUrl || localUrl || DEFAULT_SUPABASE_URL).trim();
+  const rawKey = (envKey || localKey || DEFAULT_SUPABASE_ANON_KEY).trim();
+
+  // If placeholder URL was configured, override with real production project
+  const url = rawUrl.includes('placeholder') ? DEFAULT_SUPABASE_URL : rawUrl;
+  const anonKey = rawKey.includes('placeholder') ? DEFAULT_SUPABASE_ANON_KEY : rawKey;
 
   // Basic check: must have http/https and key must not be empty
   const isConfigured = Boolean(
@@ -25,7 +32,7 @@ export function getSupabaseCredentials(): { url: string; anonKey: string; isConf
     anonKey &&
     url.startsWith('https://') &&
     anonKey.length > 20 &&
-    !url.includes('your-project-id')
+    !url.includes('placeholder')
   );
 
   return { url, anonKey, isConfigured };

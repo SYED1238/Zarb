@@ -4,18 +4,11 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const ALLOWED_ORIGINS = [
-  'https://zarb.shop',
-  'https://www.zarb.shop',
-  'http://localhost:5173',
-  'http://localhost:3000',
-];
-
 function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowed = origin || '*';
   return {
     'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Max-Age': '86400',
   };
@@ -23,7 +16,8 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
 
 // Simple rate limiter per IP
 const rateLimiter = new Map<string, { count: number; resetAt: number }>();
-function isRateLimited(key: string, maxRequests = 20, windowMs = 60000): boolean {
+function isRateLimited(key: string, maxRequests = 30, windowMs = 60000): boolean {
+  if (!key || key === 'unknown') return false; // Do not block all users if proxy omits client IP
   const now = Date.now();
   const entry = rateLimiter.get(key);
   if (!entry || now > entry.resetAt) {
@@ -137,43 +131,58 @@ serve(async (req: Request) => {
       },
     ];
 
-    // Call Gemini Flash Lite
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
+    // Multi-model resilience: Try 3.5-flash-lite first, fallback to 3.5-flash
+    const models = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
+    let geminiData: any = null;
 
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: {
-          parts: [{ text: ZARB_SYSTEM_PROMPT }],
-        },
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.9,
-          topK: 40,
-          maxOutputTokens: 512,
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-        ],
-      }),
-    });
+    for (const model of models) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents,
+            systemInstruction: {
+              parts: [{ text: ZARB_SYSTEM_PROMPT }],
+            },
+            generationConfig: {
+              temperature: 0.7,
+              topP: 0.9,
+              topK: 40,
+              maxOutputTokens: 512,
+            },
+            safetySettings: [
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            ],
+          }),
+        });
 
-    if (!geminiRes.ok) {
-      const errBody = await geminiRes.text();
-      console.error('[ZARB AI] Gemini API error:', geminiRes.status, errBody);
+        if (res.ok) {
+          geminiData = await res.json();
+          break;
+        } else {
+          const errText = await res.text();
+          console.warn(`[ZARB AI] Model ${model} returned ${res.status}:`, errText);
+        }
+      } catch (fetchErr) {
+        console.warn(`[ZARB AI] Fetch failed for ${model}:`, fetchErr);
+      }
+    }
+
+    if (!geminiData) {
       return new Response(
         JSON.stringify({ error: 'ZARB AI is taking a moment. Please try again.' }),
         { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
-    const geminiData = await geminiRes.json();
-    const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || 
+    const candidateParts = geminiData?.candidates?.[0]?.content?.parts || [];
+    const textPart = candidateParts.find((p: any) => p.text && !p.thought) || candidateParts[candidateParts.length - 1];
+    const reply = textPart?.text || 
       "I'd be happy to help you explore ZARB's collections. Could you tell me what you're looking for?";
 
     return new Response(
