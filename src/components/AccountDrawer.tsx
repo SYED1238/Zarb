@@ -21,6 +21,7 @@ import {
   Building,
   CheckCircle2,
   AlertCircle,
+  ArrowUpRight,
 } from 'lucide-react';
 import {
   type CustomerAddress,
@@ -551,6 +552,38 @@ export const AccountDrawer: React.FC = () => {
                 </div>
               </div>
 
+              {/* Instant WhatsApp Help Button */}
+              <div className="pt-1">
+                <a
+                  href="https://wa.me/917676753683?text=Hi%20ZARB%20Team%2C%20I%20need%20assistance%20with%20my%20account%20or%20order."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`group w-full py-3 px-4 rounded-2xl border flex items-center justify-center space-x-3 transition-all duration-300 cursor-pointer shadow-sm hover:scale-[1.01] active:scale-[0.99] ${
+                    theme === 'alabaster'
+                      ? 'bg-emerald-50 hover:bg-emerald-100/90 border-emerald-300 text-emerald-900 shadow-emerald-900/5'
+                      : 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/30 text-emerald-300 shadow-emerald-950/20'
+                  }`}
+                  aria-label="Instant Help on WhatsApp"
+                >
+                  <span className="w-7 h-7 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                      <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.554 1.761.817 2.796.817 3.18 0 5.767-2.587 5.767-5.766.001-3.182-2.585-5.768-5.767-5.768zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.693.075-2.227-.562-1.78-.742-2.923-2.56-3.012-2.678-.088-.119-.724-.962-.724-1.833 0-.871.455-1.298.616-1.477.162-.18.354-.225.472-.225.118 0 .236.001.339.006.109.005.255-.041.399.305.148.355.508 1.238.552 1.328.045.09.075.195.015.314-.06.119-.09.194-.179.299-.089.105-.188.234-.268.315-.09.09-.184.187-.079.367.104.18.464.767.996 1.242.686.613 1.265.803 1.445.893.18.09.285.075.39-.045.105-.12.449-.523.569-.703.12-.18.239-.15.399-.09.16.06 1.018.48 1.198.57.18.09.299.135.344.21.045.075.045.435-.099.84zm-3.392-10.416c-4.298 0-7.794 3.496-7.794 7.794 0 1.374.356 2.713 1.034 3.896l-1.099 4.016 4.108-1.077c1.139.622 2.428.951 3.751.951 4.298 0 7.795-3.496 7.795-7.794 0-4.298-3.497-7.794-7.795-7.794zm0 14.029c-1.18 0-2.337-.315-3.348-.915l-.24-.143-2.488.652.664-2.426-.157-.251a6.223 6.223 0 0 1-.955-3.327c0-3.433 2.793-6.226 6.226-6.226 3.433 0 6.227 2.793 6.227 6.226 0 3.433-2.794 6.226-6.227 6.226z"/>
+                    </svg>
+                  </span>
+                  <div className="text-left flex flex-col">
+                    <span className="text-xs font-semibold tracking-wide">
+                      Instant Help on WhatsApp
+                    </span>
+                    <span className={`text-[10px] font-mono tracking-wider ${
+                      theme === 'alabaster' ? 'text-emerald-700' : 'text-emerald-400'
+                    }`}>
+                      +91 76767 53683 &middot; Atelier Concierge
+                    </span>
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 ml-auto opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                </a>
+              </div>
+
               {/* Security Footnote */}
               <p className={`text-xs sm:text-sm font-light leading-relaxed max-w-sm mx-auto ${
                 theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'
@@ -918,6 +951,38 @@ export const AccountDrawer: React.FC = () => {
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  {/* WhatsApp Concierge Assistance */}
+                  <div className="pt-2">
+                    <a
+                      href="https://wa.me/917676753683?text=Hi%20ZARB%2C%20I%20need%20assistance%20with%20my%20orders%20or%20account."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`group w-full py-3 px-4 rounded-2xl border flex items-center justify-between transition-all duration-300 cursor-pointer shadow-xs ${
+                        theme === 'alabaster'
+                          ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 text-emerald-900'
+                          : 'bg-emerald-500/10 hover:bg-emerald-500/18 border-emerald-500/25 text-emerald-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <span className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-xs">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.554 1.761.817 2.796.817 3.18 0 5.767-2.587 5.767-5.766.001-3.182-2.585-5.768-5.767-5.768zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.693.075-2.227-.562-1.78-.742-2.923-2.56-3.012-2.678-.088-.119-.724-.962-.724-1.833 0-.871.455-1.298.616-1.477.162-.18.354-.225.472-.225.118 0 .236.001.339.006.109.005.255-.041.399.305.148.355.508 1.238.552 1.328.045.09.075.195.015.314-.06.119-.09.194-.179.299-.089.105-.188.234-.268.315-.09.09-.184.187-.079.367.104.18.464.767.996 1.242.686.613 1.265.803 1.445.893.18.09.285.075.39-.045.105-.12.449-.523.569-.703.12-.18.239-.15.399-.09.16.06 1.018.48 1.198.57.18.09.299.135.344.21.045.075.045.435-.099.84zm-3.392-10.416c-4.298 0-7.794 3.496-7.794 7.794 0 1.374.356 2.713 1.034 3.896l-1.099 4.016 4.108-1.077c1.139.622 2.428.951 3.751.951 4.298 0 7.795-3.496 7.795-7.794 0-4.298-3.497-7.794-7.795-7.794zm0 14.029c-1.18 0-2.337-.315-3.348-.915l-.24-.143-2.488.652.664-2.426-.157-.251a6.223 6.223 0 0 1-.955-3.327c0-3.433 2.793-6.226 6.226-6.226 3.433 0 6.227 2.793 6.227 6.226 0 3.433-2.794 6.226-6.227 6.226z"/>
+                          </svg>
+                        </span>
+                        <div className="text-left">
+                          <p className="text-xs font-semibold">Concierge Support</p>
+                          <p className={`text-[10px] font-mono ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                            Instant Help on WhatsApp &middot; 7676753683
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center space-x-1">
+                        <span>Chat</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </span>
+                    </a>
                   </div>
 
                   {/* Sign Out Button */}
