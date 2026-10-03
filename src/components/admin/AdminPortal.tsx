@@ -163,6 +163,7 @@ export const AdminPortal: React.FC = () => {
     toggleTheme,
     showToast,
     reviews,
+    deletedReviewIds,
     getProductReviews,
     deleteReview,
   } = useStore();
@@ -538,14 +539,27 @@ export const AdminPortal: React.FC = () => {
   // Flattened Reviews Across All Pieces
   const allReviewsList = useMemo(() => {
     const list: { review: any; product: Product | undefined }[] = [];
+    const processedProductIds = new Set<string>();
+
     products.forEach(p => {
+      processedProductIds.add(p.id);
       const pRevs = getProductReviews(p.id, p.name);
       pRevs.forEach(r => {
         list.push({ review: r, product: p });
       });
     });
+
+    Object.keys(reviews).forEach(prodId => {
+      if (!processedProductIds.has(prodId)) {
+        const pRevs = getProductReviews(prodId);
+        pRevs.forEach(r => {
+          list.push({ review: r, product: products.find(p => p.id === prodId) });
+        });
+      }
+    });
+
     return list;
-  }, [products, reviews, getProductReviews]);
+  }, [products, reviews, deletedReviewIds, getProductReviews]);
 
   useEffect(() => {
     if (activeTab === 'orders') {
@@ -4095,7 +4109,7 @@ export const AdminPortal: React.FC = () => {
                       {/* Delete Review Button */}
                       <button
                         type="button"
-                        onClick={() => deleteReview(rev.productId, rev.id)}
+                        onClick={() => deleteReview(rev.productId || prod?.id || '', rev.id)}
                         className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors shrink-0"
                         title="Delete Review (Spam/Inappropriate)"
                       >

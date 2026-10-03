@@ -257,6 +257,7 @@ interface StoreContextType {
 
   // Real Product Reviews
   reviews: Record<string, ProductReview[]>;
+  deletedReviewIds: string[];
   getProductReviews: (productId: string, productName?: string) => ProductReview[];
   addReview: (review: Omit<ProductReview, 'id' | 'createdAt'>) => void;
   deleteReview: (productId: string, reviewId: string) => void;
@@ -703,6 +704,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return INITIAL_PRODUCT_REVIEWS;
   });
 
+  const [deletedReviewIds, setDeletedReviewIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('zarb_deleted_reviews_v1');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load deleted reviews from local storage', e);
+    }
+    return [];
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem('zarb_reviews_v1', JSON.stringify(reviews));
@@ -711,11 +724,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [reviews]);
 
-  const getProductReviews = (productId: string, productName: string = 'Piece'): ProductReview[] => {
-    if (reviews[productId] && reviews[productId].length > 0) {
-      return reviews[productId];
+  useEffect(() => {
+    try {
+      localStorage.setItem('zarb_deleted_reviews_v1', JSON.stringify(deletedReviewIds));
+    } catch (e) {
+      console.error('Failed to persist deleted review IDs', e);
     }
-    return getDefaultReviewsForProduct(productId, productName);
+  }, [deletedReviewIds]);
+
+  const getProductReviews = (productId: string, productName: string = 'Piece'): ProductReview[] => {
+    let list: ProductReview[];
+    if (reviews[productId] !== undefined) {
+      list = reviews[productId];
+      // If list is empty but no reviews for this product were explicitly deleted,
+      // it was caused by the legacy bug where deleteReview defaulted undefined to [].
+      // Recover the default reviews so the product isn't left empty.
+      if (list.length === 0 && !deletedReviewIds.some(id => id.includes(productId))) {
+        list = getDefaultReviewsForProduct(productId, productName);
+      }
+    } else {
+      list = getDefaultReviewsForProduct(productId, productName);
+    }
+    return list.filter(r => !deletedReviewIds.includes(r.id));
   };
 
   const addReview = (reviewData: Omit<ProductReview, 'id' | 'createdAt'>) => {
@@ -725,7 +755,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdAt: new Date().toISOString(),
     };
 
-    const currentList = reviews[reviewData.productId] || getDefaultReviewsForProduct(reviewData.productId, 'Piece');
+    const currentList = getProductReviews(reviewData.productId, (products.find(p => p.id === reviewData.productId)?.name) || 'Piece');
     const updatedList = [newReview, ...currentList];
 
     setReviews(prev => ({
@@ -738,20 +768,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const avgRating = Number((totalRating / updatedList.length).toFixed(1));
 
     // Update product rating & count in products state
-    setProducts(prev => prev.map(p => {
-      if (p.id === reviewData.productId) {
-        const updated = {
-          ...p,
-          rating: avgRating,
-          reviews: updatedList.length,
-        };
-        if (activeProduct && activeProduct.id === p.id) {
-          setActiveProduct(updated);
+    setProducts(prev => {
+      const next = prev.map(p => {
+        if (p.id === reviewData.productId) {
+          const updated = {
+            ...p,
+            rating: avgRating,
+            reviews: updatedList.length,
+          };
+          if (activeProduct && activeProduct.id === p.id) {
+            setActiveProduct(updated);
+          }
+          return updated;
         }
-        return updated;
+        return p;
+      });
+      try {
+        localStorage.setItem('atelier_products_v4', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to persist products after review add', e);
       }
-      return p;
-    }));
+      return next;
+    });
 
     // Attempt Supabase sync if table exists
     if (isSupabaseConfigured()) {
@@ -775,7 +813,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteReview = (productId: string, reviewId: string) => {
-    const currentList = reviews[productId] || [];
+    const prodName = products.find(p => p.id === productId)?.name || 'Piece';
+    const currentList = getProductReviews(productId, prodName);
     const updatedList = currentList.filter(r => r.id !== reviewId);
 
     setReviews(prev => ({
@@ -783,24 +822,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       [productId]: updatedList,
     }));
 
+    setDeletedReviewIds(prev => {
+      if (prev.includes(reviewId)) return prev;
+      return [...prev, reviewId];
+    });
+
     // Recalculate average rating & reviews count
     const totalRating = updatedList.reduce((acc, r) => acc + r.rating, 0);
     const avgRating = updatedList.length > 0 ? Number((totalRating / updatedList.length).toFixed(1)) : 5.0;
 
-    setProducts(prev => prev.map(p => {
-      if (p.id === productId) {
-        const updated = {
-          ...p,
-          rating: avgRating,
-          reviews: updatedList.length,
-        };
-        if (activeProduct && activeProduct.id === p.id) {
-          setActiveProduct(updated);
+    setProducts(prev => {
+      const next = prev.map(p => {
+        if (p.id === productId) {
+          const updated = {
+            ...p,
+            rating: avgRating,
+            reviews: updatedList.length,
+          };
+          if (activeProduct && activeProduct.id === p.id) {
+            setActiveProduct(updated);
+          }
+          return updated;
         }
-        return updated;
+        return p;
+      });
+      try {
+        localStorage.setItem('atelier_products_v4', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to persist products after review delete', e);
       }
-      return p;
-    }));
+      return next;
+    });
 
     if (isSupabaseConfigured()) {
       supabase.from('reviews').delete().eq('id', reviewId).then(({ error }) => {
@@ -1527,6 +1579,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toastMessage,
         showToast,
         reviews,
+        deletedReviewIds,
         getProductReviews,
         addReview,
         deleteReview,
