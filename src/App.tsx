@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Header } from './components/Header';
@@ -137,7 +137,7 @@ const StoreFront: React.FC = () => {
   }, [location.pathname]);
 
   // Deep-link: auto-open product from ?product=slug or /product/:slug on page load / navigation
-  const hasHandledDeepLink = useRef(false);
+  // Deep-link: auto-open product from ?product=slug or /product/:slug on page load / navigation
   useEffect(() => {
     // 1. Check query parameter ?product=slug
     const params = new URLSearchParams(location.search);
@@ -151,46 +151,22 @@ const StoreFront: React.FC = () => {
       }
     }
 
-    if (!productSlug) {
-      hasHandledDeepLink.current = true;
-      return;
-    }
+    if (!productSlug || products.length === 0) return;
 
-    if (products.length === 0) return; // Wait for products to load before attempting to match
-
-    if (hasHandledDeepLink.current && activeProduct?.slug === productSlug) return;
+    if (activeProduct?.slug === productSlug || String(activeProduct?.id) === productSlug) return;
 
     const match = products.find(p => p.slug === productSlug || String(p.id) === productSlug);
     if (match) {
-      const currentState = (window.history.state && typeof window.history.state === 'object') ? window.history.state : {};
-      const cleanUrl = '/';
-      window.history.replaceState({ ...currentState, isStorePage: true }, '', cleanUrl);
-      const productUrl = cleanUrl + '?product=' + match.slug;
-      window.history.pushState({ ...currentState, isProductDeepLink: true }, '', productUrl);
       setActiveProduct(match);
-      hasHandledDeepLink.current = true;
-    } else {
-      hasHandledDeepLink.current = true;
     }
   }, [location.pathname, location.search, products, activeProduct, setActiveProduct]);
-
-  // Listen for popstate (browser back button) to close product modal
-  useEffect(() => {
-    const handlePopState = () => {
-      if (activeProduct) {
-        setActiveProduct(null);
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeProduct, setActiveProduct]);
 
   // Update URL query param when product modal opens/closes while preserving history state
   useEffect(() => {
     const currentState = (window.history.state && typeof window.history.state === 'object') ? window.history.state : {};
     if (activeProduct) {
       const url = new URL(window.location.href);
-      if (!url.searchParams.has('product')) {
+      if (url.searchParams.get('product') !== activeProduct.slug) {
         url.searchParams.set('product', activeProduct.slug);
         window.history.replaceState({ ...currentState }, '', url.toString());
       }

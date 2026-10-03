@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
+  Bell,
 } from 'lucide-react';
 import {
   type CustomerAddress,
@@ -432,6 +433,39 @@ export const AccountDrawer: React.FC = () => {
                 </p>
               </div>
 
+              {/* Restock Notification Request Context (if triggered by Notify Me button) */}
+              {(() => {
+                try {
+                  const pendingStr = sessionStorage.getItem('zarb_pending_restock');
+                  if (pendingStr) {
+                    const pending = JSON.parse(pendingStr);
+                    return (
+                      <div className={`p-3.5 rounded-2xl border text-left flex items-center space-x-3 animate-fade-in ${
+                        theme === 'alabaster'
+                          ? 'bg-amber-50/80 border-amber-300 text-stone-900 shadow-sm'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                      }`}>
+                        <div className="w-11 h-11 rounded-xl overflow-hidden bg-black/40 shrink-0 border border-white/10 flex items-center justify-center">
+                          {pending.productImage ? (
+                            <img src={getMediaUrl(pending.productImage)} alt={pending.productName} className="w-full h-full object-cover" />
+                          ) : (
+                            <Bell className="w-5 h-5 text-amber-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400 block font-semibold">Restock Waitlist Request</span>
+                          <span className="text-xs font-semibold truncate block">{pending.productName}</span>
+                          <span className="text-[11px] text-stone-400 block">
+                            {pending.size ? `Size: ${pending.size} · ` : ''}Sign in to complete registration
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                } catch {}
+                return null;
+              })()}
+
               {/* The Jaw-Dropping Google Button Container */}
               <div className="relative pt-2">
                 {/* Ambient dynamic glowing aura behind button */}
@@ -572,12 +606,12 @@ export const AccountDrawer: React.FC = () => {
                   </span>
                   <div className="text-left flex flex-col">
                     <span className="text-xs font-semibold tracking-wide">
-                      Instant Help on WhatsApp
+                      Instant Help
                     </span>
-                    <span className={`text-[10px] font-mono tracking-wider ${
+                    <span className={`text-[10px] tracking-wider ${
                       theme === 'alabaster' ? 'text-emerald-700' : 'text-emerald-400'
                     }`}>
-                      +91 76767 53683 &middot; Atelier Concierge
+                      Atelier Concierge
                     </span>
                   </div>
                   <ArrowUpRight className="w-4 h-4 ml-auto opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
@@ -972,9 +1006,9 @@ export const AccountDrawer: React.FC = () => {
                           </svg>
                         </span>
                         <div className="text-left">
-                          <p className="text-xs font-semibold">Concierge Support</p>
-                          <p className={`text-[10px] font-mono ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
-                            Instant Help on WhatsApp &middot; 7676753683
+                          <p className="text-xs font-semibold">Instant Help</p>
+                          <p className={`text-[10px] ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                            Atelier Concierge
                           </p>
                         </div>
                       </div>

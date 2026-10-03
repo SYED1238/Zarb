@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import type { Product } from '../types/product';
-import { Eye, ShoppingBag, Heart, Check } from 'lucide-react';
+import { Eye, ShoppingBag, Heart, Check, Bell } from 'lucide-react';
 import { getMediaUrl } from '../utils/media';
 
 interface PerfumeProductCardProps {
@@ -21,6 +21,7 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
   const isAlabaster = theme === 'alabaster';
   const [isAdded, setIsAdded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const isOutOfStock = product.stock !== undefined && Number(product.stock) <= 0;
 
   // Check wishlist state
   const isWishlisted = wishlist.includes(product.id);
@@ -156,6 +157,10 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isOutOfStock) {
+      handleInspect(e);
+      return;
+    }
     const defaultVolume = product.volumeMl?.[0] || '6ml';
     const defaultColor = product.colors?.[0]?.name || 'Crystal Flacon';
 
@@ -272,7 +277,12 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
         ) : (
           /* Standard Artwork: Full Glass Badges + Wishlist Button */
           <div className="absolute top-2 sm:top-4 inset-x-2 sm:inset-x-4 flex items-center justify-between z-30 pointer-events-none">
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto flex items-center space-x-1.5">
+              {isOutOfStock && (
+                <span className="inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[8px] sm:text-[9.5px] font-sans font-semibold tracking-wider uppercase backdrop-blur-xl bg-red-600/90 text-white border border-red-400/40 shadow-md">
+                  SOLD OUT
+                </span>
+              )}
               <span
                 id={`badge-concentration-${product.id}`}
                 className="inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-sans font-semibold tracking-[0.12em] sm:tracking-[0.18em] uppercase backdrop-blur-xl bg-black/55 text-[#e5be75] border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]"
@@ -374,32 +384,47 @@ export const PerfumeProductCard: React.FC<PerfumeProductCardProps> = ({
               <Eye className="w-3 h-3 sm:w-4 sm:h-4 stroke-[1.8]" />
             </button>
 
-            {/* ADD TO CART: Glass Amber Pill Button */}
-            <button
-              type="button"
-              id={`add-cart-btn-${product.id}`}
-              aria-label={`Add ${product.name} to shopping bag`}
-              onClick={handleAddToCart}
-              onPointerDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              className={`rounded-full px-2.5 sm:px-4 py-1 sm:py-2 text-[8.5px] sm:text-[11px] font-sans font-semibold tracking-wider uppercase flex items-center space-x-1 sm:space-x-1.5 transition-all duration-300 shadow-md active:scale-95 cursor-pointer ${
-                isAdded
-                  ? 'bg-emerald-500 text-white shadow-emerald-500/30'
-                  : 'bg-gradient-to-r from-[#d9aa5b] via-[#cf9e4f] to-[#be8c3e] hover:from-[#e2b66a] hover:to-[#cb9a4a] text-[#14120e] shadow-[0_4px_14px_rgba(197,148,80,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] hover:shadow-[0_6px_20px_rgba(197,148,80,0.5),inset_0_1px_2px_rgba(255,255,255,0.6)]'
-              }`}
-            >
-              {isAdded ? (
-                <>
-                  <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
-                  <span className="font-bold">ADDED</span>
-                </>
-              ) : (
-                <>
-                  <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.2]" />
-                  <span>ADD</span>
-                </>
-              )}
-            </button>
+            {/* ADD TO CART / NOTIFY: Glass Amber Pill Button */}
+            {isOutOfStock ? (
+              <button
+                type="button"
+                id={`add-cart-btn-${product.id}`}
+                aria-label={`Piece is sold out - inspect to request restock`}
+                onClick={handleInspect}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                className="rounded-full px-2.5 sm:px-3.5 py-1 sm:py-1.5 text-[8.5px] sm:text-[10px] font-sans font-semibold tracking-wider uppercase flex items-center space-x-1 transition-all duration-300 shadow-md active:scale-95 cursor-pointer bg-stone-900/90 text-amber-300 border border-amber-500/40 hover:bg-black"
+              >
+                <Bell className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
+                <span>NOTIFY</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                id={`add-cart-btn-${product.id}`}
+                aria-label={`Add ${product.name} to shopping bag`}
+                onClick={handleAddToCart}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                className={`rounded-full px-2.5 sm:px-4 py-1 sm:py-2 text-[8.5px] sm:text-[11px] font-sans font-semibold tracking-wider uppercase flex items-center space-x-1 sm:space-x-1.5 transition-all duration-300 shadow-md active:scale-95 cursor-pointer ${
+                  isAdded
+                    ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                    : 'bg-gradient-to-r from-[#d9aa5b] via-[#cf9e4f] to-[#be8c3e] hover:from-[#e2b66a] hover:to-[#cb9a4a] text-[#14120e] shadow-[0_4px_14px_rgba(197,148,80,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] hover:shadow-[0_6px_20px_rgba(197,148,80,0.5),inset_0_1px_2px_rgba(255,255,255,0.6)]'
+                }`}
+              >
+                {isAdded ? (
+                  <>
+                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
+                    <span className="font-bold">ADDED</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.2]" />
+                    <span>ADD</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

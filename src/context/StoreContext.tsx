@@ -264,7 +264,7 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const FREE_SHIPPING_THRESHOLD = 10000; // ₹10,000
+const FREE_SHIPPING_THRESHOLD = 0;
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Stored gender preference - defaults strictly to 'women' while men collection is paused
@@ -1340,6 +1340,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addToCart = (product: Product, size: string, color: string, quantity = 1) => {
+    // If product stock is 0 or less, do not allow adding to cart
+    if (product.stock !== undefined && Number(product.stock) <= 0) {
+      showToast(`${product.name} is currently sold out.`);
+      return;
+    }
+
     // Price is always derived from the product catalog — never from client input.
     // The Cashfree edge function also re-validates prices server-side.
     let effectivePrice = product.price;

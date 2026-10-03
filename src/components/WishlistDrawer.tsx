@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 import type { Product } from '../types/product';
-import { X, Heart, ShoppingBag, Trash2 } from 'lucide-react';
+import { X, Heart, ShoppingBag, Trash2, Bell } from 'lucide-react';
 import { getMediaUrl } from '../utils/media';
 
 interface WishlistDrawerProps {
@@ -180,18 +180,39 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ onSelectProduct 
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => handleMoveToBag(product)}
-                    className={`wishlist-move-btn mt-3 w-full py-2 rounded-lg text-xs tracking-[0.15em] uppercase font-medium flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-sm ${
-                      isAlabaster
-                        ? 'bg-stone-950 text-white hover:bg-black'
-                        : 'bg-white hover:bg-stone-200 text-black'
-                    }`}
-                    style={isAlabaster ? { color: '#ffffff', backgroundColor: '#0c0a09' } : undefined}
-                  >
-                    <ShoppingBag className="w-3.5 h-3.5" style={isAlabaster ? { color: '#ffffff', stroke: '#ffffff' } : undefined} />
-                    <span style={isAlabaster ? { color: '#ffffff' } : undefined}>Move to Bag</span>
-                  </button>
+                  {(() => {
+                    const isOutOfStock = product.stock !== undefined && Number(product.stock) <= 0;
+                    if (isOutOfStock) {
+                      return (
+                        <button
+                          onClick={() => {
+                            setIsWishlistOpen(false);
+                            setTimeout(() => {
+                              onSelectProduct(product);
+                            }, 60);
+                          }}
+                          className="wishlist-move-btn mt-3 w-full py-2 rounded-lg text-xs tracking-[0.14em] uppercase font-medium flex items-center justify-center space-x-1.5 transition-colors cursor-pointer bg-stone-900/90 hover:bg-black text-amber-300 border border-amber-500/40 shadow-sm"
+                        >
+                          <Bell className="w-3.5 h-3.5 text-amber-400" />
+                          <span>SOLD OUT &middot; NOTIFY ME</span>
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => handleMoveToBag(product)}
+                        className={`wishlist-move-btn mt-3 w-full py-2 rounded-lg text-xs tracking-[0.15em] uppercase font-medium flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-sm ${
+                          isAlabaster
+                            ? 'bg-stone-950 text-white hover:bg-black'
+                            : 'bg-white hover:bg-stone-200 text-black'
+                        }`}
+                        style={isAlabaster ? { color: '#ffffff', backgroundColor: '#0c0a09' } : undefined}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" style={isAlabaster ? { color: '#ffffff', stroke: '#ffffff' } : undefined} />
+                        <span style={isAlabaster ? { color: '#ffffff' } : undefined}>Move to Bag</span>
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             ))

@@ -48,7 +48,15 @@ import {
   Info,
   Loader2,
   Droplets,
+  Bell,
 } from 'lucide-react';
+import type { RestockRequest } from '../../types/restock';
+import {
+  fetchAllRestockRequests,
+  subscribeToRestockRequests,
+  updateRestockRequestStatus,
+  deleteRestockRequest,
+} from '../../services/restockService';
 import {
   isSupabaseConfigured,
   getSupabaseCredentials,
@@ -262,7 +270,75 @@ export const AdminPortal: React.FC = () => {
   }, []);
 
   // Active Management Tab
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'perfumes' | 'orders' | 'reviews' | 'pricing' | 'backup' | 'shipping'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'perfumes' | 'orders' | 'reviews' | 'pricing' | 'backup' | 'shipping' | 'waitlist'>('products');
+
+  // Client Waitlist & Restock Requests State
+  const [restockRequests, setRestockRequests] = useState<RestockRequest[]>([]);
+  const [isLoadingRestock, setIsLoadingRestock] = useState(false);
+  const [restockSearch, setRestockSearch] = useState('');
+  const [restockStatusFilter, setRestockStatusFilter] = useState<'all' | 'pending' | 'notified'>('all');
+
+  const fetchRestock = async () => {
+    setIsLoadingRestock(true);
+    try {
+      const data = await fetchAllRestockRequests();
+      setRestockRequests(data);
+    } finally {
+      setIsLoadingRestock(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRestock();
+    const unsub = subscribeToRestockRequests((reqs) => {
+      setRestockRequests(reqs);
+    });
+    return unsub;
+  }, []);
+
+  const pendingRestockCount = useMemo(() => {
+    return restockRequests.filter(r => r.status === 'pending').length;
+  }, [restockRequests]);
+
+  const filteredRestockRequests = useMemo(() => {
+    return restockRequests.filter(r => {
+      if (restockStatusFilter !== 'all' && r.status !== restockStatusFilter) return false;
+      if (restockSearch.trim()) {
+        const q = restockSearch.toLowerCase();
+        const matchName = (r.customerName || '').toLowerCase().includes(q);
+        const matchEmail = (r.customerEmail || '').toLowerCase().includes(q);
+        const matchPhone = (r.customerPhone || '').toLowerCase().includes(q);
+        const matchProduct = (r.productName || '').toLowerCase().includes(q);
+        const matchSize = (r.size || '').toLowerCase().includes(q);
+        return matchName || matchEmail || matchPhone || matchProduct || matchSize;
+      }
+      return true;
+    });
+  }, [restockRequests, restockStatusFilter, restockSearch]);
+
+  const handleUpdateRestockStatus = async (id: string, status: 'pending' | 'notified' | 'cancelled') => {
+    await updateRestockRequestStatus(id, status);
+    setRestockRequests(prev => prev.map(r => r.id === id ? { ...r, status, notifiedAt: status === 'notified' ? new Date().toISOString() : r.notifiedAt } : r));
+    showToast(status === 'notified' ? 'Marked client as notified.' : 'Restock request status updated.');
+  };
+
+  const handleDeleteRestockRequest = async (id: string) => {
+    if (!window.confirm('Delete this client restock notification request?')) return;
+    await deleteRestockRequest(id);
+    setRestockRequests(prev => prev.filter(r => r.id !== id));
+    showToast('Waitlist request deleted.');
+  };
+
+  const handleQuickRestockProduct = async (productId: string, currentStock: number) => {
+    const targetProduct = products.find(p => p.id === productId);
+    if (!targetProduct) return;
+    const input = window.prompt(`Enter new inventory stock for "${targetProduct.name}":`, String(Math.max(10, currentStock + 10)));
+    if (input === null) return;
+    const newStock = Math.max(0, parseInt(input, 10) || 0);
+    const updated = { ...targetProduct, stock: newStock };
+    await updateProduct(updated);
+    showToast(`Stock updated to ${newStock} units for ${targetProduct.name}`);
+  };
 
   // Orders State & Handlers
   const [orders, setOrders] = useState<any[]>(() => {
@@ -2079,6 +2155,26 @@ export const AdminPortal: React.FC = () => {
             <Truck className="w-4 h-4 text-sky-400" />
             <span>Shipping & Returns</span>
           </button>
+
+          {/* Tab 8: Client Waitlist Requests */}
+          <button
+            onClick={() => setActiveTab('waitlist')}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-sans tracking-[0.15em] uppercase transition-all cursor-pointer ${
+              activeTab === 'waitlist'
+                ? (theme === 'alabaster' ? 'bg-[#121214] text-white shadow-md' : 'bg-amber-400 text-black font-semibold shadow-lg shadow-amber-400/20')
+                : (theme === 'alabaster' ? 'text-stone-600 hover:text-black hover:bg-stone-100' : 'text-stone-400 hover:text-white hover:bg-white/5')
+            }`}
+          >
+            <Bell className={`w-4 h-4 ${pendingRestockCount > 0 ? (activeTab === 'waitlist' ? 'text-black' : 'text-amber-400') : ''}`} />
+            <span>Waitlist Requests</span>
+            {pendingRestockCount > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'waitlist' ? 'bg-black text-amber-300' : 'bg-amber-400 text-black'
+              }`}>
+                {pendingRestockCount}
+              </span>
+            )}
+          </button>
         </section>
 
         {/* =================================================================== */}
@@ -2285,15 +2381,36 @@ export const AdminPortal: React.FC = () => {
 
                             {/* Inventory */}
                             <td className="py-3.5 px-4 whitespace-nowrap">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
-                                isOut
-                                  ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                  : isLowStock
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              }`}>
-                                {isOut ? 'Out of Stock' : `${product.stock} units`}
-                              </span>
+                              <div className="flex flex-col items-start gap-1">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
+                                  isOut
+                                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                    : isLowStock
+                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                }`}>
+                                  {isOut ? 'Out of Stock' : `${product.stock} units`}
+                                </span>
+                                {(() => {
+                                  const reqCount = restockRequests.filter(r => r.productId === product.id && r.status === 'pending').length;
+                                  if (reqCount === 0) return null;
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRestockSearch(product.name);
+                                        setActiveTab('waitlist');
+                                      }}
+                                      className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/40 transition-colors cursor-pointer"
+                                      title="View client waitlist requests for this piece"
+                                    >
+                                      <Bell className="w-2.5 h-2.5 text-amber-400" />
+                                      <span>{reqCount} Waitlist</span>
+                                    </button>
+                                  );
+                                })()}
+                              </div>
                             </td>
 
                             {/* Editorial & Visibility Badges */}
@@ -4828,6 +4945,307 @@ export const AdminPortal: React.FC = () => {
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB 8: CLIENT WAITLIST & RESTOCK DEMAND                             */}
+        {/* =================================================================== */}
+        {activeTab === 'waitlist' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header Card */}
+            <div className={`p-6 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+              theme === 'alabaster' ? 'bg-white border-stone-200 shadow-xs' : 'bg-[#121216] border-white/10'
+            }`}>
+              <div>
+                <div className="flex items-center space-x-2.5">
+                  <span className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                    <Bell className="w-4 h-4" />
+                  </span>
+                  <h2 className="text-xl font-serif">Client Waitlist & Restock Requests</h2>
+                </div>
+                <p className={`text-xs mt-1.5 ${theme === 'alabaster' ? 'text-stone-500' : 'text-stone-400'}`}>
+                  Verified client inquiries for sold-out pieces. Restock inventory directly or notify clients when replenishment arrives.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-3 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={fetchRestock}
+                  disabled={isLoadingRestock}
+                  className={`px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+                    theme === 'alabaster'
+                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-900 border-stone-300'
+                      : 'bg-white/5 hover:bg-white/10 text-white border-white/10'
+                  }`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRestock ? 'animate-spin' : ''}`} />
+                  <span>Refresh Requests</span>
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className={`p-5 rounded-2xl border ${theme === 'alabaster' ? 'bg-white border-stone-200 shadow-xs' : 'bg-[#121216] border-white/10'}`}>
+                <div className="text-[10px] font-mono tracking-wider text-amber-500 uppercase">Total Demand</div>
+                <div className="text-2xl font-serif mt-1">{restockRequests.length}</div>
+                <div className="text-[11px] text-stone-400 mt-1">Total requests recorded</div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border ${theme === 'alabaster' ? 'bg-white border-stone-200 shadow-xs' : 'bg-[#121216] border-white/10'}`}>
+                <div className="text-[10px] font-mono tracking-wider text-amber-400 uppercase">Pending Restock</div>
+                <div className="text-2xl font-serif mt-1 text-amber-400">{pendingRestockCount}</div>
+                <div className="text-[11px] text-stone-400 mt-1">Awaiting inventory & alert</div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border ${theme === 'alabaster' ? 'bg-white border-stone-200 shadow-xs' : 'bg-[#121216] border-white/10'}`}>
+                <div className="text-[10px] font-mono tracking-wider text-purple-400 uppercase">Pieces In Demand</div>
+                <div className="text-2xl font-serif mt-1">
+                  {new Set(restockRequests.map(r => r.productId)).size}
+                </div>
+                <div className="text-[11px] text-stone-400 mt-1">Unique catalog pieces requested</div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border ${theme === 'alabaster' ? 'bg-white border-stone-200 shadow-xs' : 'bg-[#121216] border-white/10'}`}>
+                <div className="text-[10px] font-mono tracking-wider text-emerald-400 uppercase">Resolved & Notified</div>
+                <div className="text-2xl font-serif mt-1 text-emerald-400">
+                  {restockRequests.filter(r => r.status === 'notified').length}
+                </div>
+                <div className="text-[11px] text-stone-400 mt-1">Clients alerted of restock</div>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4 ${
+              theme === 'alabaster' ? 'bg-white border-stone-200 shadow-xs' : 'bg-[#121216] border-white/10'
+            }`}>
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search client, email, phone, product..."
+                  value={restockSearch}
+                  onChange={e => setRestockSearch(e.target.value)}
+                  className={`w-full pl-9 pr-4 py-2 rounded-xl text-xs border focus:outline-none ${
+                    theme === 'alabaster'
+                      ? 'bg-stone-50 border-stone-300 text-stone-900 focus:border-black'
+                      : 'bg-black/30 border-white/15 text-white focus:border-amber-400'
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+                {(['all', 'pending', 'notified'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setRestockStatusFilter(tab)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                      restockStatusFilter === tab
+                        ? 'bg-amber-400 text-black shadow-sm font-bold'
+                        : theme === 'alabaster'
+                        ? 'bg-stone-100 text-stone-600 hover:text-black'
+                        : 'bg-white/5 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    {tab === 'all' ? `All Requests (${restockRequests.length})` : tab === 'pending' ? `Pending (${pendingRestockCount})` : `Notified (${restockRequests.length - pendingRestockCount})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Requests Table / Cards */}
+            <div className={`rounded-2xl border overflow-hidden ${
+              theme === 'alabaster' ? 'bg-white border-stone-200 shadow-xs' : 'bg-[#121216] border-white/10'
+            }`}>
+              {filteredRestockRequests.length === 0 ? (
+                <div className="p-12 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                    <Bell className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-serif">No Restock Requests Found</h3>
+                  <p className="text-xs text-stone-400 max-w-md mx-auto">
+                    {restockSearch
+                      ? `No inquiries match "${restockSearch}". Try adjusting your search query.`
+                      : 'When clients request notifications on sold-out pieces, their contact details and requested sizes will appear here.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className={`border-b text-[10px] tracking-[0.18em] uppercase ${
+                        theme === 'alabaster' ? 'bg-stone-100 text-stone-600 border-stone-200' : 'bg-white/[0.02] text-stone-400 border-white/10'
+                      }`}>
+                        <th className="py-3 px-4">Client</th>
+                        <th className="py-3 px-4">Requested Piece & Size</th>
+                        <th className="py-3 px-4">Current Stock</th>
+                        <th className="py-3 px-4">Requested On</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {filteredRestockRequests.map((req) => {
+                        const matchedProduct = products.find(p => p.id === req.productId);
+                        const currentStock = matchedProduct?.stock ?? 0;
+                        const isNowRestocked = currentStock > 0;
+                        const cleanPhone = req.customerPhone ? req.customerPhone.replace(/\D/g, '') : '';
+                        const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                        const waMessage = encodeURIComponent(
+                          `Hello ${req.customerName || 'Valued Client'}, good news from ZARB Haute Couture! The piece "${req.productName}"${req.size ? ` (Size: ${req.size})` : ''} that you requested is now restocked and available for order: ${window.location.origin}/?product=${matchedProduct?.slug || req.productId}`
+                        );
+
+                        return (
+                          <tr
+                            key={req.id}
+                            className={`transition-colors ${
+                              theme === 'alabaster' ? 'hover:bg-stone-50' : 'hover:bg-white/[0.02]'
+                            }`}
+                          >
+                            {/* Client Column */}
+                            <td className="py-3.5 px-4">
+                              <div className="font-semibold text-sm">
+                                {req.customerName || 'Valued Client'}
+                              </div>
+                              <div className="flex items-center space-x-2 text-[11px] text-stone-400 mt-0.5">
+                                <span className="font-mono">{req.customerEmail}</span>
+                              </div>
+                              {req.customerPhone && (
+                                <div className="text-[10px] font-mono text-emerald-400 mt-0.5">
+                                  Tel: {req.customerPhone}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Piece & Size Column */}
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center space-x-3">
+                                {req.productImage && (
+                                  <img
+                                    src={req.productImage}
+                                    alt={req.productName}
+                                    className="w-10 h-12 object-cover rounded-lg border border-white/10 shrink-0"
+                                  />
+                                )}
+                                <div>
+                                  <div className="font-medium line-clamp-1">{req.productName}</div>
+                                  <div className="flex items-center space-x-2 mt-0.5">
+                                    {req.size && (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-white/10 text-stone-300">
+                                        Size: {req.size}
+                                      </span>
+                                    )}
+                                    {req.color && (
+                                      <span className="text-[10px] text-stone-400">
+                                        Color: {req.color}
+                                      </span>
+                                    )}
+                                    <span className="text-[11px] font-mono text-amber-400">
+                                      ₹{req.productPrice.toLocaleString('en-IN')}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Current Stock Status Column */}
+                            <td className="py-3.5 px-4 whitespace-nowrap">
+                              {isNowRestocked ? (
+                                <div className="space-y-1">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    ✓ Restocked ({currentStock} in stock)
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/20 text-red-300 border border-red-500/30">
+                                    0 in stock (Sold Out)
+                                  </span>
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleQuickRestockProduct(req.productId, currentStock)}
+                                className="block mt-1 text-[10px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                              >
+                                + Set New Stock
+                              </button>
+                            </td>
+
+                            {/* Requested Date */}
+                            <td className="py-3.5 px-4 text-stone-400 font-mono text-[11px] whitespace-nowrap">
+                              {new Date(req.createdAt).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </td>
+
+                            {/* Status Column */}
+                            <td className="py-3.5 px-4 whitespace-nowrap">
+                              {req.status === 'notified' ? (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  ✓ Notified
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                  Pending Restock
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Actions Column */}
+                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end space-x-2">
+                                {waPhone && (
+                                  <a
+                                    href={`https://wa.me/${waPhone}?text=${waMessage}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[10px] flex items-center space-x-1 shadow-sm transition-colors"
+                                    title="Open WhatsApp chat with prefilled restock notification"
+                                    onClick={() => handleUpdateRestockStatus(req.id, 'notified')}
+                                  >
+                                    <Phone className="w-3 h-3" />
+                                    <span>WhatsApp Alert</span>
+                                  </a>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateRestockStatus(req.id, req.status === 'notified' ? 'pending' : 'notified')}
+                                  className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-semibold transition-colors cursor-pointer ${
+                                    req.status === 'notified'
+                                      ? 'border-white/10 hover:bg-white/5 text-stone-400'
+                                      : 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                                  }`}
+                                  title="Toggle status"
+                                >
+                                  {req.status === 'notified' ? 'Mark Pending' : 'Mark Notified'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRestockRequest(req.id)}
+                                  className="p-1.5 rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                  title="Delete request"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

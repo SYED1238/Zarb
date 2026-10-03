@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Product } from '../types/product';
 import { useStore } from '../context/StoreContext';
-import { Heart, Eye, ShoppingBag, Star } from 'lucide-react';
+import { Heart, Eye, ShoppingBag, Star, Bell } from 'lucide-react';
 import { getMediaUrl } from '../utils/media';
 import { getCategoryBySlug } from '../data/categories';
 
@@ -17,6 +17,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
 
   const isSaved = wishlist.includes(product.id);
+  const isOutOfStock = product.stock !== undefined && Number(product.stock) <= 0;
 
   const isPerfume = Boolean(product.isPerfume || product.category === 'perfumes');
 
@@ -41,6 +42,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isOutOfStock) {
+      onQuickView(product);
+      return;
+    }
     const defaultSize = product.sizes?.[0] || 'Standard';
     const defaultColor = isPerfume ? '' : (product.colors?.[selectedColorIndex]?.name || 'Standard');
     addToCart(product, defaultSize, defaultColor, 1);
@@ -101,25 +106,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         {/* Subtle dark gradient at bottom for contrast */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 pointer-events-none opacity-40 group-hover:opacity-60 transition-opacity" />
 
-        {/* Badges: New Season / Best Seller */}
+        {/* Badges: Sold Out / New Season / Best Seller */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-          {product.newArrival && (
-            <span className="product-badge-new text-[9px] font-sans font-semibold uppercase tracking-[0.25em] bg-white text-black px-2.5 py-0.5 rounded-full shadow-md border border-black/10">
-              NEW
+          {isOutOfStock ? (
+            <span className="text-[9px] font-sans font-semibold uppercase tracking-[0.2em] bg-red-600/90 backdrop-blur-md text-white px-2.5 py-0.5 rounded-full shadow-md border border-red-400/30">
+              SOLD OUT
             </span>
+          ) : (
+            <>
+              {product.newArrival && (
+                <span className="product-badge-new text-[9px] font-sans font-semibold uppercase tracking-[0.25em] bg-white text-black px-2.5 py-0.5 rounded-full shadow-md border border-black/10">
+                  NEW
+                </span>
+              )}
+              {product.bestSeller && (
+                <span className="product-badge-edition text-[9px] font-sans font-medium uppercase tracking-[0.25em] bg-black/80 backdrop-blur-md text-stone-200 border border-white/20 px-2.5 py-0.5 rounded-full shadow-md">
+                  EDITION
+                </span>
+              )}
+            </>
           )}
-          {product.bestSeller && (
-            <span className="product-badge-edition text-[9px] font-sans font-medium uppercase tracking-[0.25em] bg-black/80 backdrop-blur-md text-stone-200 border border-white/20 px-2.5 py-0.5 rounded-full shadow-md">
-              EDITION
-            </span>
-          )}
-          {/* Percent off badge temporarily removed per request - preserved for future restoration
-          {discountPercent > 0 && (
-            <span className="text-[9px] font-sans font-semibold uppercase tracking-[0.15em] bg-emerald-500 text-white px-2.5 py-0.5 rounded-full shadow-md">
-              {discountPercent}% OFF
-            </span>
-          )}
-          */}
         </div>
 
         {/* Floating Wishlist Heart */}
@@ -137,13 +143,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
 
         {/* Quick Actions overlay on desktop hover */}
         <div className="absolute bottom-3 inset-x-3 hidden sm:flex items-center space-x-2 z-10 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-          <button
-            onClick={handleQuickAdd}
-            className="product-quick-add flex-1 py-2.5 px-3 rounded-xl text-[11px] font-sans font-semibold uppercase tracking-[0.2em] flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-          >
-            <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-            <span>QUICK ADD</span>
-          </button>
+          {isOutOfStock ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickView(product);
+              }}
+              className="flex-1 py-2.5 px-3 rounded-xl text-[10px] font-sans font-semibold uppercase tracking-[0.16em] flex items-center justify-center space-x-1.5 transition-all bg-stone-900/90 hover:bg-black text-amber-300 border border-amber-500/40 shadow-lg cursor-pointer active:scale-95"
+            >
+              <Bell className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>NOTIFY ME</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleQuickAdd}
+              className="product-quick-add flex-1 py-2.5 px-3 rounded-xl text-[11px] font-sans font-semibold uppercase tracking-[0.2em] flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+              <span>QUICK ADD</span>
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();

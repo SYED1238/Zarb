@@ -27,7 +27,10 @@ import {
   ChevronRight,
   Share2,
   ArrowUpRight,
+  Bell,
+  AlertCircle,
 } from 'lucide-react';
+import { addRestockRequest, hasUserRequestedRestock } from '../services/restockService';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -54,10 +57,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     theme,
   } = useStore();
 
-  const { user } = useAuth();
+  const { user, setIsAccountDrawerOpen } = useAuth();
   const shippingConfig = useShippingConfig();
   const effectiveReturnDays = product?.returnDays !== undefined ? product.returnDays : (shippingConfig.returnDays ?? 30);
 
+  // Core Product State (declared first to avoid Temporal Dead Zone in effects)
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
@@ -66,6 +70,94 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  // Check if piece is out of stock
+  const isOutOfStock = Boolean(product && product.stock !== undefined && Number(product.stock) <= 0);
+
+  // Check if current user already submitted a restock notification request
+  const [hasNotified, setHasNotified] = useState(false);
+  useEffect(() => {
+    if (product && user) {
+      setHasNotified(hasUserRequestedRestock(product.id, user.id, selectedSize));
+    } else {
+      setHasNotified(false);
+    }
+  }, [product?.id, user?.id, selectedSize]);
+
+  // Auto-enroll if user was prompted to login for a pending restock item
+  useEffect(() => {
+    if (!user || !product) return;
+    try {
+      const pendingStr = sessionStorage.getItem('zarb_pending_restock');
+      if (pendingStr) {
+        const pending = JSON.parse(pendingStr);
+        if (pending.productId === product.id) {
+          sessionStorage.removeItem('zarb_pending_restock');
+          addRestockRequest({
+            productId: product.id,
+            productName: product.name,
+            productImage: (product.images && product.images[0]) || '',
+            productPrice: product.price,
+            size: pending.size || selectedSize || undefined,
+            color: pending.color || selectedColor || undefined,
+            userId: user.id,
+            customerName: user.fullName || 'Valued Client',
+            customerEmail: user.email,
+            customerPhone: user.phone || undefined,
+          }).then(() => {
+            setHasNotified(true);
+            showToast(`✓ Welcome ${user.fullName || user.email}! You are now enrolled in the restock waitlist for ${product.name}.`);
+          }).catch(() => {});
+        }
+      }
+    } catch {}
+  }, [user, product?.id, selectedSize, selectedColor]);
+
+  const handleNotifyMe = async () => {
+    if (!product) return;
+
+    // Login is strictly mandatory for restock notifications
+    if (!user) {
+      try {
+        sessionStorage.setItem('zarb_pending_restock', JSON.stringify({
+          productId: product.id,
+          productName: product.name,
+          productImage: (product.images && product.images[0]) || '',
+          productPrice: product.price,
+          size: selectedSize || undefined,
+          color: selectedColor || undefined,
+        }));
+      } catch {}
+      showToast('Login required · Please sign in to join the restock waitlist.');
+      setIsAccountDrawerOpen(true);
+      return;
+    }
+
+    if (hasNotified) {
+      showToast('You are already on the priority waitlist for this piece!');
+      return;
+    }
+
+    try {
+      await addRestockRequest({
+        productId: product.id,
+        productName: product.name,
+        productImage: (product.images && product.images[0]) || '',
+        productPrice: product.price,
+        size: selectedSize || undefined,
+        color: selectedColor || undefined,
+        userId: user.id,
+        customerName: user.fullName || 'Valued Client',
+        customerEmail: user.email,
+        customerPhone: user.phone || undefined,
+      });
+
+      setHasNotified(true);
+      showToast(`✓ Waitlist joined! We will notify you when ${product.name} is restocked.`);
+    } catch {
+      showToast('Could not register waitlist request. Please try again.');
+    }
+  };
 
   // Dedicated Ref for Main Image Desktop Magnifier
   const mainImageRef = useRef<HTMLImageElement>(null);
@@ -331,10 +423,18 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   const handleAddToBag = () => {
+    if (isOutOfStock) {
+      showToast(`${product.name} is currently sold out. Please join the waitlist.`);
+      return;
+    }
     addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity);
   };
 
   const handleBuyNow = () => {
+    if (isOutOfStock) {
+      showToast(`${product.name} is currently sold out. Please join the waitlist.`);
+      return;
+    }
     addToCart(product, selectedSize, isPerfume ? '' : selectedColor, quantity);
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
@@ -579,6 +679,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <span className="pdp-taxes text-[11px] uppercase tracking-[0.15em] text-emerald-400/90 pl-2">
                     Taxes Included
                   </span>
+                  {isOutOfStock && (
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-sans font-bold uppercase tracking-wider ml-auto ${
+                      isAlabaster
+                        ? 'bg-[#dc2626] text-white shadow-sm'
+                        : 'bg-[#b91c1c] text-white border border-red-500 shadow-sm'
+                    }`}>
+                      Sold Out
+                    </span>
+                  )}
                 </div>
 
                 {/* Short Description */}
@@ -737,76 +846,154 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
                 {/* Quantity and Actions */}
                 <div className="space-y-3 mb-8">
-                  <div className="flex items-center space-x-4">
-                    {/* Quantity Stepper */}
-                    <div className="pdp-quantity-stepper flex items-center bg-white/[0.05] border border-white/10 rounded-xl px-3 py-2">
-                      <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="p-1 text-stone-400 hover:text-white disabled:opacity-30 cursor-pointer"
-                        disabled={quantity <= 1}
-                        aria-label="Decrease quantity"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="pdp-quantity-num w-8 text-center text-sm font-mono text-white">
-                        {quantity}
-                      </span>
-                      <button
-                        onClick={() => setQuantity(quantity + 1)}
-                        className="p-1 text-stone-400 hover:text-white cursor-pointer"
-                        aria-label="Increase quantity"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                  {isOutOfStock ? (
+                    <div className="space-y-3">
+                      {/* SOLD OUT · RESTOCK SOON Notice (High Contrast & Prominent) */}
+                      <div className={`w-full py-3.5 px-4 rounded-xl flex items-center justify-center space-x-2 text-xs font-bold tracking-[0.22em] uppercase shadow-md ${
+                        isAlabaster
+                          ? 'bg-[#dc2626] text-white border border-red-700'
+                          : 'bg-[#b91c1c] text-white border border-red-600'
+                      }`}>
+                        <AlertCircle className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
+                        <span>SOLD OUT &middot; RESTOCK SOON</span>
+                      </div>
+
+                      {/* NOTIFY ME Action Row (Normal Luxury Button, prompts sign-in if guest) */}
+                      <div className="flex items-center space-x-3">
+                        <button
+                          type="button"
+                          onClick={handleNotifyMe}
+                          className={`flex-1 py-3.5 px-6 rounded-xl font-sans font-semibold text-xs sm:text-sm tracking-[0.18em] uppercase flex items-center justify-center space-x-2.5 transition-all duration-300 shadow-xl cursor-pointer active:scale-[0.99] ${
+                            hasNotified
+                              ? 'bg-emerald-950/60 border border-emerald-500/60 text-emerald-300 shadow-emerald-950/20'
+                              : isAlabaster
+                              ? 'bg-stone-900 hover:bg-black text-amber-300 hover:text-amber-200 border border-stone-800'
+                              : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold'
+                          }`}
+                        >
+                          {hasNotified ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span>✓ WAITLIST JOINED &middot; NOTIFICATION ACTIVE</span>
+                            </>
+                          ) : (
+                            <>
+                              <Bell className="w-4 h-4 shrink-0" />
+                              <span>NOTIFY ME WHEN RESTOCKED</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Wishlist Button */}
+                        <button
+                          onClick={() => toggleWishlist(product.id)}
+                          className={`pdp-wishlist-btn p-3.5 rounded-xl border transition-colors cursor-pointer ${
+                            isSaved
+                              ? 'bg-white/15 text-red-500 border-red-500/40'
+                              : 'bg-white/[0.05] text-stone-300 hover:text-white border-white/10 hover:border-white/30'
+                          }`}
+                          aria-label="Save to Wishlist"
+                        >
+                          <Heart className={`w-5 h-5 ${isSaved ? 'fill-red-500' : ''}`} />
+                        </button>
+
+                        {/* Share Button */}
+                        <button
+                          onClick={handleShare}
+                          className="pdp-share-btn p-3.5 rounded-xl border bg-white/[0.05] text-stone-300 hover:text-white border-white/10 hover:border-white/30 transition-colors cursor-pointer active:scale-95"
+                          aria-label="Share this product"
+                          title="Share this product"
+                        >
+                          <Share2 className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <p className={`text-[11px] text-center font-sans tracking-wide pt-1 ${isAlabaster ? 'text-stone-500' : 'text-stone-400'}`}>
+                        {user ? (
+                          hasNotified ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Notification alert registered for {user.email}. We will notify you immediately once restocked.</span>
+                          ) : (
+                            <span>Connected account: <strong className={isAlabaster ? 'text-stone-800' : 'text-stone-200'}>{user.email}</strong> &middot; Click above to join the restock waitlist.</span>
+                          )
+                        ) : (
+                          <span>Get notified the moment this handcrafted piece is restocked.</span>
+                        )}
+                      </p>
                     </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center space-x-4">
+                        {/* Quantity Stepper */}
+                        <div className="pdp-quantity-stepper flex items-center bg-white/[0.05] border border-white/10 rounded-xl px-3 py-2">
+                          <button
+                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                            className="p-1 text-stone-400 hover:text-white disabled:opacity-30 cursor-pointer"
+                            disabled={quantity <= 1}
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="pdp-quantity-num w-8 text-center text-sm font-mono text-white">
+                            {quantity}
+                          </span>
+                          <button
+                            onClick={() => setQuantity(quantity + 1)}
+                            className="p-1 text-stone-400 hover:text-white cursor-pointer"
+                            aria-label="Increase quantity"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
 
-                    {/* Add to Bag Button */}
-                    <button
-                      onClick={handleAddToBag}
-                      className="pdp-add-to-bag flex-1 py-3.5 px-6 rounded-xl font-sans font-medium text-xs sm:text-sm tracking-[0.2em] uppercase flex items-center justify-center space-x-2 transition-all duration-300 shadow-xl cursor-pointer"
-                    >
-                      <ShoppingBag className="w-4 h-4 pdp-bag-icon" />
-                      <span className="pdp-bag-text">ADD TO BAG</span>
-                    </button>
+                        {/* Add to Bag Button */}
+                        <button
+                          onClick={handleAddToBag}
+                          className="pdp-add-to-bag flex-1 py-3.5 px-6 rounded-xl font-sans font-medium text-xs sm:text-sm tracking-[0.2em] uppercase flex items-center justify-center space-x-2 transition-all duration-300 shadow-xl cursor-pointer"
+                        >
+                          <ShoppingBag className="w-4 h-4 pdp-bag-icon" />
+                          <span className="pdp-bag-text">ADD TO BAG</span>
+                        </button>
 
-                    {/* Wishlist Button */}
-                    <button
-                      onClick={() => toggleWishlist(product.id)}
-                      className={`pdp-wishlist-btn p-3.5 rounded-xl border transition-colors cursor-pointer ${
-                        isSaved
-                          ? 'bg-white/15 text-red-500 border-red-500/40'
-                          : 'bg-white/[0.05] text-stone-300 hover:text-white border-white/10 hover:border-white/30'
-                      }`}
-                      aria-label="Save to Wishlist"
-                    >
-                      <Heart className={`w-5 h-5 ${isSaved ? 'fill-red-500' : ''}`} />
-                    </button>
+                        {/* Wishlist Button */}
+                        <button
+                          onClick={() => toggleWishlist(product.id)}
+                          className={`pdp-wishlist-btn p-3.5 rounded-xl border transition-colors cursor-pointer ${
+                            isSaved
+                              ? 'bg-white/15 text-red-500 border-red-500/40'
+                              : 'bg-white/[0.05] text-stone-300 hover:text-white border-white/10 hover:border-white/30'
+                          }`}
+                          aria-label="Save to Wishlist"
+                        >
+                          <Heart className={`w-5 h-5 ${isSaved ? 'fill-red-500' : ''}`} />
+                        </button>
 
-                    {/* Share Button */}
-                    <button
-                      onClick={handleShare}
-                      className="pdp-share-btn p-3.5 rounded-xl border bg-white/[0.05] text-stone-300 hover:text-white border-white/10 hover:border-white/30 transition-colors cursor-pointer active:scale-95"
-                      aria-label="Share this product"
-                      title="Share this product"
-                    >
-                      <Share2 className="w-5 h-5" />
-                    </button>
-                  </div>
+                        {/* Share Button */}
+                        <button
+                          onClick={handleShare}
+                          className="pdp-share-btn p-3.5 rounded-xl border bg-white/[0.05] text-stone-300 hover:text-white border-white/10 hover:border-white/30 transition-colors cursor-pointer active:scale-95"
+                          aria-label="Share this product"
+                          title="Share this product"
+                        >
+                          <Share2 className="w-5 h-5" />
+                        </button>
+                      </div>
 
-                  {/* BUY NOW Button */}
-                  <button
-                    onClick={handleBuyNow}
-                    className="pdp-buy-now w-full py-3 px-6 rounded-xl font-sans font-medium text-xs tracking-[0.2em] uppercase border transition-all cursor-pointer"
-                  >
-                    <span>BUY NOW &middot; INSTANT CHECKOUT</span>
-                  </button>
+                      {/* BUY NOW Button */}
+                      <button
+                        onClick={handleBuyNow}
+                        className="pdp-buy-now w-full py-3 px-6 rounded-xl font-sans font-medium text-xs tracking-[0.2em] uppercase border transition-all cursor-pointer"
+                      >
+                        <span>BUY NOW &middot; INSTANT CHECKOUT</span>
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* Value Props Bar */}
                 <div className="pdp-value-props grid grid-cols-3 gap-2 py-4 border-y border-white/10 text-stone-400 text-[11px] text-center">
                   <div className="flex flex-col items-center">
                     <Truck className="w-4 h-4 mb-1 text-stone-300" />
-                    <span>Free Shipping &gt; ₹10k</span>
+                    <span>Free Shipping</span>
                   </div>
                   <div className="flex flex-col items-center border-x border-white/10 px-2">
                     <RotateCcw className={`w-4 h-4 mb-1 ${effectiveReturnDays === 0 ? 'text-amber-400' : 'text-stone-300'}`} />
@@ -885,7 +1072,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     </button>
                     {openAccordion === 'shipping' && (
                       <div className="pdp-accordion-content pb-4 text-xs text-stone-400 leading-relaxed space-y-1.5 animate-fade-in">
-                        <p>Complimentary express courier shipping on orders over ₹10,000.</p>
+                        <p>
+                          {shippingConfig.mode === 'free'
+                            ? (shippingConfig.freeShippingMessage || 'Complimentary express courier shipping on all orders.')
+                            : shippingConfig.freeAbove > 0
+                            ? `Complimentary express courier shipping on orders over ₹${shippingConfig.freeAbove.toLocaleString('en-IN')}.`
+                            : 'Express courier delivery across India.'}
+                        </p>
                         <p>Standard delivery: 2–4 business days within India in luxury gift packaging.</p>
                         {effectiveReturnDays === 0 ? (
                           <p className="text-amber-300/90 font-medium">This artisanal piece is a final sale and not eligible for return or exchange.</p>

@@ -38,23 +38,16 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
   freeAbove: 0,
   tiers: [
     {
-      id: 'tier_standard',
-      label: 'Standard Delivery',
-      minOrderAmount: 0,
-      cost: 99,
-      estimatedDays: '5-7 business days',
-    },
-    {
       id: 'tier_express',
-      label: 'White-Glove Express',
-      minOrderAmount: 2000,
+      label: 'Free Express Delivery',
+      minOrderAmount: 0,
       cost: 0,
-      estimatedDays: '2-3 business days',
+      estimatedDays: '2-4 business days',
     },
   ],
-  freeShippingMessage: 'Complimentary White-Glove Delivery on all orders',
+  freeShippingMessage: '100% Free Express Delivery on all orders',
   returnDays: 30,
-  returnPolicyNote: 'Prepaid complimentary returns and exchanges within 30 calendar days of delivery.',
+  returnPolicyNote: 'Complimentary returns and exchanges within 30 days of delivery.',
   updatedAt: new Date().toISOString(),
 };
 
@@ -66,7 +59,15 @@ export function loadShippingConfig(): ShippingConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return { ...DEFAULT_SHIPPING_CONFIG, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_SHIPPING_CONFIG,
+        ...parsed,
+        mode: 'free',
+        flatRate: 0,
+        freeAbove: 0,
+        freeShippingMessage: '100% Free Express Delivery on all orders',
+      };
     }
   } catch {}
   return { ...DEFAULT_SHIPPING_CONFIG };
@@ -197,64 +198,14 @@ export function useShippingConfig(): ShippingConfig {
 /**
  * Calculate shipping cost for a given cart subtotal using given or cached config.
  */
-export function calculateShippingCost(subtotal: number, customConfig?: ShippingConfig): number {
-  const config = customConfig || loadShippingConfig();
-
-  switch (config.mode) {
-    case 'free':
-      return 0;
-
-    case 'flat': {
-      if (config.freeAbove > 0 && subtotal >= config.freeAbove) {
-        return 0;
-      }
-      return config.flatRate;
-    }
-
-    case 'tiered': {
-      const sorted = [...config.tiers].sort((a, b) => b.minOrderAmount - a.minOrderAmount);
-      for (const tier of sorted) {
-        if (subtotal >= tier.minOrderAmount) {
-          return tier.cost;
-        }
-      }
-      return config.tiers[0]?.cost ?? 0;
-    }
-
-    default:
-      return 0;
-  }
+export function calculateShippingCost(_subtotal?: number, _customConfig?: ShippingConfig): number {
+  return 0;
 }
 
 /**
  * Get human-readable shipping label for display in cart and checkout.
  */
-export function getShippingLabel(subtotal: number, customConfig?: ShippingConfig): string {
+export function getShippingLabel(_subtotal?: number, customConfig?: ShippingConfig): string {
   const config = customConfig || loadShippingConfig();
-
-  switch (config.mode) {
-    case 'free':
-      return config.freeShippingMessage || 'Complimentary Delivery';
-
-    case 'flat': {
-      if (config.freeAbove > 0 && subtotal >= config.freeAbove) {
-        return 'Complimentary Delivery (Free above ₹' + config.freeAbove.toLocaleString('en-IN') + ')';
-      }
-      if (config.flatRate === 0) return 'Complimentary Delivery';
-      return `Flat Rate Delivery — ₹${config.flatRate}`;
-    }
-
-    case 'tiered': {
-      const sorted = [...config.tiers].sort((a, b) => b.minOrderAmount - a.minOrderAmount);
-      for (const tier of sorted) {
-        if (subtotal >= tier.minOrderAmount) {
-          return `${tier.label} — ${tier.cost === 0 ? 'Complimentary' : '₹' + tier.cost} (${tier.estimatedDays})`;
-        }
-      }
-      return 'Standard Delivery';
-    }
-
-    default:
-      return 'Complimentary Delivery';
-  }
+  return config.freeShippingMessage || 'Free Express Delivery';
 }
